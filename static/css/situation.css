@@ -79,7 +79,7 @@ body {
 }
 .zoom button:hover { color: var(--text); border-color: var(--muted); }
 .zoom .zoom-world { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; display: none; }
-.theatre.zoomed .zoom .zoom-world, .theatre.focused .zoom .zoom-world { display: block; }
+.theatre.zoomed .zoom .zoom-world { display: block; }
 .map .sphere { fill: #081012; stroke: var(--line-2); stroke-width: 0.6; }
 .map .grid { fill: none; stroke: var(--grid); stroke-width: 0.6; }
 .map .land { fill: var(--land); stroke: var(--land-edge); stroke-width: 0.45; transition: fill 0.3s; }

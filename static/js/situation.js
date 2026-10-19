@@ -18,6 +18,9 @@
     let openId = null;
     let filter = null;                 // { label, isos?: Set, ids?: Set, track?: [] } when the list shows one place
     let failure = null;                // 'offline' | 'signed-out' while refreshes fail
+    // While a headline is open and the map went to it, where the map was before;
+    // null once the user moves the map themselves (then closing leaves it be).
+    let following = null;
 
     function el(tag, attrs = {}, parent) {
         const node = document.createElementNS(NS, tag);
@@ -119,8 +122,11 @@
 
     let tween = 0;                     // the running animation; a newer view cancels it
 
+    let goal = null;                   // where the map is headed (the view, once any animation ends)
+
     function setView(v, animate = false) {
         const to = v && clamp(v);
+        goal = to;
         const mine = ++tween;
         if (!animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             view = to;
@@ -166,8 +172,6 @@
             const close = v.w < DETAIL_W;
             const theatre = document.querySelector('.theatre');
             theatre.classList.toggle('zoomed', !!view);
-            theatre.classList.toggle('focused', !!filter);
-            document.querySelector('.zoom-world').textContent = filter ? 'Show all' : 'World';
             document.querySelector('.theatre').classList.toggle('close', close);
             drawDetail(v, close);
             const taken = drawPins(upp, close);                  // the news first: cities give way to it
@@ -408,10 +412,12 @@
         const svg = $('map');
         svg.addEventListener('wheel', (e) => {
             e.preventDefault();
+            following = null;
             const [mx, my] = toMap(e.clientX, e.clientY);
             zoomAt(mx, my, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
         }, { passive: false });
         svg.addEventListener('dblclick', (e) => {
+            following = null;
             const [mx, my] = toMap(e.clientX, e.clientY);
             zoomAt(mx, my, 2);
         });
@@ -430,12 +436,14 @@
                 const dy = e.clientY - gesture.start[1];
                 if (!dragged && Math.hypot(dx, dy) < 5) return;
                 dragged = true;
+                following = null;
                 setView({ ...v0, x: v0.x - (dx / r.width) * v0.w, y: v0.y - (dy / r.height) * v0.h });
             } else if (pointers.size === 2) {
                 const [a, b] = [...pointers.values()];
                 const [a0, b0] = [...gesture.pts.values()].length === 2 ? [...gesture.pts.values()] : [a, b];
                 if (gesture.pts.size !== 2) gesture.pts = new Map(pointers);
                 dragged = true;
+                following = null;
                 const d0 = Math.hypot(a0[0] - b0[0], a0[1] - b0[1]) || 1;
                 const factor = Math.hypot(a[0] - b[0], a[1] - b[1]) / d0;
                 const mid0 = [(a0[0] + b0[0]) / 2 - r.left, (a0[1] + b0[1]) / 2 - r.top];
@@ -458,7 +466,8 @@
             const b = e.target.closest('button');
             if (!b) return;
             const v = current();
-            if (b.dataset.zoom === 'world') return filter ? clearFilter() : setView(null, true);
+            following = null;                                    // the map is the user's now
+            if (b.dataset.zoom === 'world') return setView(null, true);
             zoomAt(v.x + v.w / 2, v.y + v.h / 2, b.dataset.zoom === 'in' ? 2 : 0.5);
         });
     }
@@ -555,13 +564,21 @@
         $('notice').hidden = !notice;
     }
 
-    /** Open or close a headline. Opening one also takes the map to it; the list stays as it is. */
+    /** Open or close a headline. Opening one takes the map to it and closing it takes
+     * the map back; the list stays as it is. */
     function toggle(id, open) {
         openId = open ?? openId !== id ? id : null;
         document.querySelectorAll('.item[data-id]').forEach((n) => n.classList.toggle('open', Number(n.dataset.id) === openId));
         const story = openId != null && [...data.stories, ...data.earlier].find((s) => s.id === openId);
-        if (story) showOnMap(story);
-        else render();
+        if (story) {
+            following ??= { view: goal };                        // keep the first view, across several headlines
+            showOnMap(story);
+        } else if (following) {
+            setView(following.view, true);
+            following = null;
+        } else {
+            render();
+        }
     }
 
     /** The places a story names in its country, or else the country itself. */
@@ -578,6 +595,7 @@
 
     function showPlace(label, isos, { zoom = null, track = null } = {}) {
         filter = { label, isos: new Set(isos), track };
+        following = null;
         showFiltered();
         if (track?.length) {
             setView(fit([Math.min(...track.map((t) => t.x)), Math.min(...track.map((t) => t.y)),
@@ -602,6 +620,7 @@
     /** Back to everything: the whole list, and the whole world. */
     function clearFilter() {
         filter = null;
+        following = null;
         drawFeed();
         setView(null, true);
     }
