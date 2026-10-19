@@ -2,6 +2,7 @@
 title = "Situation"
 description = "Major world news on a map"
 icon = "icon.svg"
+accent = "#ffb020"
 port = 8000
 health = "/healthz"
 data = "/app/instance"
