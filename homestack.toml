@@ -1,7 +1,7 @@
 # How the home stack runs this app (see the dashboard's docs/APPS.md).
 title = "Situation"
 description = "Major world news on a map"
-icon = "globe"
+icon = "icon.svg"
 port = 8000
 health = "/healthz"
 data = "/app/instance"

@@ -27,6 +27,8 @@ The server also fetches every 15 minutes on its own (`FETCH_LOOP=0` turns that o
 
 Tests and lint: `uv run pytest` and `uvx ruff check .` The tests run on a real snapshot from 18 October 2026.
 
+On the home stack it's added from the dashboard's Deploy tab, which reads `homestack.toml`.
+
 ### Settings
 
 | Variable | Does |
