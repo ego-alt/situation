@@ -164,7 +164,10 @@
             $('map').setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
             const upp = v.w / (screen().r.width || 1);            // map units per screen pixel
             const close = v.w < DETAIL_W;
-            document.querySelector('.theatre').classList.toggle('zoomed', !!view);
+            const theatre = document.querySelector('.theatre');
+            theatre.classList.toggle('zoomed', !!view);
+            theatre.classList.toggle('focused', !!filter);
+            document.querySelector('.zoom-world').textContent = filter ? 'Show all' : 'World';
             document.querySelector('.theatre').classList.toggle('close', close);
             drawDetail(v, close);
             const taken = drawPins(upp, close);                  // the news first: cities give way to it
@@ -335,7 +338,8 @@
             const r = close ? MIN_DOT_PX * upp * (m.stories.length > 1 ? 1.3 : 1)
                 : Math.max(Math.min(9, 2.5 + m.top.outlets * 0.6), MIN_DOT_PX * upp);
             const ids = m.stories.map((s) => s.id);
-            const selected = filter && (filter.ids ? ids.some((id) => filter.ids.has(id)) : filter.isos?.has(m.iso)) ? ' selected' : '';
+            const picked = filter && (filter.ids ? ids.some((id) => filter.ids.has(id)) : filter.isos?.has(m.iso));
+            const selected = picked || ids.includes(openId) ? ' selected' : '';
             const g = el('g', {
                 class: `pin ${m.kind}${selected}`, 'data-iso': m.iso, tabindex: 0, role: 'button',
                 'aria-label': `${m.place}: ${m.stories.length} ${m.stories.length > 1 ? 'stories' : 'story'}`,
@@ -454,7 +458,7 @@
             const b = e.target.closest('button');
             if (!b) return;
             const v = current();
-            if (b.dataset.zoom === 'world') return setView(null, true);
+            if (b.dataset.zoom === 'world') return filter ? clearFilter() : setView(null, true);
             zoomAt(v.x + v.w / 2, v.y + v.h / 2, b.dataset.zoom === 'in' ? 2 : 0.5);
         });
     }
@@ -551,9 +555,25 @@
         $('notice').hidden = !notice;
     }
 
+    /** Open or close a headline. Opening one also takes the map to it; the list stays as it is. */
     function toggle(id, open) {
         openId = open ?? openId !== id ? id : null;
         document.querySelectorAll('.item[data-id]').forEach((n) => n.classList.toggle('open', Number(n.dataset.id) === openId));
+        const story = openId != null && [...data.stories, ...data.earlier].find((s) => s.id === openId);
+        if (story) showOnMap(story);
+        else render();
+    }
+
+    /** The places a story names in its country, or else the country itself. */
+    function showOnMap(story) {
+        const here = (story.spots || []).filter((p) => p.iso === story.iso);
+        if (here.length) {
+            const xs = here.map((p) => p.x);
+            const ys = here.map((p) => p.y);
+            setView(fit([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], 12), true);
+        } else if (story.iso) {
+            zoomTo([story.iso]);
+        }
     }
 
     function showPlace(label, isos, { zoom = null, track = null } = {}) {
@@ -579,9 +599,11 @@
         else intel.scrollTop = 0;
     }
 
+    /** Back to everything: the whole list, and the whole world. */
     function clearFilter() {
         filter = null;
         drawFeed();
+        setView(null, true);
     }
 
     $('feed').addEventListener('click', (e) => {
