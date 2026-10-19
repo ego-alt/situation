@@ -10,5 +10,5 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . /app/
 RUN uv sync --frozen --no-dev
 
-EXPOSE 5004
+EXPOSE 8000
 CMD ["sh", "-c", "exec uv run gunicorn 'app:create_app()' -c gunicorn.conf.py"]

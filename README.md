@@ -20,7 +20,7 @@ How importance is decided, and what comes next: [`docs/plan.md`](docs/plan.md).
 ```sh
 uv sync
 uv run flask --app app:create_app fetch                     # fetch once
-uv run flask --app app:create_app run --port 5004           # http://127.0.0.1:5004
+uv run flask --app app:create_app run --port 8000           # http://127.0.0.1:8000
 ```
 
 The server also fetches every 15 minutes on its own (`FETCH_LOOP=0` turns that off). `uv run flask --app app:create_app brief` prints today's top headlines, as the morning brief will send them.

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import click
 from flask import Flask, jsonify, render_template, send_from_directory
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import Story, db, utcnow
 from score import clean_title
@@ -27,6 +28,9 @@ def create_app(config=None):
     db.init_app(app)
     with app.app_context():
         db.create_all()
+    # Behind the dashboard's nginx at /situation/: trust its X-Forwarded-*
+    # headers, so url_for() and request.script_root include the prefix.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
     @app.route("/")
     def index():

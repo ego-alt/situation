@@ -46,3 +46,9 @@ def test_projection_fits_the_map():
     for lon, lat in ((-180, 0), (180, 0), (0, 90), (0, -60)):
         x, y = project(lon, lat)
         assert -1 <= x <= WIDTH + 1 and -1 <= y <= HEIGHT + 1
+
+
+def test_links_carry_the_stack_prefix(app):
+    page = app.test_client().get("/", headers={"X-Forwarded-Prefix": "/situation"})
+    assert b'href="/situation/static/css/situation.css' in page.data
+    assert b'window.APP_ROOT = "/situation"' in page.data
