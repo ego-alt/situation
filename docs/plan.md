@@ -81,7 +81,8 @@ Data older than 30 days is pruned; story headlines are kept for the weekly view.
 ## Phases
 
 1. **Scaffold (done):** fetch the RSS and ITN sources; cluster, place, score and tier; the map page; the background fetch loop; CLI commands `fetch` and `brief`; tests on a real snapshot from 18 Oct 2026.
-2. **Live (done):** join the stack (a GitHub repo, a compose service, nginx `/situation/`, the dashboard tile and the auto-deploy), then the audit's fixes and zoomable regional maps.
+2. **Live (done):** join the stack (a GitHub repo, a compose service, nginx `/situation/`, the dashboard tile and the auto-deploy), then the audit's fixes (October 2026; the audit itself is in git history) and zoomable regional maps.
+   - Still open from the audit: once `day_tallies` holds a week or two, set the Headline bar and the ten-story cap from the real daily counts rather than two days' snapshots.
 3. **Delivery:** morning brief and Major alerts through ntfy, with quiet hours.
 4. **Claude:** neutral headlines, "why it matters", and the significance check.
 5. **Later:** a weekly recap, the MCP tool, "mark as seen", per-region bars you can tune.
