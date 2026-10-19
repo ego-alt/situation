@@ -25,18 +25,22 @@ def _when(entry) -> datetime | None:
     return None
 
 
+def web_link(url: str | None) -> str | None:
+    """The link if it's an ordinary web address; a feed could carry a
+    javascript: link, which would run in the page when tapped."""
+    url = (url or "").strip()
+    return url if re.match(r"https?://", url, re.I) else None
+
+
 def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
-    """A feed's items, in the feed's own order (its lead stories first)."""
-    try:
-        resp = requests.get(source.url, headers={"User-Agent": USER_AGENT}, timeout=timeout)
-        resp.raise_for_status()
-    except requests.RequestException:
-        return []
+    """A feed's items, in the feed's own order. Raises when the feed can't be read."""
+    resp = requests.get(source.url, headers={"User-Agent": USER_AGENT}, timeout=timeout)
+    resp.raise_for_status()
     feed = feedparser.parse(resp.content)
     items = []
     for position, entry in enumerate(feed.entries):
         title = _text(entry.get("title"), 300)
-        url = entry.get("link")
+        url = web_link(entry.get("link"))
         if not (title and url):
             continue
         items.append({
@@ -47,19 +51,28 @@ def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
     return items
 
 
-def fetch_all(sources=SOURCES) -> list[dict]:
-    """Every feed's items; an article carried by two feeds of one outlet once."""
+def _try(source: Source) -> tuple[list[dict], str | None]:
+    try:
+        return fetch_source(source), None
+    except requests.RequestException as e:
+        response = getattr(e, "response", None)
+        return [], f"HTTP {response.status_code}" if response is not None else type(e).__name__
+
+
+def fetch_all(sources=SOURCES, report: dict | None = None) -> list[dict]:
+    """Every feed's items; an article carried by two feeds of one outlet once.
+    `report`, if given, gets {source key: (item count, error or None)}."""
     with ThreadPoolExecutor(max_workers=8) as pool:
-        batches = list(pool.map(fetch_source, sources))
+        results = list(pool.map(_try, sources))
+    if report is not None:
+        report.update({s.key: (len(items), err) for s, (items, err) in zip(sources, results, strict=True)})
+    batches = [items for items, _ in results]
     seen, out = set(), []
     for item in (i for batch in batches for i in batch):
         if item["url"] not in seen:
             seen.add(item["url"])
             out.append(item)
     return out
-
-
-
 
 
 def parse_itn(page_html: str) -> dict:
@@ -71,7 +84,8 @@ def parse_itn(page_html: str) -> dict:
     blocks = re.split(r"<div[^>]*(?:itn-footer|hlist)[^>]*>", page_html, maxsplit=1)
     head = blocks[0]
     items = [_text(li, 500) for li in re.findall(r"<li>(.*?)</li>", head, re.S)]
-    items = [i.replace(" (pictured)", "") for i in items if len(i) > 25]
+    # Drop the photo notes: "(pictured)", "(damage pictured)", "(Smith pictured)".
+    items = [re.sub(r"\s*\([^()]*\bpictured\)", "", i) for i in items if len(i) > 25]
     ongoing = []
     m = re.search(r"Ongoing:?\s*</b>(.*?)(?:Recent deaths|</div>)", page_html, re.S | re.I)
     if m:

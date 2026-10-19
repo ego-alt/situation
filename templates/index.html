@@ -9,15 +9,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
-    <script>window.APP_ROOT = "{{ request.script_root }}";</script>
+    <script>window.APP_ROOT = {{ request.script_root|tojson }};</script>
 </head>
 <body>
     <header class="bar">
         <div class="brand"><span class="brand-mark" aria-hidden="true"></span>SITUATION<span class="brand-sub">open-source monitor</span></div>
         <div class="readouts">
-            <span class="readout"><span class="k">UTC</span> <span id="clockUtc">--:--</span></span>
-            <span class="readout"><span class="k" id="localZone">LOCAL</span> <span id="clockLocal">--:--</span></span>
+            <span class="readout clock"><span class="k">UTC</span> <span id="clockUtc">--:--</span></span>
+            <span class="readout clock"><span class="k" id="localZone">LOCAL</span> <span id="clockLocal">--:--</span></span>
             <span class="readout"><span class="k">SYNC</span> <span id="sync">—</span></span>
+            <span class="readout" id="sourcesReadout"><span class="k">SRC</span> <span id="sources">—</span></span>
             <span class="readout tally"><span class="k flash">FLASH</span> <span id="countMajor">0</span></span>
             <span class="readout tally"><span class="k priority">PRIORITY</span> <span id="countHeadline">0</span></span>
         </div>
@@ -35,10 +36,12 @@
         </section>
 
         <aside class="intel" aria-label="Today's stories">
+            <div id="notice" class="notice" role="status" hidden></div>
             <div id="feed" aria-live="polite"><div class="empty">Acquiring…</div></div>
         </aside>
     </main>
 
+    <script src="{{ url_for('static', filename='js/signed_out.js') }}"></script>
     <script src="{{ url_for('static', filename='js/situation.js') }}"></script>
 </body>
 </html>

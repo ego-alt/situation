@@ -6,10 +6,12 @@ An open-source intelligence wall for the home stack: the world map with today's 
 
 ## Features
 
-- **The map** is the centrepiece. Each story is pinned where it happens, its size set by how many outlets carry it; FLASH stories pulse amber, PRIORITY stories are cyan, and their countries are tinted.
-- **A high bar.** Fourteen outlets on four continents are read every 15 minutes and grouped by event. A story is shown only when several independent newsrooms carry it or Wikipedia's editors put it "In the news". A normal day shows five to ten stories out of several hundred.
-- **Two tiers.** FLASH: on Wikipedia's "In the news", or led by several outlets at once. PRIORITY: carried by four or more outlets (three if one leads with it); Hong Kong, Taiwan, China and the UK get a lower bar.
-- **Active situations.** Wikipedia's "Ongoing" list (wars, offensives, outbreaks), each with its latest development.
+- **The map** is the centrepiece. Each country with news gets one pin, sized by how many outlets carry its biggest story; FLASH pulses amber, PRIORITY is cyan. Tap a pin to see that country's stories.
+- **A high bar.** Fourteen outlets on four continents are read every 15 minutes and grouped by event. A story is shown only when several independent newsrooms carry it or Wikipedia's editors put it "In the news". A normal day shows five to ten stories out of several hundred, and never more than ten.
+- **Two tiers.** FLASH: new on Wikipedia's "In the news" (for its first day), or the lead story on several front pages at once. PRIORITY: carried by four or more outlets (three if one leads with it); Hong Kong, Taiwan, China and the UK get a lower bar.
+- **Active situations.** Wikipedia's "Ongoing" list (wars, offensives, outbreaks), each with its latest development that more than one outlet carries.
+- **Earlier this week.** The past seven days' stories, under today's.
+- **Honest about itself.** If the news on screen is old, the server can't be reached or you've been signed out, the page says so; a feed that has gone quiet shows in the status bar.
 - **Sources a tap away.** Open a story to see every outlet's own headline and link.
 - **Phone-first.** The map on top, the list under it.
 

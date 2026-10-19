@@ -54,6 +54,9 @@ class Story(db.Model):
     y = db.Column(db.Float)
     first_seen = db.Column(db.DateTime, default=utcnow)
     newest = db.Column(db.DateTime)
+    # Closed once none of its articles are in the regrouping window any more;
+    # kept (with its id) for "Earlier this week" and so nothing is pushed twice.
+    closed = db.Column(db.Boolean, nullable=False, default=False, index=True)
     articles = db.relationship("Article", secondary=story_articles, lazy="selectin")
 
 
@@ -64,3 +67,31 @@ class ItnSnapshot(db.Model):
     fetched = db.Column(db.DateTime, default=utcnow, index=True)
     items = db.Column(db.JSON, nullable=False)
     ongoing = db.Column(db.JSON, nullable=False)
+
+
+class SourceStatus(db.Model):
+    """How each feed did on its last fetches, so a broken one is noticed."""
+    __tablename__ = "source_status"
+    key = db.Column(db.String, primary_key=True)
+    last_try = db.Column(db.DateTime)
+    last_ok = db.Column(db.DateTime)            # last fetch that returned items
+    items = db.Column(db.Integer, nullable=False, default=0)
+    error = db.Column(db.String)
+
+
+class DayTally(db.Model):
+    """The most stories shown at once on each day (UTC), to tune the bar."""
+    __tablename__ = "day_tallies"
+    day = db.Column(db.Date, primary_key=True)
+    major = db.Column(db.Integer, nullable=False, default=0)
+    headline = db.Column(db.Integer, nullable=False, default=0)
+    cleared = db.Column(db.Integer, nullable=False, default=0)    # before the cap
+
+
+def migrate():
+    """Add columns that create_all() can't add to an existing table."""
+    cols = {row[1] for row in db.session.execute(db.text("PRAGMA table_info(stories)"))}
+    if cols and "closed" not in cols:
+        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN closed BOOLEAN NOT NULL DEFAULT 0"))
+        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_closed ON stories (closed)"))
+        db.session.commit()

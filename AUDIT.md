@@ -8,7 +8,7 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - I walked through it in Chrome at 1280×800 with a mouse, and at 375×667 with touch emulation.
 - I tried failure cases: the API unreachable and the map file missing.
 - I checked how each feed orders its items, using the 18 October snapshot.
-- The 12 tests pass. Nothing in the repo was changed.
+- The 12 tests pass. Nothing in the repo was changed during the audit. Everything below has since been done; see each item's status.
 
 **Tags:** **[confirmed]** = seen in the running app or the live data. **[code]** = from reading the code, not reproduced.
 
@@ -29,6 +29,7 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Fix:**
   - Add `ordered=True` to the sources whose feeds are front-page order (BBC, Guardian, NYT, Le Monde), and count leads only from those.
   - Where an outlet has a "top stories" feed, use it as the ordered source.
+- **Status:** Done. `Source.ordered` marks BBC, Guardian, NYT and Le Monde, and only their top three items count as leads. On the 18th, Zelensky's US talks drop from FLASH to PRIORITY; Macron, Wainwright and the Houthis stay FLASH.
 
 **1.2 It shows more than the promised five to ten** [confirmed]
 - **What:** The live page showed 15 stories (3 FLASH, 12 PRIORITY). The plan and README say "a normal day shows five to ten".
@@ -38,6 +39,7 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
   - Fix 1.1 first.
   - Use DW's world feed instead of "all".
   - Log the daily counts for a week, then set the bar from that data rather than from one day. A cap (say ten, by score) is a reasonable backstop.
+- **Status:** Done. DW now uses its top-stories feed. Each day's counts go into `day_tallies` (the most shown at once, and how many cleared the bar). The page shows at most ten, best first, and says how many more cleared. Nine on the 18th; on the 19th, 15 cleared and ten were shown. Retune the bar from the tallies after a week.
 
 **1.3 A broken feed fails silently** [code]
 - **What:** If a feed errors or starts returning nothing, `fetch_source` returns an empty list and nothing records it. All 14 feeds answer today. But a renamed URL would quietly drop an outlet for weeks.
@@ -46,6 +48,7 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Fix:**
   - Record each source's last success and item count.
   - Show "14/14 sources" in the status bar, turning amber when a feed has been silent for 6 hours.
+- **Status:** Done. Each fetch records every feed's result in `source_status`. The status bar shows `SRC 14/14`, turning amber and listing the feeds that have had nothing for six hours (on a phone it only appears then).
 
 **1.4 The place lookup is tuned to one day** [code]
 - **What:** Alongside its country tables, `geo.py` maps hand-picked names and places to countries, all taken from the test day's stories: Macron, Limoges, Zelensky, Netanyahu, Hamas, John Lee. Other leaders aren't there; tomorrow's equivalents won't be. Ambiguous names (Georgia, Jordan) match by spelling alone.
@@ -54,12 +57,14 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Fix:**
   - Replace the ad-hoc names with a small, reviewed table: heads of state and government, and capitals.
   - Add a second snapshot day to the tests, so tuning can't overfit one day.
+- **Status:** Done. The ad-hoc names are gone. In their place are reviewed tables of capitals (one per country, skipping ambiguous ones), big cities, and heads of state and government (dated October 2026, to review when they change). Georgia, Jordan and Chad count for less. A second real day (19 October) is in the tests.
 
 **1.5 FLASH from Wikipedia lasts as long as the item stays up** [code]
 - **What:** Any story matching an "In the news" item is FLASH. Items stay in that box for days, so a story keeps FLASH for as long as any outlet keeps updating it.
 - **Where:** `score.py` `assess` (`if itn_item`)
 - **Why:** FLASH should mean "new and big". The planned "major alert" push will lean on this.
 - **Fix:** Count the Wikipedia signal for FLASH only within 24 hours of the item first appearing. The plan already calls for tracking when items first appear. After that, it's still a PRIORITY boost.
+- **Status:** Done. When each item first appeared is worked out from the stored copies. A match makes a story FLASH for 24 hours, then PRIORITY.
 
 ## 2. On the phone
 
@@ -71,17 +76,20 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
   - Give every pin an invisible hit circle of about 22 px (in screen pixels) and a minimum drawn size.
   - On narrow screens, label every pin with its country code.
   - Consider cropping the phone map to the area with pins.
+- **Status:** Done. Every pin has a 22 px tap area and draws at least 10 px across. On a phone every pin is labelled, with labels placed so they don't cover each other or the dots, and the map zooms to the area with pins.
 
 **2.2 Two stories in one country sit on the same spot** [confirmed]
 - **What:** Pins go at the country's centre, so stories in the same country overlap exactly. Live, the IL PRIORITY pin was hidden under the IL FLASH pin, and the same happened to the two CA stories.
 - **Where:** `geo.py` `locate`; `situation.js` `drawPins`
 - **Why:** The hidden story can't be found from the map.
 - **Fix:** Draw one pin per country, sized by its biggest story, with a count badge. Tapping it scrolls to that country's stories, or filters the list to them.
+- **Status:** Done. One pin per country, sized by its biggest story, labelled with a count when there's more than one (`IL · 2`). Tapping it, or pressing Enter, shows just that country's stories, with *Show all* to go back.
 
 **2.3 The status bar takes three lines** [confirmed]
 - **What:** On a phone the readouts wrap: SITUATION, then the clocks, SYNC and FLASH, then PRIORITY on a line of its own. That's 94 px before the map.
 - **Where:** `situation.css` `.bar`, `.readouts`
 - **Fix:** On narrow screens, keep SYNC and the two counts on one line, and drop the clocks or move them below the map.
+- **Status:** Done. On a phone the bar is one line: SITUATION, SYNC and the two counts.
 
 ## 3. When something goes wrong
 
@@ -89,6 +97,7 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **What:** Library, calendar and tapes load the stack's `signed_out.js`. When the session ends, nginx answers their API calls with 401 and `X-Signed-Out`, and they offer "Sign in again". Situation doesn't load it. Its refresh gets the 401 and shows `SYNC offline`, and the stories on screen stay up, looking current.
 - **Where:** `templates/index.html`; `situation.js` `refresh`
 - **Fix:** Include `signed_out.js` the way the other apps do, and handle the 401 in `refresh`.
+- **Status:** Done. The page loads the stack's `signed_out.js`, so a 401 brings up *Sign in again*. The page also says *Signed out, so this isn't updating*, and the stories stay on screen.
 
 **3.2 Old news looks like current news** [confirmed]
 - **What:**
@@ -100,11 +109,13 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Fix:**
   - Show a banner when data is older than 30 minutes or the server is unreachable: *Showing news from 14:05; can't reach the server.* Give the first load a proper error with a retry.
   - Have `/healthz` return 503 when the last successful fetch is over an hour old.
+- **Status:** Done. A notice above the list says when the server can't be reached, when you're signed out, or when the news is over 30 minutes old. A first load that fails says so, with *Try again*. `/healthz` returns 503 once the app has been up an hour with no feed answering in the last hour.
 
 **3.3 If the map fails, the news doesn't load** [confirmed]
 - **What:** The page waits for `world.json` before fetching stories, so a failed map load leaves the whole page on "Acquiring…".
 - **Where:** `situation.js` `start`
 - **Fix:** Load the map and the stories in parallel. The list should render even without the map.
+- **Status:** Done. The map and the stories load in parallel. If the map fails, the page says so and the list shows as normal.
 
 ## 4. What the page shows
 
@@ -113,6 +124,7 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Where:** `pipeline.py` `regroup` (`for sid in set(old) - claimed: db.session.delete`)
 - **Why:** It also means story ids don't last, which the morning brief and major alerts will need so they never push the same story twice.
 - **Fix:** Close stories instead of deleting them: keep their headline, tier and newest time. Show seven days of PRIORITY and FLASH under "Earlier this week".
+- **Status:** Done. Stories close instead of being deleted, keeping their id; never-shown background stories are still removed. A small migration adds the column to the live database. *Earlier this week* shows the past seven days, newest first. Closed stories are pruned after 30 days.
 
 **4.2 Active situations with nothing under them** [confirmed]
 - **What:** "Ethiopian offensive" and "Iran war" were listed with no line under them, because no story there had two outlets yet. The rows can't be tapped either.
@@ -120,11 +132,13 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Fix:**
   - Show the latest report even if only one outlet carries it, marked as such, or "No new reports today".
   - Make each row tappable, to show that situation's stories.
+- **Status:** Done, revised. Rows are tappable and show that situation's stories. I didn't quote a lone outlet's piece. On the 18th, the only Iran report was an essay (*Foucault in Iran*), which is exactly the noise this app filters out. So the row says *Only single-outlet reports today* or *No new reports today* instead.
 
 **4.3 Wikipedia's photo notes leak into its items** [confirmed]
 - **What:** Live, one item reads *"The Hôtel de Ville in Limoges is partially destroyed by arson (damage pictured)…"*. Only the exact text " (pictured)" is removed.
 - **Where:** `fetch.py` `parse_itn`
 - **Fix:** Strip any parenthetical ending in "pictured".
+- **Status:** Done. Any parenthetical ending in "pictured" is removed.
 
 ## 5. Security and running it
 
@@ -133,11 +147,13 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Where:** `fetch.py` `fetch_source` (`url = entry.get("link")`); `situation.js` `itemHtml`
 - **Why:** The outlets are reputable, but feeds get hijacked and Situation reads 14 of them. It's cheap to close.
 - **Fix:** Keep only `http` and `https` links when fetching, and check again in the page before building the link.
+- **Status:** Done. Only `http(s)` links are kept when fetching, and the page checks again before making a link.
 
 **5.2 The URL prefix is put into a script with HTML escaping** [code]
 - **What:** `window.APP_ROOT = "{{ request.script_root }}"`. The value comes from nginx's `X-Forwarded-Prefix`, so it's trusted today. But HTML escaping isn't JavaScript escaping.
 - **Where:** `templates/index.html`
 - **Fix:** Use `{{ request.script_root|tojson }}`.
+- **Status:** Done (`|tojson`).
 
 **5.3 The container installs dev tools on every start, and runs as root** [confirmed]
 - **What:**
@@ -147,22 +163,25 @@ A review of Situation a day after it went live on the stack. Its job, from `docs
 - **Fix:**
   - Start with `uv run --no-dev --frozen` or `.venv/bin/gunicorn`.
   - Add a non-root user, and do the same for the other apps. Each needs a one-off `chown` of its data folder on the Pi.
+- **Status:** Done for Situation. It now starts gunicorn straight from the virtualenv and runs as uid 10001; its data folder on the Pi was handed over first. Library, calendar and tapes still run as root, which is separate work in their repos.
 
 **5.4 No container healthcheck** [confirmed]
 - **What:** Monitor shows Situation as "Up" without "(healthy)", unlike the others, so a hung app looks fine.
 - **Where:** `Dockerfile`
 - **Fix:** Add a `HEALTHCHECK` that requests `/healthz` with Python's urllib (the image has no curl). This becomes meaningful once 3.2 makes `/healthz` reflect fetch health.
+- **Status:** Done. The Dockerfile's `HEALTHCHECK` calls `/healthz`.
 
 **5.5 Wikipedia is stored on every fetch, changed or not** [confirmed]
 - **What:** The live database had 28 copies of the "In the news" box after 7 hours. That's 96 a day, kept for 30 days.
 - **Where:** `pipeline.py` `save_itn`
 - **Fix:** Store a copy only when it differs from the last one.
+- **Status:** Done. A copy is stored only when the box changes.
 
 ## 6. Small things
 
-- **6.1** `Source.region` is set on five feeds but never read: the regional boost comes from the story's place (`HOME_REGIONS`). Remove it, or use it. [code]
-- **6.2** `flask brief --dry-run` is on by default and does nothing. It's a placeholder until delivery (plan phase 3), so remove it until then. [code]
-- **6.3** Map pins can take keyboard focus, but Enter does nothing and there's no visible focus ring. [code]
+- **6.1** `Source.region` is set on five feeds but never read: the regional boost comes from the story's place (`HOME_REGIONS`). Remove it, or use it. [code] **Done:** removed.
+- **6.2** `flask brief --dry-run` is on by default and does nothing. It's a placeholder until delivery (plan phase 3), so remove it until then. [code] **Done:** removed.
+- **6.3** Map pins can take keyboard focus, but Enter does nothing and there's no visible focus ring. [code] **Done:** Enter or Space shows that country's stories, and focused or selected pins get a white ring.
 
 ---
 

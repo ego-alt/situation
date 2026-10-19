@@ -33,17 +33,17 @@ Twitter/X is out: its API is expensive and its ranking is the problem being solv
 
 Every fetch (every 15 minutes):
 
-1. **Collect** the latest items from every feed: title, summary, link, time and position in the feed (a feed's first items are its lead stories).
+1. **Collect** the latest items from every feed: title, summary, link, time and position in the feed. In the four feeds kept in front-page order (BBC, Guardian, NYT, Le Monde), the first items are the lead stories; the rest are newest first.
 2. **Cluster** items about the same event. The cluster key is TF-IDF over titles and summaries; items join when they're similar enough within 48 hours. Clusters live across fetches, so a story keeps its identity as it develops.
 3. **Score** each cluster:
    - **breadth:** the number of distinct outlets carrying it, weighted per outlet. This is the core signal.
-   - **lead:** a bonus when outlets put it among their top three stories.
+   - **lead:** a bonus when front-page-ordered outlets put it among their top three stories.
    - **curated:** a large bonus when it matches a Wikipedia "In the news" item.
    - **region:** a bonus for Hong Kong, Taiwan, China and the UK.
    - **recency:** decays over about a day, so yesterday's story yields to today's.
 4. **Tier** each story:
-   - **Major:** on ITN, or carried by six or more outlets with at least two leading with it. These can trigger the second push.
-   - **Headline:** carried by four or more outlets, or three when one of them leads with it; for Hong Kong, Taiwan, China and the UK, a weighted breadth of 2. These are shown on the page and in the brief.
+   - **Major:** on ITN within a day of the item appearing, or carried by six or more outlets with at least two leading with it. These can trigger the second push.
+   - **Headline:** carried by four or more outlets, or three when one of them leads with it; for Hong Kong, Taiwan, China and the UK, a weighted breadth of 2. These are shown on the page and in the brief, at most ten at a time (the best by score).
    - Everything else stays out of sight. It's searchable later, never shown by default.
 5. **Ongoing:** each item in ITN's "Ongoing" list becomes a storyline. Clusters that match it attach to it, and the page shows its latest development.
 

@@ -42,10 +42,11 @@ def test_tiers_on_the_day():
         a = assess(g, locate(g), matched.get(k), NOW)
         tiers[a["headline"]] = (a["tier"], a["itn"])
     major = [h for h, (t, _) in tiers.items() if t == "major"]
-    for words in (("macron",), ("wainwright",), ("houthi",), ("zelensky",)):
+    for words in (("macron",), ("wainwright",), ("houthi",)):
         assert any(all(w in h.lower() for w in words) for h in major), words
+    assert len(major) == 3                                              # Zelensky's US talks: PRIORITY
     assert not any("crawford" in h.lower() and t != "background" for h, (t, _) in tiers.items())
-    assert sum(t != "background" for t, _ in tiers.values()) <= 15          # a high bar
+    assert sum(t != "background" for t, _ in tiers.values()) <= 10          # a high bar
     itn_hits = [h for h, (_, i) in tiers.items() if i]
     assert any("macron" in h.lower() for h in itn_hits) and any("houthi" in h.lower() for h in itn_hits)
 
@@ -62,3 +63,38 @@ def test_headline_skips_live_blogs_and_emoji():
     arts = [{"title": "🔴 Watch live: Macron addresses the nation"}, {"title": "Macron condemns violence"}]
     assert pick_headline(arts) == "Macron condemns violence"
     assert clean_title("🔴Live: Paris braces") == "Paris braces"
+
+
+def _article(source, position, title="Huge blast hits port city of Odesa", hours=1):
+    from datetime import timedelta
+
+    from sources import BY_KEY
+    return {"source": source, "outlet": BY_KEY[source].outlet, "title": title, "position": position,
+            "published": NOW - timedelta(hours=hours)}
+
+
+def test_only_front_page_feeds_can_lead():
+    """Al Jazeera, DW and France 24 list newest first: their top spot means recent, not lead."""
+    newest_first = [_article("aljazeera", 0), _article("dw", 0), _article("france24", 1)]
+    a = assess(newest_first, None, None, NOW)
+    assert (a["leads"], a["tier"]) == (0, "background")
+    a = assess([*newest_first[:2], _article("bbc", 0)], None, None, NOW)
+    assert (a["leads"], a["tier"]) == (1, "headline")
+
+
+def test_in_the_news_makes_flash_only_for_a_day():
+    groups, itn = _groups()
+    houthi = _find(groups, "houthi")
+    item = "Houthi attacks on Saudi airports"
+    assert assess(houthi, locate(houthi), item, NOW)["tier"] == "major"
+    assert assess(houthi, locate(houthi), item, NOW, itn_fresh=False)["tier"] == "headline"
+
+
+def test_places_from_leaders_capitals_and_cities():
+    assert set(places("Starmer meets Takaichi in Osaka")) == {"GB", "JP"}
+    assert places("Lula and Milei meet")["BR"] == places("Lula and Milei meet")["AR"] == 1
+    assert "HK" in places("Hong Kong leader John Lee")
+    assert places("Trump says")["US"] < 1                              # named as an actor
+    # "Georgia" is as often the US state: it counts for less than a clear place.
+    assert places("Storm hits Georgia and Atlanta, US")["US"] > places("Storm hits Georgia and Atlanta, US")["GE"]
+    assert "FR" not in places("Protests in Limoges")                   # cities from one day's news are gone

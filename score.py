@@ -2,8 +2,10 @@
 
 Signals (see docs/plan.md):
   breadth   distinct outlets carrying it, each counted once at its weight
-  lead      outlets that put it among their top three items
-  curated   it matches an item in Wikipedia's "In the news"
+  lead      outlets that put it among their top three items (front-page-ordered
+            feeds only; in a newest-first feed the top spot just means recent)
+  curated   it matches an item in Wikipedia's "In the news"; FLASH only while
+            that item is under a day old, a boost after that
   region    it happens in a place you live or follow
   recency   a day-old story yields to today's
 """
@@ -62,15 +64,17 @@ def match_itn(groups_articles: list[list[dict]], itn_items: list[str], threshold
     return matches
 
 
-def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: datetime) -> dict:
-    """Score and tier one story from its articles (most typical first)."""
+def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: datetime,
+           itn_fresh: bool = True) -> dict:
+    """Score and tier one story from its articles (most typical first).
+    `itn_fresh`: the matched "In the news" item first appeared within a day."""
     per_outlet: dict[str, float] = {}
     leads = set()
     for a in articles:
         source = BY_KEY.get(a["source"])
         outlet = a.get("outlet") or a["source"]
         per_outlet[outlet] = max(per_outlet.get(outlet, 0.0), source.weight if source else 0.5)
-        if a.get("position") is not None and a["position"] < 3:
+        if source and source.ordered and a.get("position") is not None and a["position"] < 3:
             leads.add(outlet)
     breadth = round(sum(per_outlet.values()), 2)
     outlets = len(per_outlet)
@@ -85,9 +89,9 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
 
     score = (breadth + 0.5 * len(leads) + (4.0 if itn_item else 0.0) + (1.0 if home else 0.0)) * recency
 
-    if itn_item or (outlets >= 6 and len(leads) >= 2):
+    if (itn_item and itn_fresh) or (outlets >= 6 and len(leads) >= 2):
         tier = MAJOR
-    elif outlets >= 4 or (outlets >= 3 and leads) or (home and breadth >= 2.0):
+    elif itn_item or outlets >= 4 or (outlets >= 3 and leads) or (home and breadth >= 2.0):
         tier = HEADLINE
     else:
         tier = BACKGROUND

@@ -10,7 +10,7 @@ from tests.conftest import NOW
 def test_snapshot_shows_only_what_matters(loaded):
     snap = snapshot.__wrapped__() if hasattr(snapshot, "__wrapped__") else snapshot()
     shown = snap["stories"]
-    assert 5 <= len(shown) <= 15
+    assert 5 <= len(shown) <= 10
     assert shown[0]["tier"] == "major" and shown[0]["sources"]
     assert all(s["x"] is not None for s in shown if s["iso"])
     assert {o["topic"] for o in snap["ongoing"]} >= {"Iran war", "Russo-Ukrainian war"}
@@ -31,14 +31,17 @@ def test_brief(loaded):
 
 def test_api(loaded, app):
     res = app.test_client().get("/api/situation")
-    assert res.status_code == 200 and res.get_json()["counts"]["major"] >= 4
+    body = res.get_json()
+    assert res.status_code == 200 and body["counts"]["major"] == 3 and body["sources"]["total"] == 14
 
 
 def test_itn_parsing():
-    page = ("<ul><li>The <b>town hall</b> burns down (pictured) in France.</li><li>Short</li></ul>"
+    page = ("<ul><li>The <b>town hall</b> burns down (pictured) in France.</li>"
+            "<li>A city hall is partially destroyed by arson (damage pictured) in Limoges.</li><li>Short</li></ul>"
             "<div class=\"itn-footer\"><b>Ongoing</b>: <ul><li>Iran war</li><li>Russo-Ukrainian war timeline</li></ul>"
             " Recent deaths</div>")
-    assert parse_itn(page) == {"items": ["The town hall burns down in France."],
+    assert parse_itn(page) == {"items": ["The town hall burns down in France.",
+                                         "A city hall is partially destroyed by arson in Limoges."],
                                "ongoing": ["Iran war", "Russo-Ukrainian war"]}
 
 
@@ -52,3 +55,106 @@ def test_links_carry_the_stack_prefix(app):
     page = app.test_client().get("/", headers={"X-Forwarded-Prefix": "/situation"})
     assert b'href="/situation/static/css/situation.css' in page.data
     assert b'window.APP_ROOT = "/situation"' in page.data
+    assert b"js/signed_out.js" in page.data                        # the stack's "signed out" bar
+
+
+# ---------- what the audit asked for ----------
+
+def test_only_web_links_become_links():
+    from fetch import web_link
+    assert web_link(" https://www.bbc.co.uk/news/1 ") == "https://www.bbc.co.uk/news/1"
+    assert web_link("javascript:alert(document.cookie)") is None
+    assert web_link("data:text/html,<script>") is None and web_link(None) is None
+
+
+def test_in_the_news_is_kept_only_when_it_changes(app):
+    from models import ItnSnapshot
+    from pipeline import save_itn
+    itn = {"items": ["A town hall burns down in France."], "ongoing": ["Iran war"]}
+    save_itn(itn, NOW)
+    save_itn(itn, NOW)
+    save_itn({**itn, "ongoing": ["Iran war", "Yemen offensives"]}, NOW)
+    assert ItnSnapshot.query.count() == 2
+
+
+def test_stories_close_instead_of_vanishing(loaded, monkeypatch):
+    """Two days later, today's stories are closed with their ids, and shown under "Earlier this week"."""
+    from datetime import timedelta
+
+    import pipeline
+    shown = {s["id"]: s["headline"] for s in snapshot()["stories"]}
+    later = NOW + timedelta(days=3)
+    monkeypatch.setattr(pipeline, "clock", lambda: later)
+    regroup(later)
+    assert Story.query.filter_by(closed=False).count() == 0
+    assert Story.query.filter_by(tier="background").count() == 0      # never shown: not kept
+    snap = snapshot()
+    assert snap["stories"] == []
+    assert {s["id"]: s["headline"] for s in snap["earlier"]} == shown
+    monkeypatch.setattr(pipeline, "clock", lambda: NOW + timedelta(days=9))
+    assert snapshot()["earlier"] == []                                 # a week on, out of view
+
+
+def test_a_silent_feed_is_flagged(app):
+    from datetime import timedelta
+
+    from pipeline import record_sources, source_health
+    from sources import SOURCES
+    record_sources({"bbc": (0, "HTTP 404"), "nyt": (40, None)}, NOW - timedelta(hours=7))
+    record_sources({"bbc": (0, "HTTP 404"), "nyt": (38, None)}, NOW)
+    health = source_health(SOURCES, NOW)
+    assert health == {"ok": 13, "total": 14, "silent": ["BBC"]}       # the 12 never tried don't count against
+
+
+def test_health_fails_once_no_feed_has_answered_for_an_hour(app, monkeypatch):
+    import time
+    from datetime import timedelta
+
+    import app as app_module
+    from pipeline import record_sources
+    client = app.test_client()
+    assert client.get("/healthz").status_code == 200                  # just started: give it time
+    monkeypatch.setattr(app_module, "STARTED", time.monotonic() - 7200)
+    assert client.get("/healthz").status_code == 503                  # up two hours, nothing fetched
+    record_sources({"bbc": (30, None)}, NOW - timedelta(hours=2))
+    assert client.get("/healthz").status_code == 503
+    record_sources({"bbc": (30, None)}, NOW - timedelta(minutes=10))
+    assert client.get("/healthz").get_json()["ok"] is True
+
+
+def test_the_second_day_is_capped_at_ten(app, monkeypatch):
+    import pipeline
+    from models import DayTally
+    from tests.conftest import NOW_2, SNAPSHOT_2, snapshot_items
+    monkeypatch.setattr(pipeline, "clock", lambda: NOW_2)
+    items, itn = snapshot_items(SNAPSHOT_2)
+    pipeline.run(lambda: items, lambda: itn, NOW_2)
+    snap = snapshot()
+    assert len(snap["stories"]) == 10 and snap["cleared"] > 10
+    assert snap["stories"][0]["iso"] == "FR" and snap["stories"][0]["tier"] == "major"
+    assert {"FR", "CA", "UA", "YE", "IL", "VA"} <= {s["iso"] for s in snap["stories"]}
+    tally = DayTally.query.one()
+    assert (tally.cleared, tally.major + tally.headline) == (snap["cleared"], 10)
+
+
+def test_an_active_situation_without_shared_reports_quotes_nothing(loaded):
+    iran = next(o for o in snapshot()["ongoing"] if o["topic"] == "Iran war")
+    assert iran["latest"] is None and iran["singles"] >= 1           # a lone essay isn't the news
+
+
+def test_an_old_database_gains_the_new_column(tmp_path):
+    import sqlite3
+
+    from app import create_app
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE stories (id INTEGER PRIMARY KEY, headline VARCHAR NOT NULL, tier VARCHAR NOT NULL, "
+                "score FLOAT NOT NULL, outlets INTEGER NOT NULL, leads INTEGER NOT NULL, itn VARCHAR, iso VARCHAR, "
+                "place VARCHAR, lat FLOAT, lon FLOAT, x FLOAT, y FLOAT, first_seen DATETIME, newest DATETIME)")
+    con.execute("INSERT INTO stories (headline, tier, score, outlets, leads) VALUES ('Old', 'headline', 5, 4, 0)")
+    con.commit()
+    con.close()
+    app = create_app({"TESTING": True, "FETCH_LOOP": False, "SQLALCHEMY_DATABASE_URI": f"sqlite:///{path}"})
+    with app.app_context():
+        story = Story.query.one()
+        assert story.headline == "Old" and story.closed is False

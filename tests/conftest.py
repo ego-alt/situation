@@ -4,17 +4,23 @@ from datetime import UTC, datetime
 
 import pytest
 
+import pipeline
 from app import create_app
 from models import db
 from sources import BY_KEY
 
-SNAPSHOT = pathlib.Path(__file__).parent / "fixtures" / "snapshot-2026-10-18.json"
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+SNAPSHOT = FIXTURES / "snapshot-2026-10-18.json"
 NOW = datetime(2026, 10, 19, 2, 0, tzinfo=UTC)
+# A second real day, so the tuning can't fit one day only: the morning after,
+# taken from the live app (Macron's address, the Wainwright fire, Albania).
+SNAPSHOT_2 = FIXTURES / "snapshot-2026-10-19.json"
+NOW_2 = datetime(2026, 10, 19, 11, 40, tzinfo=UTC)
 
 
-def snapshot_items():
-    """The real 18 Oct 2026 snapshot, deduplicated, as the fetcher returns it."""
-    data = json.loads(SNAPSHOT.read_text())
+def snapshot_items(path=SNAPSHOT):
+    """A real snapshot, deduplicated, as the fetcher returns it."""
+    data = json.loads(path.read_text())
     seen, items = set(), []
     for i in data["items"]:
         if i["url"] in seen:
@@ -24,6 +30,13 @@ def snapshot_items():
         i["published"] = datetime.fromisoformat(i["published"]) if i["published"] else None
         items.append(i)
     return items, data["itn"]
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock(monkeypatch):
+    """The snapshots are from October 2026: "today" is the morning after."""
+    monkeypatch.setattr(pipeline, "clock", lambda: NOW)
+    return NOW
 
 
 @pytest.fixture

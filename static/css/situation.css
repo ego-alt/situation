@@ -47,6 +47,7 @@ body {
 .readout .k { color: var(--muted); }
 .k.flash { color: var(--flash); }
 .k.priority { color: var(--priority); }
+.readout.warn, .readout.warn .k { color: var(--flash); }
 
 /* ---- board: map + intel panel ---- */
 .board {
@@ -65,7 +66,9 @@ body {
 .map .land.hot-flash { fill: #2a2112; stroke: #6b4f1c; }
 .map .land.lit { fill: #173236; }
 .map .ring { fill: none; stroke-width: 1; }
-.map .pin { cursor: pointer; }
+.map .pin { cursor: pointer; outline: none; }
+.map .pin .hit { fill: transparent; stroke: none; }
+.map .pin:focus-visible .ring, .map .pin.selected .ring { stroke: #fff; opacity: 1; animation: none; }
 .map .pin .core { stroke: var(--bg); stroke-width: 1; }
 .map .pin.flash .core { fill: var(--flash); }
 .map .pin.priority .core { fill: var(--priority); }
@@ -73,7 +76,10 @@ body {
 .map .pin.priority .ring { stroke: var(--priority); opacity: 0.5; }
 .map .pin.flash .ring { animation: pulse 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 .map .pin.active .core { stroke: #fff; stroke-width: 1.4; }
-.map .tag { font: 600 9px var(--mono); letter-spacing: 0.08em; fill: var(--flash); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+.map .tag { font-family: var(--mono); font-weight: 600; letter-spacing: 0.08em; paint-order: stroke; stroke: var(--bg); pointer-events: none; }
+.map .tag.flash { fill: var(--flash); }
+.map .tag.priority { fill: var(--priority); }
+.map-missing { margin: 0; padding: 24px 16px; color: var(--muted); font: 12px var(--mono); }
 @keyframes pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3.2); opacity: 0; } }
 .legend {
     position: absolute; left: 16px; bottom: 14px; display: flex; gap: 14px; align-items: center;
@@ -115,16 +121,37 @@ body {
 .sources a { color: var(--text-2); text-decoration: none; }
 .sources a:hover { color: var(--text); text-decoration: underline; }
 .sources .outlet { font: 11px var(--mono); color: var(--muted); display: block; }
-.situations .item { cursor: default; }
 .situations .topic { font: 600 12px var(--mono); color: var(--phosphor); letter-spacing: 0.06em; text-transform: uppercase; }
 .situations .latest { margin: 4px 0 0; color: var(--text-2); font-size: 13px; }
+.situations .latest.quiet { color: var(--muted); }
 .empty { padding: 24px 16px; color: var(--muted); font: 12px var(--mono); }
+.empty .retry, .filter-clear {
+    margin-left: 8px; padding: 2px 8px; border: 1px solid var(--line-2); border-radius: 2px;
+    background: transparent; color: var(--text-2); font: 11px var(--mono); cursor: pointer;
+}
+.empty .retry:hover, .filter-clear:hover { color: var(--text); border-color: var(--muted); }
+
+/* What's on screen isn't current: say so above the list. */
+.notice {
+    padding: 10px 16px; border-bottom: 1px solid #5a431a; background: #1a140a;
+    color: var(--flash); font: 12px var(--mono);
+}
+.filter {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; background: var(--panel-2); border-bottom: 1px solid var(--line);
+    font: 12px var(--mono); color: var(--text-2);
+}
+.filter b { color: var(--text); font-weight: 600; }
+.filter ~ .section-head { top: 41px; }
+.capped { padding: 10px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font: 11px var(--mono); }
 
 /* ---- phone: the map on top, the list under it ---- */
 @media (max-width: 860px) {
-    .bar { height: auto; flex-wrap: wrap; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
-    .brand-sub { display: none; }
-    .readouts { gap: 12px; flex-wrap: wrap; font-size: 11px; }
+    .bar { height: auto; min-height: 44px; gap: 10px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
+    .brand { letter-spacing: 0.12em; }
+    .brand-sub, .readout.clock { display: none; }
+    #sourcesReadout:not(.warn) { display: none; }   /* only worth the room when a feed has gone quiet */
+    .readouts { gap: 10px; font-size: 11px; }
     .board { display: block; height: auto; }
     .theatre { height: 54vw; min-height: 200px; border-right: 0; border-bottom: 1px solid var(--line); }
     .legend { display: none; }

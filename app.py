@@ -2,15 +2,17 @@ import os
 import pathlib
 import threading
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 
-import click
 from flask import Flask, jsonify, render_template, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from models import Story, db, utcnow
+from models import Story, db, migrate
 from score import clean_title
-from sources import BY_KEY
+from sources import BY_KEY, SOURCES
+
+STARTED = time.monotonic()
+STALE = timedelta(hours=1)    # /healthz fails when no feed has answered for this long
 
 
 def create_app(config=None):
@@ -27,6 +29,7 @@ def create_app(config=None):
         app.config.update(config)
     db.init_app(app)
     with app.app_context():
+        migrate()
         db.create_all()
     # Behind the dashboard's nginx at /situation/: trust its X-Forwarded-*
     # headers, so url_for() and request.script_root include the prefix.
@@ -42,7 +45,14 @@ def create_app(config=None):
 
     @app.route("/healthz")
     def healthz():
-        return {"ok": True}
+        """Unhealthy once the app has run an hour without any feed answering:
+        the page would be showing old news as if it were current."""
+        from pipeline import clock, last_fetch_ok
+        last = last_fetch_ok()
+        if time.monotonic() - STARTED > STALE.total_seconds() and (last is None or clock() - last > STALE):
+            return {"ok": False, "error": "no feed has answered for over an hour",
+                    "last_fetch": _iso(last)}, 503
+        return {"ok": True, "last_fetch": _iso(last)}
 
     @app.route("/api/situation")
     def situation():
@@ -54,9 +64,8 @@ def create_app(config=None):
         print(fetch_once())
 
     @app.cli.command("brief")
-    @click.option("--dry-run", is_flag=True, default=True, help="Print the brief (pushing comes later).")
-    def brief_command(dry_run):
-        """The morning brief: today's top headlines."""
+    def brief_command():
+        """Print the morning brief: today's top headlines (pushing it comes later)."""
         print(brief_text(snapshot()))
 
     if app.config["FETCH_LOOP"] and not app.config.get("TESTING") and os.environ.get("WERKZEUG_RUN_MAIN") != "false":
@@ -66,8 +75,10 @@ def create_app(config=None):
 
 def fetch_once(now=None) -> dict:
     from fetch import fetch_all, fetch_itn
-    from pipeline import prune, run
-    result = run(fetch_all, fetch_itn, now)
+    from pipeline import prune, record_sources, run
+    report: dict = {}
+    result = run(lambda: fetch_all(report=report), fetch_itn, now)
+    record_sources(report, now)
     prune()
     return result
 
@@ -95,7 +106,7 @@ def start_loop(app):
 
 
 def _iso(dt):
-    return dt.replace(tzinfo=UTC).isoformat() if dt else None
+    return (dt if dt.tzinfo else dt.replace(tzinfo=UTC)).isoformat() if dt else None
 
 
 def _story(s: Story) -> dict:
@@ -113,30 +124,33 @@ def _story(s: Story) -> dict:
             "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources}
 
 
+EARLIER = timedelta(days=7)
+
+
 def snapshot() -> dict:
-    from pipeline import latest_itn, ongoing_situations
-    day_ago = utcnow() - timedelta(hours=24)
-    stories = Story.query.filter(Story.tier != "background").order_by(Story.score.desc()).all()
-    recent = [s for s in stories if (s.newest or s.first_seen) >= day_ago]
-    earlier = [s for s in stories if s not in recent]
+    from pipeline import SHOWN, clock, last_fetch_ok, latest_itn, on_screen, ongoing_situations, source_health
+    now = clock()
+    shown, cleared = on_screen(now)
+    day_ago, week_ago = (now - SHOWN).replace(tzinfo=None), (now - EARLIER).replace(tzinfo=None)
+    # The week before today, newest first: stories that cleared the bar, open or closed.
+    earlier = (Story.query.filter(Story.tier != "background", Story.newest < day_ago, Story.newest >= week_ago)
+               .order_by(Story.newest.desc()).limit(15).all())
     itn = latest_itn()
-    everything = Story.query.all()
-    last = db.session.query(db.func.max(Story.newest)).scalar()
-    from models import Article
-    fetched = db.session.query(db.func.max(Article.fetched)).scalar()
+    current = Story.query.filter_by(closed=False).all()
     return {
-        "now": datetime.now(UTC).isoformat(),
-        "fetched": _iso(fetched),
-        "latest": _iso(last),
-        "stories": [_story(s) for s in recent],
-        "earlier": [_story(s) for s in earlier[:10]],
+        "now": now.isoformat(),
+        "fetched": _iso(last_fetch_ok()),
+        "stories": [_story(s) for s in shown],
+        "cleared": cleared,
+        "earlier": [_story(s) for s in earlier],
         "ongoing": [{"topic": o["topic"], "isos": o["isos"], "story_ids": [s.id for s in o["stories"]],
-                     "latest": o["stories"][0].headline if o["stories"] else None}
-                    for o in ongoing_situations(everything, itn)],
+                     "latest": o["latest"].headline if o["latest"] else None, "singles": o["singles"]}
+                    for o in ongoing_situations(current, itn, now)],
         "itn": itn.get("items", []),
-        "counts": {"major": sum(s.tier == "major" for s in recent),
-                   "headline": sum(s.tier == "headline" for s in recent),
-                   "watched": len(everything)},
+        "sources": source_health(SOURCES, now),
+        "counts": {"major": sum(s.tier == "major" for s in shown),
+                   "headline": sum(s.tier == "headline" for s in shown),
+                   "watched": len(current)},
     }
 
 
