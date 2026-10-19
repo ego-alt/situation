@@ -105,7 +105,7 @@
     /** The view showing a box, with a margin, no closer than `minW` across. */
     function fit([x0, y0, x1, y1], minW = 14) {
         const { aspect } = screen();
-        let w = Math.max((x1 - x0) * 1.3, ((y1 - y0) * 1.3) / aspect, minW);
+        let w = Math.max((x1 - x0) * 1.5, ((y1 - y0) * 1.5) / aspect, minW);
         w = Math.min(w, world.width);
         const h = w * aspect;
         return clamp({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
@@ -174,9 +174,10 @@
             theatre.classList.toggle('zoomed', !!view);
             document.querySelector('.theatre').classList.toggle('close', close);
             drawDetail(v, close);
-            const taken = drawPins(upp, close);                  // the news first: cities give way to it
+            // The news first, then the week's places, then cities for orientation: each gives way to the last.
+            const taken = drawPins(upp, close);
+            drawTrack(upp, taken);
             drawRefs(v, upp, close, taken);
-            drawTrack(upp);
         });
     }
 
@@ -230,10 +231,13 @@
         // Fewer, bigger cities the further out: enough to know where you are.
         const minPop = v.w < 15 ? 0 : v.w < 60 ? 250000 : v.w < 120 ? 600000 : 1500000;
         const within = (x, y) => x > v.x && x < v.x + v.w && y > v.y && y < v.y + v.h;
+        // Places the news or the week's track already name.
+        const onMap = new Set([...document.querySelectorAll('#pins .tag, #track .track-label')].map((t) => t.textContent));
         for (const [iso, d] of details) {
             if (!inView(d.bbox, v)) continue;
             for (const c of d.cities) {
-                if (c.pop < minPop || !within(c.x, c.y)) continue;
+                if (c.pop < minPop || !within(c.x, c.y) || onMap.has(c.name)) continue;
+                if (taken.some(([tx, ty, tw, th]) => c.x >= tx && c.x <= tx + tw && c.y >= ty && c.y <= ty + th)) continue;
                 el('circle', { cx: c.x, cy: c.y, r: 1.6 * upp, class: 'city' }, layer);
                 const spot = labelSpot(c.x, c.y, c.name, taken, upp, 3);
                 if (!spot) continue;
@@ -263,12 +267,16 @@
 
     /** An active situation's past week: every place named there, bigger the more
      * often, fading with age. Shown while that situation is picked. */
-    function drawTrack(upp) {
+    function drawTrack(upp, taken = []) {
         const layer = $('track');
         layer.innerHTML = '';
         if (!filter?.track?.length) return;
         const now = Date.now();
-        const taken = [];
+        const named = new Set(data.stories.flatMap((s) => (s.spots || []).map((p) => p.name)));
+        for (const t of filter.track) {
+            const r = (3 + Math.sqrt(t.n) * 2.2) * upp;
+            taken.push([t.x - r, t.y - r, 2 * r, 2 * r]);
+        }
         for (const [i, t] of filter.track.entries()) {
             const hours = (now - new Date(t.last)) / 3600000;
             const fresh = Math.max(0.25, 1 - hours / 168);
@@ -276,7 +284,7 @@
             const g = el('g', { class: 'track-spot' }, layer);
             el('circle', { cx: t.x, cy: t.y, r, 'fill-opacity': 0.35 * fresh, 'stroke-opacity': fresh }, g);
             el('title', {}, g).textContent = `${t.name}: named in ${t.n} article${t.n > 1 ? 's' : ''} this week, last ${ago(t.last)} ago`;
-            if (i < 8) {
+            if (i < 8 && !named.has(t.name)) {                  // today's pin already says its name
                 const spot = labelSpot(t.x, t.y, t.name, taken, upp, r / upp + 3);
                 if (spot) {
                     const label = el('text', { x: spot.x, y: spot.y, class: 'track-label', 'text-anchor': spot.anchor }, g);

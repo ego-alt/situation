@@ -58,6 +58,7 @@ An operations-room wall: open-source intelligence, not a newspaper.
 - **A status bar** with UTC and local clocks, time since the last sync, and counts per tier.
 - **Type:** facts (codes, times, counts, outlet names) in IBM Plex Mono, headlines in Inter so they read at a glance.
 - **On a phone** the map sits on top and the list follows.
+- **Zooming in** shows regions, cities and the places each story names (see the README). Picking a country, place or situation drives both the map and the list; moving the map never changes the list.
 
 ## Delivery
 
@@ -80,7 +81,7 @@ Data older than 30 days is pruned; story headlines are kept for the weekly view.
 ## Phases
 
 1. **Scaffold (done):** fetch the RSS and ITN sources; cluster, place, score and tier; the map page; the background fetch loop; CLI commands `fetch` and `brief`; tests on a real snapshot from 18 Oct 2026.
-2. **Live:** join the stack (a GitHub repo, a compose service, nginx `/situation/`, the dashboard tile and the auto-deploy).
+2. **Live (done):** join the stack (a GitHub repo, a compose service, nginx `/situation/`, the dashboard tile and the auto-deploy), then the audit's fixes and zoomable regional maps.
 3. **Delivery:** morning brief and Major alerts through ntfy, with quiet hours.
 4. **Claude:** neutral headlines, "why it matters", and the significance check.
 5. **Later:** a weekly recap, the MCP tool, "mark as seen", per-region bars you can tune.

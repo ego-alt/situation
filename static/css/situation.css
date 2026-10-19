@@ -103,7 +103,8 @@ body {
 .map-missing { margin: 0; padding: 24px 16px; color: var(--muted); font: 12px var(--mono); }
 @keyframes pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3.2); opacity: 0; } }
 .legend {
-    position: absolute; left: 16px; bottom: 14px; display: flex; gap: 14px; align-items: center;
+    position: absolute; left: 10px; bottom: 10px; display: flex; gap: 14px; align-items: center;
+    padding: 4px 8px; border-radius: 2px; background: rgba(7, 10, 11, 0.8);
     font: 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
 }
 .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
