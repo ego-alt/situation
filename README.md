@@ -7,6 +7,7 @@ An open-source intelligence wall for the home stack: the world map with today's 
 ## Features
 
 - **The map** is the centrepiece. Each country with news gets one pin, sized by how many outlets carry its biggest story; FLASH pulses amber, PRIORITY is cyan. Tap a pin to see that country's stories.
+- **Zoom in on a place.** Pinch, scroll or tap a country to zoom: regions and cities appear, and stories show as the places they name, such as the cities of the French riots. Tap an active situation to see every place named there in the past week, bigger the more often and fading with age. That shows where the reporting is, which isn't a verified front line.
 - **A high bar.** Fourteen outlets on four continents are read every 15 minutes and grouped by event. A story is shown only when several independent newsrooms carry it or Wikipedia's editors put it "In the news". A normal day shows five to ten stories out of several hundred, and never more than ten.
 - **Two tiers.** FLASH: new on Wikipedia's "In the news" (for its first day), or the lead story on several front pages at once. PRIORITY: carried by four or more outlets (three if one leads with it); Hong Kong, Taiwan, China and the UK get a lower bar.
 - **Active situations.** Wikipedia's "Ongoing" list (wars, offensives, outbreaks), each with its latest development that more than one outlet carries.
@@ -44,4 +45,5 @@ Outlets, their weights and regions are in `sources.py`.
 
 - `instance/situation.db`: articles from the last 30 days, the stories they form, and Wikipedia snapshots.
 - The map is built from Natural Earth's 1:110m countries (public domain) with `python -I tools/build_map.py <countries.geojson>`; it writes `static/map/world.json` and `data/countries.json`.
+- The zoomed-in map and the place names come from Natural Earth's 1:10m countries and states/provinces, and GeoNames' towns of over 15,000 people (CC BY 4.0, [geonames.org](https://www.geonames.org/)). `tools/build_regions.py` writes `static/map/regions/<country>.json` (loaded as you zoom) and `data/gazetteer.json`; its docstring says how to run it.
 - Fonts: Inter and IBM Plex Mono (SIL Open Font License), served by the app.

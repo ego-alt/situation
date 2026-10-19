@@ -27,6 +27,11 @@
     <main class="board">
         <section class="theatre" aria-label="World map">
             <svg id="map" class="map" role="img" aria-label="Where today's stories are"></svg>
+            <div class="zoom" role="group" aria-label="Map zoom">
+                <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+                <button type="button" data-zoom="out" aria-label="Zoom out">−</button>
+                <button type="button" data-zoom="world" class="zoom-world">World</button>
+            </div>
             <div class="legend" aria-hidden="true">
                 <span><i class="dot flash"></i>flash</span>
                 <span><i class="dot priority"></i>priority</span>
@@ -38,6 +43,8 @@
         <aside class="intel" aria-label="Today's stories">
             <div id="notice" class="notice" role="status" hidden></div>
             <div id="feed" aria-live="polite"><div class="empty">Acquiring…</div></div>
+            <p class="credit">Map: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>.
+                Places: <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0).</p>
         </aside>
     </main>
 

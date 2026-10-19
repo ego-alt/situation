@@ -28,6 +28,7 @@ class Article(db.Model):
     published = db.Column(db.DateTime, index=True)      # UTC
     position = db.Column(db.Integer)                    # place in its feed when last seen (0 = lead)
     fetched = db.Column(db.DateTime, default=utcnow, index=True)
+    spots = db.Column(db.JSON)                          # cities and regions it names (geo.spots)
 
     def as_item(self) -> dict:
         return {"id": self.id, "source": self.source, "outlet": self.outlet, "title": self.title,
@@ -90,8 +91,12 @@ class DayTally(db.Model):
 
 def migrate():
     """Add columns that create_all() can't add to an existing table."""
-    cols = {row[1] for row in db.session.execute(db.text("PRAGMA table_info(stories)"))}
-    if cols and "closed" not in cols:
+    def columns(table):
+        return {row[1] for row in db.session.execute(db.text(f"PRAGMA table_info({table})"))}
+    stories, articles = columns("stories"), columns("articles")
+    if stories and "closed" not in stories:
         db.session.execute(db.text("ALTER TABLE stories ADD COLUMN closed BOOLEAN NOT NULL DEFAULT 0"))
         db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_closed ON stories (closed)"))
-        db.session.commit()
+    if articles and "spots" not in articles:
+        db.session.execute(db.text("ALTER TABLE articles ADD COLUMN spots JSON"))   # filled in by the next fetch
+    db.session.commit()

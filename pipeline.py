@@ -7,7 +7,7 @@ deleted, so it keeps its id for the weekly view and the notifications."""
 from datetime import UTC, datetime, timedelta
 
 from cluster import cluster
-from geo import locate, places
+from geo import locate, places, spots
 from models import Article, DayTally, ItnSnapshot, SourceStatus, Story, db, story_articles
 from score import BACKGROUND, MAJOR, assess, match_itn
 
@@ -36,7 +36,7 @@ def store(items: list[dict]) -> int:
             db.session.add(Article(
                 url=item["url"], source=item["source"], outlet=item.get("outlet") or item["source"],
                 title=item["title"], summary=item.get("summary"), published=published,
-                position=item.get("position")))
+                position=item.get("position"), spots=article_spots(item)))
             added += 1
         else:
             row.position = item.get("position")
@@ -44,11 +44,20 @@ def store(items: list[dict]) -> int:
     return added
 
 
+def article_spots(item) -> list[dict]:
+    """The cities and regions an article names, worked out once when it's stored."""
+    title, summary = (item["title"], item.get("summary")) if isinstance(item, dict) else (item.title, item.summary)
+    return spots(f"{title}. {summary or ''}")
+
+
 def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]:
     now = now or clock()
     since = (now - WINDOW).replace(tzinfo=None)
     articles = Article.query.filter(db.or_(Article.published >= since,
                                            db.and_(Article.published.is_(None), Article.fetched >= since))).all()
+    for a in articles:
+        if a.spots is None:            # stored before places were tracked
+            a.spots = article_spots(a)
     items = [a.as_item() for a in articles]
     by_id = {a.id: a for a in articles}
     groups = [[items[i] for i in g] for g in cluster(items)]
@@ -179,6 +188,26 @@ def prune(days: int = 30):
                 | story_articles.c.story_id.not_in(db.select(Story.id)))
     db.session.execute(story_articles.delete().where(dangling))
     db.session.commit()
+
+
+TRACK = timedelta(days=7)
+
+
+def tracks(areas: list[set[str]], now: datetime | None = None, limit: int = 40) -> list[list[dict]]:
+    """For each set of countries, where its reporting has been over the past
+    week: every city or region named there, how many articles named it and
+    when last. One pass over the week's articles for all of them."""
+    since = ((now or clock()) - TRACK).replace(tzinfo=None)
+    seen: list[dict[tuple, dict]] = [{} for _ in areas]
+    for a in Article.query.filter(Article.published >= since, Article.spots.isnot(None)):
+        when = a.published.replace(tzinfo=UTC)
+        for s in a.spots:
+            for isos, found in zip(areas, seen, strict=True):
+                if s["iso"] in isos:
+                    spot = found.setdefault((s["name"], s["iso"]), {**s, "n": 0, "last": when})
+                    spot["n"] += 1
+                    spot["last"] = max(spot["last"], when)
+    return [sorted(found.values(), key=lambda s: -s["n"])[:limit] for found in seen]
 
 
 def ongoing_situations(stories: list[Story], itn: dict, now: datetime | None = None) -> list[dict]:

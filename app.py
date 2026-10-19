@@ -8,6 +8,7 @@ from flask import Flask, jsonify, render_template, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import Story, db, migrate
+from projection import project
 from score import clean_title
 from sources import BY_KEY, SOURCES
 
@@ -121,14 +122,33 @@ def _story(s: Story) -> dict:
                         "title": clean_title(a.title), "url": a.url})
     return {"id": s.id, "headline": s.headline, "tier": s.tier, "score": s.score, "outlets": s.outlets,
             "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, "x": s.x, "y": s.y,
-            "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources}
+            "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources,
+            "spots": _story_spots(s)}
+
+
+def _spot(s: dict, **extra) -> dict:
+    x, y = project(s["lon"], s["lat"])
+    return {"name": s["name"], "iso": s["iso"], "kind": s["kind"], "x": x, "y": y, **extra}
+
+
+def _story_spots(s: Story, limit: int = 8) -> list[dict]:
+    """The cities and regions a story's articles name, most named first: those in
+    its own country, and elsewhere only what two or more of its articles name
+    (one article's aside about another country isn't where the story is)."""
+    counts: dict[tuple, list] = {}
+    for a in s.articles:
+        for spot in a.spots or []:
+            counts.setdefault((spot["name"], spot["iso"]), [spot, 0])[1] += 1
+    counts = {k: c for k, c in counts.items() if k[1] == s.iso or c[1] >= 2}
+    ranked = sorted(counts.values(), key=lambda c: -c[1])[:limit]
+    return [_spot(spot, n=n) for spot, n in ranked]
 
 
 EARLIER = timedelta(days=7)
 
 
 def snapshot() -> dict:
-    from pipeline import SHOWN, clock, last_fetch_ok, latest_itn, on_screen, ongoing_situations, source_health
+    from pipeline import SHOWN, clock, last_fetch_ok, latest_itn, on_screen, ongoing_situations, source_health, tracks
     now = clock()
     shown, cleared = on_screen(now)
     day_ago, week_ago = (now - SHOWN).replace(tzinfo=None), (now - EARLIER).replace(tzinfo=None)
@@ -137,6 +157,8 @@ def snapshot() -> dict:
                .order_by(Story.newest.desc()).limit(15).all())
     itn = latest_itn()
     current = Story.query.filter_by(closed=False).all()
+    ongoing = ongoing_situations(current, itn, now)
+    weeks = tracks([set(o["isos"]) for o in ongoing], now)
     return {
         "now": now.isoformat(),
         "fetched": _iso(last_fetch_ok()),
@@ -144,8 +166,9 @@ def snapshot() -> dict:
         "cleared": cleared,
         "earlier": [_story(s) for s in earlier],
         "ongoing": [{"topic": o["topic"], "isos": o["isos"], "story_ids": [s.id for s in o["stories"]],
-                     "latest": o["latest"].headline if o["latest"] else None, "singles": o["singles"]}
-                    for o in ongoing_situations(current, itn, now)],
+                     "latest": o["latest"].headline if o["latest"] else None, "singles": o["singles"],
+                     "track": [_spot(t, n=t["n"], last=_iso(t["last"])) for t in week]}
+                    for o, week in zip(ongoing, weeks, strict=True)],
         "itn": itn.get("items", []),
         "sources": source_health(SOURCES, now),
         "counts": {"major": sum(s.tier == "major" for s in shown),

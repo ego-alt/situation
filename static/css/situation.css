@@ -58,7 +58,28 @@ body {
 }
 .theatre { position: relative; overflow: hidden; border-right: 1px solid var(--line); background:
     radial-gradient(ellipse at 50% 45%, rgba(95, 211, 166, 0.05), transparent 65%), var(--bg); }
-.map { width: 100%; height: 100%; display: block; }
+.map { width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+.theatre.zoomed .map { touch-action: none; }
+.map:active { cursor: grabbing; }
+/* Strokes stay the same width on screen at any zoom. */
+.map path, .map circle { vector-effect: non-scaling-stroke; }
+.map .land.covered { display: none; }
+.map .region { fill: none; stroke: #1a2a2f; stroke-width: 0.6; pointer-events: none; }
+.map .detail-land { stroke-width: 0.9; }
+.map .city { fill: var(--muted); pointer-events: none; }
+.map .city-label, .map .region-label { font-family: var(--mono); fill: var(--muted); pointer-events: none; }
+.map .city-label { fill: var(--text-2); paint-order: stroke; stroke: var(--bg); }
+.map .region-label { text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.7; }
+.map .track-spot circle { fill: var(--flash); stroke: var(--flash); stroke-width: 1; }
+.map .track-label { font-family: var(--mono); font-weight: 600; fill: var(--flash); paint-order: stroke; stroke: var(--bg); pointer-events: none; }
+.zoom { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.zoom button {
+    min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 2px;
+    background: rgba(11, 16, 18, 0.85); color: var(--text-2); font: 14px var(--mono); cursor: pointer;
+}
+.zoom button:hover { color: var(--text); border-color: var(--muted); }
+.zoom .zoom-world { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; display: none; }
+.theatre.zoomed .zoom .zoom-world { display: block; }
 .map .sphere { fill: #081012; stroke: var(--line-2); stroke-width: 0.6; }
 .map .grid { fill: none; stroke: var(--grid); stroke-width: 0.6; }
 .map .land { fill: var(--land); stroke: var(--land-edge); stroke-width: 0.45; transition: fill 0.3s; }
@@ -143,6 +164,8 @@ body {
 }
 .filter b { color: var(--text); font-weight: 600; }
 .filter ~ .section-head { top: 41px; }
+.credit { padding: 16px; color: var(--muted); font: 10px var(--mono); }
+.credit a { color: inherit; }
 .capped { padding: 10px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font: 11px var(--mono); }
 
 /* ---- phone: the map on top, the list under it ---- */
@@ -155,6 +178,8 @@ body {
     .board { display: block; height: auto; }
     .theatre { height: 54vw; min-height: 200px; border-right: 0; border-bottom: 1px solid var(--line); }
     .legend { display: none; }
+    .zoom { top: auto; bottom: 8px; right: 8px; flex-direction: row; }
+    .zoom button { min-width: 30px; height: 30px; }
     .intel { overflow: visible; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
     .section-head { top: 0; }
 }

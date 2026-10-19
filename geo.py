@@ -168,3 +168,84 @@ def locate(articles: list[dict]) -> dict | None:
     c = _table()[0][iso]
     x, y = project(c["lon"], c["lat"])
     return {"iso": iso, "name": c["name"], "lat": c["lat"], "lon": c["lon"], "x": x, "y": y}
+
+
+# ---------- places inside countries: cities and regions ----------
+
+_GAZETTEER = pathlib.Path(__file__).resolve().parent / "data" / "gazetteer.json"
+# Small words that can sit inside a place's name ("Rio de Janeiro", "Bandar Seri Begawan").
+_JOINERS = {"de", "da", "do", "del", "la", "le", "el", "al", "of", "on", "upon", "sur", "am", "an", "der"}
+BIG_CITY = 1_000_000    # a city this big counts even when the article doesn't name its country
+# "Donetsk region", "Kherson oblast": the region, not the city of that name.
+_REGION_WORDS = {"region", "oblast", "province", "state", "county", "prefecture", "governorate", "department"}
+
+
+@lru_cache(maxsize=1)
+def _gazetteer():
+    """{name: [(iso, lat, lon, population, kind), ...]}."""
+    names: dict[str, list] = {}
+    for name, iso, lat, lon, pop, kind in json.loads(_GAZETTEER.read_text()):
+        names.setdefault(name, []).append((iso, lat, lon, pop, kind))
+    return names
+
+
+# A run of capitalised words, joined only by spaces (punctuation ends a run),
+# with the small joining words allowed inside: "Rio de Janeiro", "Johns Hopkins University".
+_RUN = re.compile(r"[A-ZÀ-Þ][\w'’.-]*(?:\s+(?:(?:" + "|".join(sorted(_JOINERS)) + r")\s+)?[A-ZÀ-Þ][\w'’.-]*)*")
+
+
+def _phrases(text: str):
+    """(phrase, next word) for each run of capitalised words that is a place.
+
+    The place has to be the whole run, so a place inside a longer name
+    doesn't count: Real Madrid, Manchester City, the New York Times, Vladimir
+    Putin. A trailing "Region" or "Oblast" is allowed and kept as a hint."""
+    names = _gazetteer()
+    for m in _RUN.finditer(text or ""):
+        words = [w.rstrip(".").removesuffix("'s").removesuffix("’s") for w in m.group(0).split()]
+        after = text[m.end():m.end() + 30].split()
+        after = after[0].lower().strip(".,;:") if after else ""
+        if len(words) > 1 and words[-1].lower() in _REGION_WORDS:
+            after = words.pop().lower()
+        phrase = " ".join(words)
+        if words[0] in ("St", "Ste") and phrase not in names:
+            phrase = phrase.replace("St ", "Saint ", 1).replace("Ste ", "Sainte ", 1)   # St Petersburg
+        if phrase in names:
+            yield phrase, after
+
+
+def spots(text: str) -> list[dict]:
+    """The cities and regions a piece of text names: [{"name", "iso", "kind", "lat", "lon"}].
+
+    A name shared by several places counts only for the place whose country
+    the text also names ("Pokrovsk ... Ukraine"), or for a city of a million
+    or more. Countries, and capitals named as actors ("Moscow says"), aren't
+    spots: they're already the country pin."""
+    countries, _, lookup = _table()
+    named = set(places(text))
+    names = _gazetteer()
+    found, seen = [], set()
+    for phrase, after in _phrases(text):
+        if phrase in ACTOR_WORDS or (phrase in lookup and phrase not in _capitals()):
+            continue                       # a country, demonym or alias: not a place inside one
+        options = names[phrase]
+        here = [o for o in options if o[0] in named]
+        if here:
+            prefer = "region" if after in _REGION_WORDS else "city"
+            best = max(here, key=lambda o: (o[4] == prefer, o[3]))
+        else:
+            best = max(options, key=lambda o: o[3])
+            rivals = sorted((o[3] for o in options if o is not best), reverse=True)
+            if best[3] < BIG_CITY or (rivals and rivals[0] * 5 > best[3]):
+                continue
+        key = (phrase, best[0])
+        if key not in seen:
+            seen.add(key)
+            found.append({"name": phrase, "iso": best[0], "kind": best[4], "lat": best[1], "lon": best[2]})
+    return found
+
+
+@lru_cache(maxsize=1)
+def _capitals() -> set[str]:
+    return {n.strip() for v in CAPITALS.values() for n in v.split(",")} | {
+        n.strip() for v in CITIES.values() for n in v.split(",")}

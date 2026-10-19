@@ -98,3 +98,28 @@ def test_places_from_leaders_capitals_and_cities():
     # "Georgia" is as often the US state: it counts for less than a clear place.
     assert places("Storm hits Georgia and Atlanta, US")["US"] > places("Storm hits Georgia and Atlanta, US")["GE"]
     assert "FR" not in places("Protests in Limoges")                   # cities from one day's news are gone
+
+
+# ---------- places inside countries ----------
+
+def _spots(text):
+    from geo import spots
+    return [(s["name"], s["iso"], s["kind"]) for s in spots(text)]
+
+
+def test_cities_and_regions_in_the_news():
+    assert _spots("Russian forces close in on Pokrovsk as Ukraine evacuates families from Donetsk region") == [
+        ("Pokrovsk", "UA", "city"), ("Donetsk", "UA", "region")]
+    assert [n for n, _, _ in _spots("France: Paris, Lyon and Marseille count the cost after the riots")] == [
+        "Paris", "Lyon", "Marseille"]
+    assert ("Saint Petersburg", "RU", "city") in _spots("Drones hit St Petersburg overnight, Russia says")
+    assert _spots("Shelling in Kharkiv and Odesa overnight") == [("Kharkiv", "UA", "city"), ("Odesa", "UA", "city")]
+
+
+def test_names_that_arent_places_here():
+    assert _spots("Mbappe scores as Real Madrid win; Manchester City lose in Spain") == []
+    assert _spots("Vladimir Putin said Russia would not stop") == []            # a first name
+    assert _spots("An investigation by the New York Times, US officials say") == []
+    assert _spots("Moscow says talks with Kyiv are over") == [("Kyiv", "UA", "city")]   # Moscow as an actor
+    # A town that shares its name counts only where the article names the country.
+    assert _spots("Clashes reported near Pokrovsk") == []

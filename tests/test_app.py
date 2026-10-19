@@ -152,9 +152,45 @@ def test_an_old_database_gains_the_new_column(tmp_path):
                 "score FLOAT NOT NULL, outlets INTEGER NOT NULL, leads INTEGER NOT NULL, itn VARCHAR, iso VARCHAR, "
                 "place VARCHAR, lat FLOAT, lon FLOAT, x FLOAT, y FLOAT, first_seen DATETIME, newest DATETIME)")
     con.execute("INSERT INTO stories (headline, tier, score, outlets, leads) VALUES ('Old', 'headline', 5, 4, 0)")
+    con.execute("CREATE TABLE articles (id INTEGER PRIMARY KEY, url VARCHAR NOT NULL UNIQUE, source VARCHAR NOT NULL, "
+                "outlet VARCHAR NOT NULL, title VARCHAR NOT NULL, summary VARCHAR, published DATETIME, "
+                "position INTEGER, fetched DATETIME)")
     con.commit()
     con.close()
     app = create_app({"TESTING": True, "FETCH_LOOP": False, "SQLALCHEMY_DATABASE_URI": f"sqlite:///{path}"})
     with app.app_context():
         story = Story.query.one()
         assert story.headline == "Old" and story.closed is False
+        from models import Article
+        assert Article.query.count() == 0 and hasattr(Article, "spots")
+
+
+def test_stories_carry_their_places(loaded):
+    france = next(s for s in snapshot()["stories"] if s["iso"] == "FR")
+    names = [p["name"] for p in france["spots"]]
+    assert {"Paris", "Limoges"} <= set(names) and all(p["iso"] == "FR" or p["n"] >= 2 for p in france["spots"])
+    assert all(0 <= p["x"] <= 1000 for p in france["spots"])
+
+
+def test_an_active_situation_has_a_week_of_places(app, monkeypatch):
+    import pipeline
+    from tests.conftest import NOW_2, SNAPSHOT_2, snapshot_items
+    monkeypatch.setattr(pipeline, "clock", lambda: NOW_2)
+    items, itn = snapshot_items(SNAPSHOT_2)
+    pipeline.run(lambda: items, lambda: itn, NOW_2)
+    war = next(o for o in snapshot()["ongoing"] if o["topic"] == "Russo-Ukrainian war")
+    names = [t["name"] for t in war["track"]]
+    assert names[0] == "Kyiv" and war["track"][0]["n"] >= 5
+    assert all(t["iso"] in {"UA", "RU"} and t["last"] for t in war["track"])
+
+
+def test_the_zoomed_map_files():
+    import json
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    fr = json.loads((root / "static/map/regions/FR.json").read_text())
+    assert len(fr["regions"]) > 90 and fr["cities"][0]["name"] == "Paris"
+    x0, y0, x1, y1 = fr["focus"]
+    assert x1 - x0 < 50 and fr["bbox"][2] - fr["bbox"][0] > 400      # the mainland, not French Guiana
+    gazetteer = json.loads((root / "data/gazetteer.json").read_text())
+    assert ["Pokrovsk", "UA"] in [g[:2] for g in gazetteer]
