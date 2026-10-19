@@ -1,0 +1,90 @@
+"""Fetching: outlet RSS feeds and Wikipedia's "In the news"."""
+import html
+import re
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+
+import feedparser
+import requests
+
+from sources import ITN_URL, SOURCES, USER_AGENT, Source
+
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _text(raw: str | None, limit: int = 400) -> str:
+    text = html.unescape(_TAG.sub(" ", raw or ""))
+    return re.sub(r"\s+", " ", text).strip()[:limit]
+
+
+def _when(entry) -> datetime | None:
+    for key in ("published_parsed", "updated_parsed"):
+        t = entry.get(key)
+        if t:
+            return datetime(*t[:6], tzinfo=UTC)
+    return None
+
+
+def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
+    """A feed's items, in the feed's own order (its lead stories first)."""
+    try:
+        resp = requests.get(source.url, headers={"User-Agent": USER_AGENT}, timeout=timeout)
+        resp.raise_for_status()
+    except requests.RequestException:
+        return []
+    feed = feedparser.parse(resp.content)
+    items = []
+    for position, entry in enumerate(feed.entries):
+        title = _text(entry.get("title"), 300)
+        url = entry.get("link")
+        if not (title and url):
+            continue
+        items.append({
+            "source": source.key, "outlet": source.outlet, "title": title, "url": url,
+            "summary": _text(entry.get("summary") or entry.get("description")),
+            "published": _when(entry), "position": position,
+        })
+    return items
+
+
+def fetch_all(sources=SOURCES) -> list[dict]:
+    """Every feed's items; an article carried by two feeds of one outlet once."""
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        batches = list(pool.map(fetch_source, sources))
+    seen, out = set(), []
+    for item in (i for batch in batches for i in batch):
+        if item["url"] not in seen:
+            seen.add(item["url"])
+            out.append(item)
+    return out
+
+
+
+
+
+def parse_itn(page_html: str) -> dict:
+    """The "In the news" template → {"items": [...], "ongoing": [...]}.
+
+    The template is a bulleted list of the current items, then a line of
+    ongoing topics, then recent deaths. Items are full sentences; ongoing
+    topics are short names ("Iran war")."""
+    blocks = re.split(r"<div[^>]*(?:itn-footer|hlist)[^>]*>", page_html, maxsplit=1)
+    head = blocks[0]
+    items = [_text(li, 500) for li in re.findall(r"<li>(.*?)</li>", head, re.S)]
+    items = [i.replace(" (pictured)", "") for i in items if len(i) > 25]
+    ongoing = []
+    m = re.search(r"Ongoing:?\s*</b>(.*?)(?:Recent deaths|</div>)", page_html, re.S | re.I)
+    if m:
+        ongoing = [_text(li, 120) for li in re.findall(r"<li>(.*?)</li>", m.group(1), re.S)]
+        # A topic can carry a "timeline" link beside it; that's not part of its name.
+        ongoing = [re.sub(r"\s+timeline$", "", o, flags=re.I) for o in ongoing if o and o.lower() != "timeline"]
+    return {"items": items, "ongoing": ongoing}
+
+
+def fetch_itn(timeout: int = 20) -> dict:
+    try:
+        resp = requests.get(ITN_URL, headers={"User-Agent": USER_AGENT}, timeout=timeout)
+        resp.raise_for_status()
+        return parse_itn(resp.json()["parse"]["text"])
+    except (requests.RequestException, KeyError, ValueError):
+        return {"items": [], "ongoing": []}

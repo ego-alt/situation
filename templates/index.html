@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#070a0b">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
+    <title>Situation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
+    <script>window.APP_ROOT = "{{ request.script_root }}";</script>
+</head>
+<body>
+    <header class="bar">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span>SITUATION<span class="brand-sub">open-source monitor</span></div>
+        <div class="readouts">
+            <span class="readout"><span class="k">UTC</span> <span id="clockUtc">--:--</span></span>
+            <span class="readout"><span class="k" id="localZone">LOCAL</span> <span id="clockLocal">--:--</span></span>
+            <span class="readout"><span class="k">SYNC</span> <span id="sync">—</span></span>
+            <span class="readout tally"><span class="k flash">FLASH</span> <span id="countMajor">0</span></span>
+            <span class="readout tally"><span class="k priority">PRIORITY</span> <span id="countHeadline">0</span></span>
+        </div>
+    </header>
+
+    <main class="board">
+        <section class="theatre" aria-label="World map">
+            <svg id="map" class="map" role="img" aria-label="Where today's stories are"></svg>
+            <div class="legend" aria-hidden="true">
+                <span><i class="dot flash"></i>flash</span>
+                <span><i class="dot priority"></i>priority</span>
+                <span class="legend-note">size = outlets carrying it</span>
+            </div>
+            <div class="scanline" aria-hidden="true"></div>
+        </section>
+
+        <aside class="intel" aria-label="Today's stories">
+            <div id="feed" aria-live="polite"><div class="empty">Acquiring…</div></div>
+        </aside>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/situation.js') }}"></script>
+</body>
+</html>

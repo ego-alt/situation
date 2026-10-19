@@ -1,0 +1,98 @@
+"""How important a story is, and which tier that puts it in.
+
+Signals (see docs/plan.md):
+  breadth   distinct outlets carrying it, each counted once at its weight
+  lead      outlets that put it among their top three items
+  curated   it matches an item in Wikipedia's "In the news"
+  region    it happens in a place you live or follow
+  recency   a day-old story yields to today's
+"""
+import re
+from datetime import UTC, datetime
+
+from cluster import cosine, document, tfidf
+from sources import BY_KEY
+
+HOME_REGIONS = {"HK", "TW", "CN", "GB"}
+
+MAJOR, HEADLINE, BACKGROUND = "major", "headline", "background"
+
+# Titles that name a format, not the news: live blogs, galleries, explainers.
+_NOT_A_HEADLINE = re.compile(
+    r"\b(live|watch|replay|in pictures|photos?|video|what to know|what we know|explainer|opinion|"
+    r"analysis|podcast|newsletter|quiz)\b|\?$", re.I)
+_EMOJI = re.compile(r"[\U0001F000-\U0001FAFF☀-➿️]+")
+
+
+def clean_title(title: str) -> str:
+    title = _EMOJI.sub("", title)
+    title = re.sub(r"^\s*(live|breaking|watch|replay)\s*[:|-]\s*", "", title, flags=re.I)
+    return re.sub(r"\s+", " ", title).strip(" -–—|:")
+
+
+def pick_headline(articles: list[dict]) -> str:
+    """The most typical article's title, skipping live blogs and galleries."""
+    for a in articles[:8]:
+        if not _NOT_A_HEADLINE.search(a["title"]):
+            return clean_title(a["title"])
+    return clean_title(articles[0]["title"])
+
+
+def match_itn(groups_articles: list[list[dict]], itn_items: list[str], threshold: float = 0.2) -> dict:
+    """{group index: ITN item} for groups that an ITN item describes: the best
+    match between the item and any one of a story's articles. Only stories
+    carried by two or more outlets qualify, so an item never lands on a lone
+    opinion piece that happens to share its words."""
+    if not itn_items or not groups_articles:
+        return {}
+    eligible = [i for i, arts in enumerate(groups_articles)
+                if len({a.get("outlet") or a["source"] for a in arts}) >= 2]
+    owners, docs = [], []
+    for i in eligible:
+        for a in groups_articles[i][:15]:
+            owners.append(i)
+            docs.append(document(a))
+    vectors = tfidf(docs + [document({"title": item}) for item in itn_items])
+    article_v, itn_v = vectors[: len(docs)], vectors[len(docs):]
+    matches = {}
+    for k, item in enumerate(itn_items):
+        best, owner = max(((cosine(itn_v[k], v), owners[j]) for j, v in enumerate(article_v)), default=(0, None))
+        if owner is not None and best >= threshold and owner not in matches:
+            matches[owner] = item
+    return matches
+
+
+def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: datetime) -> dict:
+    """Score and tier one story from its articles (most typical first)."""
+    per_outlet: dict[str, float] = {}
+    leads = set()
+    for a in articles:
+        source = BY_KEY.get(a["source"])
+        outlet = a.get("outlet") or a["source"]
+        per_outlet[outlet] = max(per_outlet.get(outlet, 0.0), source.weight if source else 0.5)
+        if a.get("position") is not None and a["position"] < 3:
+            leads.add(outlet)
+    breadth = round(sum(per_outlet.values()), 2)
+    outlets = len(per_outlet)
+    home = bool(place and place["iso"] in HOME_REGIONS)
+
+    times = [a["published"] for a in articles if a.get("published")]
+    newest = max(times) if times else now
+    if newest.tzinfo is None:
+        newest = newest.replace(tzinfo=UTC)
+    hours = max(0.0, (now - newest).total_seconds() / 3600)
+    recency = 1.0 if hours <= 12 else max(0.3, 1.0 - (hours - 12) / 50)
+
+    score = (breadth + 0.5 * len(leads) + (4.0 if itn_item else 0.0) + (1.0 if home else 0.0)) * recency
+
+    if itn_item or (outlets >= 6 and len(leads) >= 2):
+        tier = MAJOR
+    elif outlets >= 4 or (outlets >= 3 and leads) or (home and breadth >= 2.0):
+        tier = HEADLINE
+    else:
+        tier = BACKGROUND
+    return {
+        "headline": pick_headline(articles), "outlets": outlets, "breadth": breadth,
+        "leads": len(leads), "home": home, "itn": itn_item, "score": round(score, 2), "tier": tier,
+        "newest": newest,
+    }
