@@ -190,3 +190,13 @@ def test_stories_that_share_names_but_not_events_stay_apart():
     assert len(pope) >= 8 and all("pope" in t for t in pope)   # his call with Zelenskyy, not the war
     riots = [n for n, g in enumerate(groups) if len(g) >= 10 and sum("riot" in t or "loot" in t for t in g) >= 5]
     assert len(riots) == 1   # the riots, told many ways, are still one story
+
+
+def test_a_wires_copy_is_not_a_second_vote():
+    from score import copies, need
+    title = "China's economy grows 4.5% in third quarter on robust exports"
+    wire = {"source": "reuters", "outlet": "Reuters", "title": title}
+    cna = {"source": "cna", "outlet": "CNA", "title": title}
+    bbc = {"source": "bbc", "outlet": "BBC", "title": "China's growth beats forecasts as exports boom"}
+    assert copies([wire, cna, bbc]) == {"CNA"}
+    assert need(4, 13) == 4 and need(4, 16) == 5 and need(4, None) == 4   # the bar scales with newsrooms

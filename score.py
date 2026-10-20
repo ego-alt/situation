@@ -9,6 +9,10 @@ Signals (see docs/plan.md):
             PRIORITY (catching what these feeds under-cover), and makes it
             FLASH only with ITN_FLASH_OUTLETS+ outlets, while the item is new
   region    it happens in a place you live or follow
+  copies    an outlet running a wire's article word for word (CNA's Reuters
+            copy) adds no vote of its own; the wire already counts
+  the bar   tier thresholds are set for REFERENCE_OUTLETS newsrooms and scale
+            with how many published today, so adding a feed doesn't lower it
   freshness a story fades with age from when it broke (when a second outlet
             picked it up): full for 8 hours, then halving every 12, unless
             3+ outlets are still writing about it (the last 6 hours); and it
@@ -17,7 +21,7 @@ Signals (see docs/plan.md):
 import re
 from datetime import UTC, datetime
 
-from cluster import cosine, document, tfidf
+from cluster import cosine, document, tfidf, tokens
 from sources import BY_KEY
 
 HOME_REGIONS = {"HK", "TW", "CN", "GB"}
@@ -26,6 +30,24 @@ MAJOR, HEADLINE, BACKGROUND = "major", "headline", "background"
 
 ITN_BONUS = 2.0            # a match is worth about two more outlets
 ITN_FLASH_OUTLETS = 4      # and makes a story FLASH only with this many outlets too
+
+# The outlet counts below were tuned with this many newsrooms publishing (18–19 Oct 2026).
+REFERENCE_OUTLETS = 13
+WIRES = {"ap", "reuters"}
+COPY = 0.85               # title likeness (shared words over all words) that means a wire's copy
+
+
+def need(outlets: int, active: int | None) -> int:
+    """An outlet threshold scaled to the newsrooms publishing today."""
+    return outlets if not active else max(2, round(outlets * active / REFERENCE_OUTLETS))
+
+
+def copies(articles: list[dict]) -> set[str]:
+    """Outlets whose article here is a wire's, word for word."""
+    terms = [(a.get("outlet") or a["source"], a["source"] in WIRES, set(tokens(a["title"]))) for a in articles]
+    wire = [t for _, is_wire, t in terms if is_wire and len(t) >= 5]
+    return {o for o, is_wire, t in terms
+            if not is_wire and len(t) >= 5 and any(len(t & w) / len(t | w) >= COPY for w in wire)}
 
 # Sport and entertainment: news, but not the kind this app is for. A story most
 # of whose headlines match stays below the bar, even when Wikipedia's "In the
@@ -108,9 +130,10 @@ def match_itn(groups_articles: list[list[dict]], itn_items: list[str], threshold
 
 
 def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: datetime,
-           itn_fresh: bool = True) -> dict:
+           itn_fresh: bool = True, active: int | None = None) -> dict:
     """Score and tier one story from its articles (most typical first).
-    `itn_fresh`: the matched "In the news" item first appeared within a day."""
+    `itn_fresh`: the matched "In the news" item first appeared within a day.
+    `active`: newsrooms that published today, to scale the bar (None: unscaled)."""
     per_outlet: dict[str, float] = {}
     leads = set()
     for a in articles:
@@ -119,8 +142,12 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
         per_outlet[outlet] = max(per_outlet.get(outlet, 0.0), source.weight if source else 0.5)
         if source and source.ordered and a.get("position") is not None and a["position"] < 3:
             leads.add(outlet)
+    outlets = len(per_outlet)                       # shown: everyone carrying it
+    for o in copies(articles):
+        per_outlet.pop(o, None)
+        leads.discard(o)
     breadth = round(sum(per_outlet.values()), 2)
-    outlets = len(per_outlet)
+    votes = len(per_outlet)                         # counted: independent newsrooms
     home = bool(place and place["iso"] in HOME_REGIONS)
 
     def when(a):
@@ -148,9 +175,10 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
 
     if is_soft(articles):
         tier = BACKGROUND
-    elif (itn_item and itn_fresh and outlets >= ITN_FLASH_OUTLETS) or (outlets >= 6 and len(leads) >= 2):
+    elif ((itn_item and itn_fresh and votes >= need(ITN_FLASH_OUTLETS, active))
+          or (votes >= need(6, active) and len(leads) >= 2)):
         tier = MAJOR
-    elif itn_item or outlets >= 4 or (outlets >= 3 and leads) or (home and breadth >= 2.0):
+    elif itn_item or votes >= need(4, active) or (votes >= need(3, active) and leads) or (home and breadth >= 2.0):
         tier = HEADLINE
     else:
         tier = BACKGROUND

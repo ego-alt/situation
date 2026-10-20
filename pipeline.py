@@ -68,6 +68,8 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
     matched = match_itn(groups, itn.get("items", []))
 
     first_seen = itn_first_seen()
+    today = now - SHOWN
+    active = len({i["outlet"] for i in items if i["published"] >= today})
     old = {s.id: {a.id for a in s.articles} for s in Story.query.filter_by(closed=False)}
     claimed, keep = set(), []
     for k, group in enumerate(groups):
@@ -82,7 +84,7 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
         place = locate(group)
         item = matched.get(k)
         fresh = item is not None and now - first_seen.get(item, now) <= ITN_FRESH
-        a = assess(group, place, item, now, itn_fresh=fresh)
+        a = assess(group, place, item, now, itn_fresh=fresh, active=active)
         story.headline, story.tier, story.score = a["headline"], a["tier"], a["score"]
         story.outlets, story.leads, story.itn = a["outlets"], a["leads"], a["itn"]
         story.newest = a["newest"].astimezone(UTC).replace(tzinfo=None)
