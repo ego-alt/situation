@@ -145,6 +145,9 @@ body {
 .wiki { color: var(--phosphor); }
 .headline { margin: 6px 0 0; font-size: 15px; line-height: 1.35; font-weight: 500; color: var(--text); }
 .flash .headline { font-weight: 600; }
+/* How a running story has moved on: its newest development, under the headline. */
+.latest-line { margin: 6px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.4; }
+.latest-tag { font: 10px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--phosphor); margin-right: 4px; }
 .sources { display: none; margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; }
 .item.open .sources { display: block; }
 .sources li { padding: 4px 0; border-top: 1px dashed var(--line); }

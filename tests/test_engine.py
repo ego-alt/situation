@@ -164,3 +164,10 @@ def test_wikipedia_confirms_rather_than_decides():
     assert assess(four, None, "ITN item", NOW, itn_fresh=False)["tier"] == "headline"
     bonus = assess(four, None, "ITN item", NOW)["score"] - assess(four, None, None, NOW)["score"]
     assert round(bonus, 1) == 2.0
+
+
+def test_a_story_is_named_by_its_last_half_day():
+    old = _story(30, outlets=("bbc", "nyt", "guardian"), title="Riots spread across France")
+    new = _story(2, outlets=("aljazeera", "dw"), title="Curfew imposed in Paris after riots")
+    assert assess(old + new, None, None, NOW)["headline"] == "Curfew imposed in Paris after riots"
+    assert assess(old, None, None, NOW)["headline"] == "Riots spread across France"   # nothing recent: the story's own

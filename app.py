@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import Story, db, migrate
 from projection import project
-from score import clean_title
+from score import clean_title, is_headline
 from sources import BY_KEY, SOURCES
 
 STARTED = time.monotonic()
@@ -155,7 +155,23 @@ def _story(s: Story) -> dict:
     return {"id": s.id, "headline": s.headline, "tier": s.tier, "score": s.score, "outlets": s.outlets,
             "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, "x": s.x, "y": s.y,
             "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources,
-            "spots": _story_spots(s)}
+            "spots": _story_spots(s), "latest": _latest(s, sources)}
+
+
+LATEST = timedelta(hours=6)
+
+
+def _latest(s: Story, sources: list[dict]) -> dict | None:
+    """The newest development, when it's recent and says something the headline
+    doesn't: how a long-running story has moved on."""
+    from pipeline import clock
+    since = clock() - LATEST
+    for src in sources:                       # newest first
+        if not src["published"] or datetime.fromisoformat(src["published"]) < since:
+            return None
+        if is_headline(src["title"]) and src["title"] != s.headline:
+            return {"title": src["title"], "outlet": src["outlet"], "at": src["published"], "url": src["url"]}
+    return None
 
 
 def _spot(s: dict, **extra) -> dict:

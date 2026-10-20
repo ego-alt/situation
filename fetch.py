@@ -41,11 +41,18 @@ def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
     for position, entry in enumerate(feed.entries):
         title = _text(entry.get("title"), 300)
         url = web_link(entry.get("link"))
-        if not (title and url):
+        if not (title and url) or (source.skip and re.search(source.skip, url)):
             continue
+        summary = _text(entry.get("summary") or entry.get("description"))
+        if source.via_google:
+            # Google's summary is only a link back to itself; the outlet is named at the end.
+            summary = ""
+            name = (entry.get("source") or {}).get("title")
+            if name and title.endswith(f" - {name}"):
+                title = title[: -len(name) - 3].rstrip()
         items.append({
             "source": source.key, "outlet": source.outlet, "title": title, "url": url,
-            "summary": _text(entry.get("summary") or entry.get("description")),
+            "summary": summary,
             "published": _when(entry, "published_parsed", "updated_parsed"),
             "updated": _when(entry, "updated_parsed"), "position": position,
         })

@@ -508,6 +508,7 @@
                     ${s.itn ? '<span class="wiki" title="In Wikipedia\'s In the news">wiki itn</span>' : ''}
                 </div>
                 <h3 class="headline">${esc(s.headline)}</h3>
+                ${s.latest ? `<p class="latest-line"><span class="latest-tag">Latest · ${esc(ago(s.latest.at))} · ${esc(s.latest.outlet)}</span> ${esc(s.latest.title)}</p>` : ''}
                 <ul class="sources">${sources}</ul>
             </article>`;
     }

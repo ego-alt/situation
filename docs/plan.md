@@ -23,7 +23,8 @@ So the job isn't "more news". It's a **filter with a high bar**, delivered somew
 
 | Kind | Sources | Why |
 |---|---|---|
-| World desks (RSS) | BBC World, Guardian World, NYT World, Al Jazeera, France 24, DW, NPR World, Le Monde (English), Euronews | Independent newsrooms on different continents; agreement between them is the main signal. |
+| Wires (Google News search) | Reuters World, AP | The two agencies most newsrooms build on; their own feeds are gone, so they're read through a Google News site search, titles only. |
+| World desks (RSS) | BBC World, Guardian World, NYT World, Al Jazeera, France 24, DW, NPR World, Le Monde (English), Euronews, Bloomberg Politics (videos skipped) | Independent newsrooms on different continents; agreement between them is the main signal. |
 | Your region (RSS) | SCMP, RTHK, Taipei Times, CNA Asia | Hong Kong, Taiwan and the region get a lower bar. |
 | Curated (Wikipedia) | "In the news" and its "Ongoing" list; the Current events portal | Human editors with a high, global bar. ITN adds a few items a day, hours after the event. On 18 Oct 2026 its top item was the Limoges city hall burning in the French protests. |
 

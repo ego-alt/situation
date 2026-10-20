@@ -4,7 +4,10 @@
 (1.0 for a major international desk). `ordered` marks feeds listed in the
 editors' front-page order; only their top items count as a story's "lead".
 Most feeds are simply newest first, where a top spot means nothing more
-than recent.
+than recent. `via_google` marks outlets read through Google News's search
+feed, because they have none of their own (Reuters, AP): its items carry no
+summary, and their headlines end in " - Reuters". `skip` is a pattern for
+links that aren't articles (a feed's video clips).
 """
 from dataclasses import dataclass
 
@@ -16,7 +19,9 @@ class Source:
     url: str
     weight: float = 1.0
     ordered: bool = False
-    outlet: str = ""          # feeds of one newsroom share it (two SCMP feeds are one outlet)
+    outlet: str = ""
+    via_google: bool = False
+    skip: str = ""          # feeds of one newsroom share it (two SCMP feeds are one outlet)
 
     def __post_init__(self):
         if not self.outlet:
@@ -24,6 +29,11 @@ class Source:
 
 
 SOURCES = [
+    # The wire services, which most newsrooms build on (no RSS of their own any more).
+    Source("reuters", "Reuters", "https://news.google.com/rss/search?q=when:1d+site:reuters.com/world"
+           "&hl=en-US&gl=US&ceid=US:en", via_google=True),
+    Source("ap", "AP", "https://news.google.com/rss/search?q=when:1d+site:apnews.com"
+           "&hl=en-US&gl=US&ceid=US:en", via_google=True),
     # World desks: independent newsrooms on different continents.
     Source("bbc", "BBC", "https://feeds.bbci.co.uk/news/world/rss.xml", ordered=True),
     Source("guardian", "The Guardian", "https://www.theguardian.com/world/rss", ordered=True),
@@ -34,6 +44,7 @@ SOURCES = [
     Source("npr", "NPR", "https://feeds.npr.org/1004/rss.xml"),
     Source("lemonde", "Le Monde", "https://www.lemonde.fr/en/rss/une.xml", ordered=True),
     Source("euronews", "Euronews", "https://www.euronews.com/rss"),
+    Source("bloomberg", "Bloomberg", "https://feeds.bloomberg.com/politics/news.rss", 0.8, skip=r"/videos?/"),
     # The region you live in (the lower bar itself is in score.HOME_REGIONS).
     Source("scmp", "SCMP", "https://www.scmp.com/rss/91/feed", 0.8),
     Source("scmp-hk", "SCMP Hong Kong", "https://www.scmp.com/rss/2/feed", 0.6, outlet="scmp"),

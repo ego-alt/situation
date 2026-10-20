@@ -32,7 +32,7 @@ def test_brief(loaded):
 def test_api(loaded, app):
     res = app.test_client().get("/api/situation")
     body = res.get_json()
-    assert res.status_code == 200 and body["counts"]["major"] == 3 and body["sources"]["total"] == 14
+    assert res.status_code == 200 and body["counts"]["major"] == 3 and body["sources"]["total"] == 17
 
 
 def test_itn_parsing():
@@ -103,7 +103,7 @@ def test_a_silent_feed_is_flagged(app):
     record_sources({"bbc": (0, "HTTP 404"), "nyt": (40, None)}, NOW - timedelta(hours=7))
     record_sources({"bbc": (0, "HTTP 404"), "nyt": (38, None)}, NOW)
     health = source_health(SOURCES, NOW)
-    assert health == {"ok": 13, "total": 14, "silent": ["BBC"]}       # the 12 never tried don't count against
+    assert health == {"ok": 16, "total": 17, "silent": ["BBC"]}       # the 12 never tried don't count against
 
 
 def test_health_fails_once_no_feed_has_answered_for_an_hour(app, monkeypatch):
@@ -245,3 +245,23 @@ def test_each_source_says_when_it_went_out_and_was_updated(app):
     assert source["published"].startswith("2026-10-18T23:00") and source["updated"].startswith("2026-10-19T01:30")
     story.articles[0].updated = story.articles[0].published + timedelta(minutes=2)   # stamped alike: no "updated"
     assert _story(story)["sources"][0]["updated"] is None
+
+
+def test_a_running_story_shows_its_latest_development(app, monkeypatch):
+    from datetime import timedelta
+
+    import pipeline
+    from app import _story
+    from models import Article, Story, db
+    def article(outlet, title, hours_ago):
+        return Article(url=f"https://example.org/{outlet}/{hours_ago}", source=outlet, outlet=outlet, title=title,
+                       published=(NOW - timedelta(hours=hours_ago)).replace(tzinfo=None))
+    arts = [article("bbc", "Riots spread across France", 30), article("nyt", "Riots spread across France", 29),
+            article("ap", "Paris police issue overnight curfew in two areas", 1)]
+    story = Story(headline="Riots spread across France", tier="major", articles=arts)
+    db.session.add(story)
+    db.session.commit()
+    latest = _story(story)["latest"]
+    assert latest["title"].startswith("Paris police") and latest["outlet"] == "AP"
+    monkeypatch.setattr(pipeline, "clock", lambda: NOW + timedelta(hours=8))   # nothing new for 9 hours
+    assert _story(story)["latest"] is None

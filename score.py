@@ -66,6 +66,14 @@ def clean_title(title: str) -> str:
     return re.sub(r"\s+", " ", title).strip(" -–—|:")
 
 
+HEADLINE_HOURS = 12   # a story's headline comes from its last half day, so it moves on
+
+
+def is_headline(title: str) -> bool:
+    """A title that states news (not a live blog, gallery, explainer or question)."""
+    return not _NOT_A_HEADLINE.search(title)
+
+
 def pick_headline(articles: list[dict]) -> str:
     """The most typical article's title, skipping live blogs and galleries."""
     for a in articles[:8]:
@@ -146,7 +154,8 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     else:
         tier = BACKGROUND
     return {
-        "headline": pick_headline(articles), "outlets": outlets, "breadth": breadth,
+        "headline": pick_headline([a for a in articles if hours(when(a)) <= HEADLINE_HOURS] or articles),
+        "outlets": outlets, "breadth": breadth,
         "leads": len(leads), "home": home, "itn": itn_item, "score": round(score, 2), "tier": tier,
         "newest": newest,
     }
