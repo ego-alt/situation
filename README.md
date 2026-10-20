@@ -18,6 +18,7 @@ An open-source intelligence wall for the home stack: the world map with today's 
 - **The map follows what you pick.** A country, a place or an active situation filters the list and zooms the map to it; *Show all* brings back both. Moving the map yourself never changes the list, and *World* only zooms out.
 - **A high bar.** Fourteen outlets on four continents are read every 15 minutes and grouped by event. A story is shown only when several independent newsrooms carry it or Wikipedia's editors put it "In the news". A normal day shows five to ten stories out of several hundred, and never more than ten.
 - **Two tiers.** FLASH: new on Wikipedia's "In the news" (for its first day), or the lead story on several front pages at once. PRIORITY: carried by four or more outlets (three if one leads with it); Hong Kong, Taiwan, China and the UK get a lower bar.
+- **Today's news first.** A story fades from when it broke (full strength for 8 hours, then halving every 12) unless several outlets are still writing about it, so yesterday's big story yields to tonight's. Sport and entertainment stay below the bar unless they're in Wikipedia's "In the news".
 - **Active situations.** Wikipedia's "Ongoing" list (wars, offensives, outbreaks), each with its latest development that more than one outlet carries.
 - **Earlier this week.** The past seven days' stories, under today's.
 - **Honest about itself.** If the news on screen is old, the server can't be reached or you've been signed out, the page says so; a feed that has gone quiet shows in the status bar.

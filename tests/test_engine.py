@@ -123,3 +123,33 @@ def test_names_that_arent_places_here():
     assert _spots("Moscow says talks with Kyiv are over") == [("Kyiv", "UA", "city")]   # Moscow as an actor
     # A town that shares its name counts only where the article names the country.
     assert _spots("Clashes reported near Pokrovsk") == []
+
+
+def _story(hours_ago_broke, outlets=("bbc", "nyt", "guardian", "aljazeera"), recent=0, title="Earthquake hits city"):
+    from datetime import timedelta
+
+    from sources import BY_KEY
+    arts = [{"source": o, "outlet": BY_KEY[o].outlet, "title": title, "position": 9,
+             "published": NOW - timedelta(hours=hours_ago_broke)} for o in outlets]
+    for o in ("france24", "dw", "npr")[:recent]:         # outlets still writing about it
+        arts.append({"source": o, "outlet": BY_KEY[o].outlet, "title": title, "position": 9,
+                     "published": NOW - timedelta(hours=1)})
+    return arts
+
+
+def test_a_story_fades_from_when_it_broke():
+    fresh = assess(_story(2), None, None, NOW)["score"]
+    day_old = assess(_story(26), None, None, NOW)["score"]
+    assert day_old < fresh * 0.5                          # yesterday's story yields to today's
+
+
+def test_a_story_still_being_written_about_stays_up():
+    quiet = assess(_story(26, recent=0), None, None, NOW)["score"]
+    developing = assess(_story(26, recent=3), None, None, NOW)["score"]
+    assert developing > quiet * 1.5
+
+
+def test_sport_and_celebrity_stay_below_the_bar():
+    soft = assess(_story(1, title="Ronaldo banned for 30 days over spat"), None, None, NOW)
+    assert soft["tier"] == "background"
+    assert assess(_story(1, title="Ronaldo banned for 30 days over spat"), None, "ITN item", NOW)["tier"] == "major"

@@ -7,7 +7,10 @@ Signals (see docs/plan.md):
   curated   it matches an item in Wikipedia's "In the news"; FLASH only while
             that item is under a day old, a boost after that
   region    it happens in a place you live or follow
-  recency   a day-old story yields to today's
+  freshness a story fades with age from when it broke (when a second outlet
+            picked it up): full for 8 hours, then halving every 12, unless
+            3+ outlets are still writing about it (the last 6 hours); and it
+            fades once nobody has written about it for 12 hours
 """
 import re
 from datetime import UTC, datetime
@@ -18,6 +21,32 @@ from sources import BY_KEY
 HOME_REGIONS = {"HK", "TW", "CN", "GB"}
 
 MAJOR, HEADLINE, BACKGROUND = "major", "headline", "background"
+
+# Sport and entertainment: news, but not the kind this app is for. A story most
+# of whose headlines match stays below the bar, unless Wikipedia's editors put
+# it "In the news". Edit freely.
+_SOFT = re.compile(
+    r"\b(football|soccer|premier league|champions league|la liga|serie a|bundesliga|fifa|uefa|"
+    r"world cup|olympics?|paralympics?|tennis|wimbledon|grand slam|cricket|rugby|golf|nba|nfl|mlb|nhl|"
+    r"formula (?:one|1)|f1|grand prix|boxing|ufc|marathon|transfer window|striker|midfielder|goalkeeper|"
+    r"coach|playoffs?|ronaldo|messi|celebrity|celebrities|actor|actress|singer|rapper|pop star|album|"
+    r"box office|oscars?|grammys?|emmys?|bafta|eurovision|fashion week|red carpet|k-pop|reality (?:tv|show))\b",
+    re.I)
+
+
+def is_soft(articles: list[dict]) -> bool:
+    """Most of a story's headlines are about sport or entertainment."""
+    hits = sum(bool(_SOFT.search(a["title"])) for a in articles)
+    return hits * 2 >= len(articles) and hits > 0
+
+
+# Freshness (see the module docstring).
+FRESH_HOURS = 8
+HALF_LIFE_HOURS = 12
+OLD_FLOOR = 0.25
+DEVELOPING_HOURS = 6
+DEVELOPING_OUTLETS = 3
+DEVELOPING_FLOOR = 0.75
 
 # Titles that name a format, not the news: live blogs, galleries, explainers.
 _NOT_A_HEADLINE = re.compile(
@@ -80,16 +109,32 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     outlets = len(per_outlet)
     home = bool(place and place["iso"] in HOME_REGIONS)
 
-    times = [a["published"] for a in articles if a.get("published")]
+    def when(a):
+        t = a.get("published") or now
+        return t if t.tzinfo else t.replace(tzinfo=UTC)
+    times = [when(a) for a in articles if a.get("published")]
     newest = max(times) if times else now
-    if newest.tzinfo is None:
-        newest = newest.replace(tzinfo=UTC)
-    hours = max(0.0, (now - newest).total_seconds() / 3600)
-    recency = 1.0 if hours <= 12 else max(0.3, 1.0 - (hours - 12) / 50)
+    first_by_outlet: dict[str, datetime] = {}
+    for a in articles:
+        outlet = a.get("outlet") or a["source"]
+        first_by_outlet[outlet] = min(first_by_outlet.get(outlet, when(a)), when(a))
+    starts = sorted(first_by_outlet.values())
+    broke = starts[1] if len(starts) > 1 else starts[0] if starts else now
+    hours = lambda t: max(0.0, (now - t).total_seconds() / 3600)  # noqa: E731
+    recent = {a.get("outlet") or a["source"] for a in articles if hours(when(a)) <= DEVELOPING_HOURS}
+    age = hours(broke)
+    fade = 1.0 if age <= FRESH_HOURS else max(OLD_FLOOR, 0.5 ** ((age - FRESH_HOURS) / HALF_LIFE_HOURS))
+    if len(recent) >= DEVELOPING_OUTLETS:
+        fade = max(fade, DEVELOPING_FLOOR)          # still being written about: keep it up
+    quiet = hours(newest)
+    silence = 1.0 if quiet <= 12 else max(0.3, 1.0 - (quiet - 12) / 50)
+    freshness = min(fade, silence)
 
-    score = (breadth + 0.5 * len(leads) + (4.0 if itn_item else 0.0) + (1.0 if home else 0.0)) * recency
+    score = (breadth + 0.5 * len(leads) + (4.0 if itn_item else 0.0) + (1.0 if home else 0.0)) * freshness
 
-    if (itn_item and itn_fresh) or (outlets >= 6 and len(leads) >= 2):
+    if not itn_item and is_soft(articles):
+        tier = BACKGROUND
+    elif (itn_item and itn_fresh) or (outlets >= 6 and len(leads) >= 2):
         tier = MAJOR
     elif itn_item or outlets >= 4 or (outlets >= 3 and leads) or (home and breadth >= 2.0):
         tier = HEADLINE
