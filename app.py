@@ -161,6 +161,13 @@ def _story(s: Story) -> dict:
 LATEST = timedelta(hours=6)
 
 
+def _same_news(a, b):
+    """Two titles that mostly share their words: the headline reworded, not a development."""
+    from cluster import tokens
+    ta, tb = set(tokens(a)), set(tokens(b))
+    return not ta or not tb or len(ta & tb) / min(len(ta), len(tb)) >= 0.5
+
+
 def _latest(s: Story, sources: list[dict]) -> dict | None:
     """The newest development, when it's recent and says something the headline
     doesn't: how a long-running story has moved on."""
@@ -169,7 +176,7 @@ def _latest(s: Story, sources: list[dict]) -> dict | None:
     for src in sources:                       # newest first
         if not src["published"] or datetime.fromisoformat(src["published"]) < since:
             return None
-        if is_headline(src["title"]) and src["title"] != s.headline:
+        if is_headline(src["title"]) and not _same_news(src["title"], s.headline):
             return {"title": src["title"], "outlet": src["outlet"], "at": src["published"], "url": src["url"]}
     return None
 

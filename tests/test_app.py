@@ -257,7 +257,8 @@ def test_a_running_story_shows_its_latest_development(app, monkeypatch):
         return Article(url=f"https://example.org/{outlet}/{hours_ago}", source=outlet, outlet=outlet, title=title,
                        published=(NOW - timedelta(hours=hours_ago)).replace(tzinfo=None))
     arts = [article("bbc", "Riots spread across France", 30), article("nyt", "Riots spread across France", 29),
-            article("ap", "Paris police issue overnight curfew in two areas", 1)]
+            article("ap", "Paris police issue overnight curfew in two areas", 1),
+            article("reuters", "Riots spread across France again", 0.5), article("dw", "France", 0.2)]
     story = Story(headline="Riots spread across France", tier="major", articles=arts)
     db.session.add(story)
     db.session.commit()

@@ -3,7 +3,7 @@ day of the French riots, the Houthi attacks on Saudi airports and the fire
 at CFB Wainwright."""
 from cluster import cluster
 from geo import locate, places
-from score import assess, clean_title, match_itn, pick_headline
+from score import assess, clean_title, is_headline, match_itn, pick_headline
 from tests.conftest import NOW, snapshot_items
 
 
@@ -171,3 +171,8 @@ def test_a_story_is_named_by_its_last_half_day():
     new = _story(2, outlets=("aljazeera", "dw"), title="Curfew imposed in Paris after riots")
     assert assess(old + new, None, None, NOW)["headline"] == "Curfew imposed in Paris after riots"
     assert assess(old, None, None, NOW)["headline"] == "Riots spread across France"   # nothing recent: the story's own
+
+
+def test_running_story_labels_and_topic_pages_are_not_headlines():
+    assert clean_title("France protests escalate with riots – The Latest") == "France protests escalate with riots"
+    assert not is_headline("Saudi Arabia")

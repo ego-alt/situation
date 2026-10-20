@@ -63,6 +63,7 @@ _EMOJI = re.compile(r"[\U0001F000-\U0001FAFF☀-➿️]+")
 def clean_title(title: str) -> str:
     title = _EMOJI.sub("", title)
     title = re.sub(r"^\s*(live|breaking|watch|replay)\s*[:|-]\s*", "", title, flags=re.I)
+    title = re.sub(r"\s*[-–—|:]\s*the latest\s*$", "", title, flags=re.I)   # AP's running stories
     return re.sub(r"\s+", " ", title).strip(" -–—|:")
 
 
@@ -71,7 +72,7 @@ HEADLINE_HOURS = 12   # a story's headline comes from its last half day, so it m
 
 def is_headline(title: str) -> bool:
     """A title that states news (not a live blog, gallery, explainer or question)."""
-    return not _NOT_A_HEADLINE.search(title)
+    return len(title.split()) >= 4 and not _NOT_A_HEADLINE.search(title)   # not a topic page ("Saudi Arabia")
 
 
 def pick_headline(articles: list[dict]) -> str:
