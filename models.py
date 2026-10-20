@@ -26,6 +26,7 @@ class Article(db.Model):
     title = db.Column(db.String, nullable=False)
     summary = db.Column(db.String)
     published = db.Column(db.DateTime, index=True)      # UTC
+    updated = db.Column(db.DateTime)                    # UTC, when the outlet last revised it (if it says)
     position = db.Column(db.Integer)                    # place in its feed when last seen (0 = lead)
     fetched = db.Column(db.DateTime, default=utcnow, index=True)
     spots = db.Column(db.JSON)                          # cities and regions it names (geo.spots)
@@ -99,4 +100,6 @@ def migrate():
         db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_closed ON stories (closed)"))
     if articles and "spots" not in articles:
         db.session.execute(db.text("ALTER TABLE articles ADD COLUMN spots JSON"))   # filled in by the next fetch
+    if articles and "updated" not in articles:
+        db.session.execute(db.text("ALTER TABLE articles ADD COLUMN updated DATETIME"))
     db.session.commit()

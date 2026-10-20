@@ -24,22 +24,25 @@ def clock() -> datetime:
 
 
 def store(items: list[dict]) -> int:
-    """Insert new articles; refresh feed position for ones seen before."""
+    """Insert new articles; for ones seen before, refresh their feed position
+    and when they were last updated."""
     known = {a.url: a for a in Article.query.filter(Article.url.in_([i["url"] for i in items])).all()}
     added = 0
     for item in items:
-        published = item.get("published")
-        if published is not None and published.tzinfo is not None:
-            published = published.astimezone(UTC).replace(tzinfo=None)
+        def naive(t):
+            return t.astimezone(UTC).replace(tzinfo=None) if t is not None and t.tzinfo is not None else t
+        published, updated = naive(item.get("published")), naive(item.get("updated"))
         row = known.get(item["url"])
         if row is None:
             db.session.add(Article(
                 url=item["url"], source=item["source"], outlet=item.get("outlet") or item["source"],
-                title=item["title"], summary=item.get("summary"), published=published,
+                title=item["title"], summary=item.get("summary"), published=published, updated=updated,
                 position=item.get("position"), spots=article_spots(item)))
             added += 1
         else:
             row.position = item.get("position")
+            if updated and (row.updated is None or updated > row.updated):
+                row.updated = updated
     db.session.commit()
     return added
 

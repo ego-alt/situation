@@ -17,8 +17,8 @@ def _text(raw: str | None, limit: int = 400) -> str:
     return re.sub(r"\s+", " ", text).strip()[:limit]
 
 
-def _when(entry) -> datetime | None:
-    for key in ("published_parsed", "updated_parsed"):
+def _when(entry, *keys) -> datetime | None:
+    for key in keys:
         t = entry.get(key)
         if t:
             return datetime(*t[:6], tzinfo=UTC)
@@ -46,7 +46,8 @@ def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
         items.append({
             "source": source.key, "outlet": source.outlet, "title": title, "url": url,
             "summary": _text(entry.get("summary") or entry.get("description")),
-            "published": _when(entry), "position": position,
+            "published": _when(entry, "published_parsed", "updated_parsed"),
+            "updated": _when(entry, "updated_parsed"), "position": position,
         })
     return items
 

@@ -482,12 +482,22 @@
 
     // ---------- intel panel ----------
 
+    /** "2h ago", with the full local date and time on hover. */
+    function stamp(iso, prefix = '') {
+        if (!iso) return '';
+        const when = new Date(iso);
+        const full = when.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+        const rel = ago(iso) === '0m' ? 'just now' : `${ago(iso)} ago`;
+        return `<time datetime="${esc(iso)}" title="${esc(prefix ? `${prefix} ${full}` : full)}">${prefix ? `${prefix.toLowerCase()} ` : ''}${rel}</time>`;
+    }
+
     function itemHtml(s) {
         const kind = s.tier === 'major' ? 'flash' : 'priority';
         const sources = s.sources.map((a) => {
             const link = webLink(a.url);
             const title = esc(a.title);
-            return `<li><span class="outlet">${esc(a.outlet)}</span>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</li>`;
+            const times = [stamp(a.published), stamp(a.updated, 'Updated')].filter(Boolean).join(' · ');
+            return `<li><span class="outlet">${esc(a.outlet)}${times ? ` · ${times}` : ''}</span>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</li>`;
         }).join('');
         return `
             <article class="item ${kind}${openId === s.id ? ' open' : ''}" data-id="${s.id}" data-iso="${esc(s.iso || '')}" tabindex="0">

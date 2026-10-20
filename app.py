@@ -141,13 +141,17 @@ def _iso(dt):
 def _story(s: Story) -> dict:
     seen = set()
     sources = []
-    for a in sorted(s.articles, key=lambda a: (a.position if a.position is not None else 99)):
+    # Newest first, one article per outlet (its latest).
+    for a in sorted(s.articles, key=lambda a: a.published or a.fetched or datetime.min, reverse=True):
         if a.outlet in seen:
             continue
         seen.add(a.outlet)
         src = BY_KEY.get(a.source)
+        # Updated only when it's meaningfully after it went out (feeds often stamp both alike).
+        revised = a.updated if a.updated and a.published and (a.updated - a.published).total_seconds() > 600 else None
         sources.append({"outlet": src.name.split(" Hong Kong")[0] if src else a.outlet,
-                        "title": clean_title(a.title), "url": a.url})
+                        "title": clean_title(a.title), "url": a.url,
+                        "published": _iso(a.published or a.fetched), "updated": _iso(revised)})
     return {"id": s.id, "headline": s.headline, "tier": s.tier, "score": s.score, "outlets": s.outlets,
             "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, "x": s.x, "y": s.y,
             "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources,

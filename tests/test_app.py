@@ -132,7 +132,8 @@ def test_the_second_day_is_capped_at_ten(app, monkeypatch):
     snap = snapshot()
     assert len(snap["stories"]) == 10 and snap["cleared"] > 10
     assert snap["stories"][0]["iso"] == "FR" and snap["stories"][0]["tier"] == "major"
-    assert {"FR", "CA", "UA", "IL"} <= {s["iso"] for s in snap["stories"]}   # a day on, the Pope and the Houthis make way
+    # A day on, the Pope and the Houthis make way for fresher stories.
+    assert {"FR", "CA", "UA", "IL"} <= {s["iso"] for s in snap["stories"]}
     tally = DayTally.query.one()
     assert (tally.cleared, tally.major + tally.headline) == (snap["cleared"], 10)
 
@@ -225,3 +226,22 @@ def test_sync_fetches_now_but_not_twice_in_a_row(app, monkeypatch):
     app_module._fetch_lock.release()
     t.join(2)
     assert result["status"] == "joined" and len(calls) == 1
+
+
+def test_each_source_says_when_it_went_out_and_was_updated(app):
+    from datetime import timedelta
+
+    from pipeline import store
+    item = {"source": "bbc", "outlet": "bbc", "title": "Storm hits coast", "url": "https://example.org/a",
+            "published": NOW - timedelta(hours=3), "updated": NOW - timedelta(hours=3), "position": 0}
+    store([item])
+    store([{**item, "updated": NOW - timedelta(minutes=30)}])        # revised later: kept
+    from app import _story
+    from models import Article, Story, db
+    story = Story(headline="Storm", tier="headline", articles=Article.query.all())
+    db.session.add(story)
+    db.session.commit()
+    source = _story(story)["sources"][0]
+    assert source["published"].startswith("2026-10-18T23:00") and source["updated"].startswith("2026-10-19T01:30")
+    story.articles[0].updated = story.articles[0].published + timedelta(minutes=2)   # stamped alike: no "updated"
+    assert _story(story)["sources"][0]["updated"] is None
