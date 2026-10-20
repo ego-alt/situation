@@ -6,7 +6,8 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     const CHOICES = {
-        same: [['same', 'Same story', '1'], ['different', 'Different stories', '2'], ['unsure', 'Not sure', '3']],
+        same: [['same', 'Same story', '1'], ['related', 'Same situation, different development', '2'],
+            ['different', 'Different stories', '3'], ['unsure', 'Not sure', '4']],
         rank: [['a', 'A matters more', '1'], ['b', 'B matters more', '2'], ['equal', 'About equal', '3']],
     };
     let current = null;
@@ -43,7 +44,7 @@
             $('question').innerHTML = '<div class="empty">Nothing left to ask about these articles. New ones come with the next snapshot, every 6 hours.</div>';
             return;
         }
-        const ask = q.kind === 'same' ? 'Are these about the same story?' : 'Which matters more, for a world briefing today?';
+        const ask = q.kind === 'same' ? 'Would you want these under one headline?' : 'Which matters more, for a world briefing today?';
         const cards = q.kind === 'same' ? article('A', q.a) + article('B', q.b) : story('A', q.a) + story('B', q.b);
         $('question').innerHTML = `<h2 class="label-ask">${ask}</h2><div class="label-pair">${cards}</div>
             <div class="label-choices">${CHOICES[q.kind].map(([value, text, key]) =>

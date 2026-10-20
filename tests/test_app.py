@@ -290,10 +290,10 @@ def test_labelling_questions_answers_and_evaluation(loaded, app):
     big, other = stories[0][0], stories[1][0]
     Label.query.delete()
     rng = random.Random(1)
-    for _ in range(5):
+    for n in range(5):
         a, b = rng.sample(big, 2)
         a, b, c = labels._article(a), labels._article(b), labels._article(rng.choice(other))
-        labels.record({"kind": "same", "snapshot": name, "answer": "same", "a": a, "b": b})
+        labels.record({"kind": "same", "snapshot": name, "answer": "related" if n == 0 else "same", "a": a, "b": b})
         labels.record({"kind": "same", "snapshot": name, "answer": "different", "a": a, "b": c})
     hi, lo = stories[0], stories[5]
     labels.record({"kind": "rank", "snapshot": name, "answer": "a",
