@@ -16,6 +16,9 @@ NOW = datetime(2026, 10, 19, 2, 0, tzinfo=UTC)
 # taken from the live app (Macron's address, the Wainwright fire, Albania).
 SNAPSHOT_2 = FIXTURES / "snapshot-2026-10-19.json"
 NOW_2 = datetime(2026, 10, 19, 11, 40, tzinfo=UTC)
+# A third, from the live app with all 17 feeds: two stories that share names
+# (the Wainwright fire and Alberta's referendum) and the riots' third day.
+SNAPSHOT_3 = FIXTURES / "snapshot-2026-10-20.json"
 
 
 def snapshot_items(path=SNAPSHOT):

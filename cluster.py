@@ -2,7 +2,8 @@
 
 Deterministic and dependency-free: TF-IDF vectors over each article's title
 (counted twice) and the start of its summary, cosine similarity, and
-single-link grouping above a threshold. Capitalised words (places, people,
+single-link grouping above a threshold, then each group cut into the events
+in it (see `split`). Capitalised words (places, people,
 organisations) weigh more, because two headlines about one event share
 names far more reliably than they share verbs.
 """
@@ -65,6 +66,88 @@ def cosine(a: dict, b: dict) -> float:
 
 # How much a member must resemble its group's centroid to stay in it.
 CORE = 0.3
+# A linked group is first cut into tight cores: parts whose articles resemble
+# each other, article for article on average, at least this much.
+LINK = 0.15
+# Cores are one story if they share what happened, not only who and where:
+# their likeness counting only event words ("riot", "fire", "vote"), not names.
+EVENT = 0.2
+
+
+def names(articles: list[dict]) -> set[str]:
+    """Terms the coverage mostly capitalises mid-sentence: people and places."""
+    upper, lower = Counter(), Counter()
+    for a in articles:
+        for text in (a["title"], a.get("summary") or ""):
+            words = re.findall(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’-]+", text)
+            if sum(w[0].isupper() for w in words) > 0.6 * len(words):
+                continue   # Title Case, or empty: says nothing about which words are names
+            for w in words[1:]:
+                (upper if w[0].isupper() else lower)[_stem(w.lower().strip("'’-"))] += 1
+    return {t for t in upper if upper[t] > lower[t]}
+
+
+def _centroid(members: list[int], vectors: list[dict], keep=lambda t: True) -> dict:
+    c: dict[str, float] = {}
+    for i in members:
+        for t, x in vectors[i].items():
+            if keep(t):
+                c[t] = c.get(t, 0.0) + x
+    norm = sum(x * x for x in c.values()) ** 0.5 or 1.0
+    return {t: x / norm for t, x in c.items()}
+
+
+def cores(members: list[int], vectors: list[dict], link: float = LINK) -> list[list[int]]:
+    """Average linkage: two parts join only if their articles resemble each
+    other as a whole, so one article about two events can't fuse them."""
+    parts = {i: [i] for i in members}
+    total = {(a, b): cosine(vectors[a], vectors[b]) for n, a in enumerate(members) for b in members[n + 1:]}
+    def pair(a, b):
+        return (a, b) if (a, b) in total else (b, a)
+    while len(parts) > 1:
+        (a, b), best = max(((k, t / (len(parts[k[0]]) * len(parts[k[1]]))) for k, t in total.items()),
+                           key=lambda kv: kv[1])
+        if best < link:
+            break
+        parts[a] += parts.pop(b)
+        for c in parts:
+            if c != a:
+                total[pair(a, c)] += total.pop(pair(b, c))
+        del total[(a, b)]
+    return list(parts.values())
+
+
+def split(members: list[int], vectors: list[dict], named: set[str]) -> list[list[int]]:
+    """A linked group as the stories in it. A fire at a base in Alberta and
+    Alberta's referendum share names, and one article mentions both, but not
+    what happened; the riots' cores share "riot" and "loot" however they're told.
+    Leftover articles join the story they are most about."""
+    if len(members) < 4:
+        return [members]
+    parts = cores(members, vectors)
+    big = [c for c in parts if len(c) >= 3]
+    if len(big) < 2:
+        return [members]
+    event = [_centroid(c, vectors, lambda t: t not in named and not t.isdigit()) for c in big]
+    parent = list(range(len(big)))
+    def find(i):
+        while parent[i] != i:
+            i = parent[i]
+        return i
+    for a in range(len(big)):
+        for b in range(a + 1, len(big)):
+            if cosine(event[a], event[b]) >= EVENT:
+                parent[find(a)] = find(b)
+    stories: dict[int, list[int]] = {}
+    for n, c in enumerate(big):
+        stories.setdefault(find(n), []).extend(c)
+    out = list(stories.values())
+    whole = [_centroid(s, vectors) for s in out]
+    for c in parts:
+        if len(c) < 3:
+            for i in c:
+                out[max(range(len(out)), key=lambda n: cosine(vectors[i], whole[n]))].append(i)
+    return out
 
 
 def cluster(articles: list[dict], threshold: float = 0.26) -> list[list[int]]:
@@ -99,16 +182,12 @@ def cluster(articles: list[dict], threshold: float = 0.26) -> list[list[int]]:
     # Single links can chain: A~B and B~C put A and C together even when they
     # share nothing. Keep only members that resemble the group as a whole.
     out = []
-    for members in groups.values():
+    named = names(articles)
+    for members in (part for group in groups.values() for part in split(group, vectors, named)):
         if len(members) < 3:
             out.append(members)
             continue
-        centroid: dict[str, float] = {}
-        for i in members:
-            for t, x in vectors[i].items():
-                centroid[t] = centroid.get(t, 0.0) + x
-        norm = sum(x * x for x in centroid.values()) ** 0.5 or 1.0
-        centroid = {t: x / norm for t, x in centroid.items()}
+        centroid = _centroid(members, vectors)
         fit = {i: cosine(vectors[i], centroid) for i in members}
         keep = sorted((i for i in members if fit[i] >= CORE), key=fit.get, reverse=True)
         out.append(keep or members[:1])   # most typical article first: it names the story

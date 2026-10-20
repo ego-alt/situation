@@ -176,3 +176,17 @@ def test_a_story_is_named_by_its_last_half_day():
 def test_running_story_labels_and_topic_pages_are_not_headlines():
     assert clean_title("France protests escalate with riots – The Latest") == "France protests escalate with riots"
     assert not is_headline("Saudi Arabia")
+
+
+def test_stories_that_share_names_but_not_events_stay_apart():
+    from tests.conftest import SNAPSHOT_3
+    items, _ = snapshot_items(SNAPSHOT_3)
+    groups = [[items[i]["title"].lower() for i in g] for g in cluster(items)]
+    def story(*words):
+        return [n for n, g in enumerate(groups) if any(all(w in t for w in words) for t in g)]
+    fire, vote = story("fire", "military base"), story("alberta", "referendum")
+    assert fire and vote and not set(fire) & set(vote)
+    pope = groups[story("pope leo")[0]]
+    assert len(pope) >= 8 and all("pope" in t for t in pope)   # his call with Zelenskyy, not the war
+    riots = [n for n, g in enumerate(groups) if len(g) >= 10 and sum("riot" in t or "loot" in t for t in g) >= 5]
+    assert len(riots) == 1   # the riots, told many ways, are still one story

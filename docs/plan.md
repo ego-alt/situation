@@ -35,7 +35,7 @@ Twitter/X is out: its API is expensive and its ranking is the problem being solv
 Every fetch (every 15 minutes):
 
 1. **Collect** the latest items from every feed: title, summary, link, time and position in the feed. In the four feeds kept in front-page order (BBC, Guardian, NYT, Le Monde), the first items are the lead stories; the rest are newest first.
-2. **Cluster** items about the same event. The cluster key is TF-IDF over titles and summaries; items join when they're similar enough within 48 hours. Clusters live across fetches, so a story keeps its identity as it develops.
+2. **Cluster** items about the same event. The cluster key is TF-IDF over titles and summaries; items join when they're similar enough within 48 hours. A linked group is then cut into tight cores, and cores stay one story only if they share what happened, not just names: the Wainwright base fire and Alberta's referendum share "Alberta" and "Carney" but not "fire" or "vote", so one article mentioning both can't fuse them. Clusters live across fetches, so a story keeps its identity as it develops.
 3. **Score** each cluster:
    - **breadth:** the number of distinct outlets carrying it, weighted per outlet. This is the core signal.
    - **lead:** a bonus when front-page-ordered outlets put it among their top three stories.
