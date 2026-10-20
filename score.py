@@ -72,13 +72,13 @@ HEADLINE_HOURS = 12   # a story's headline comes from its last half day, so it m
 
 def is_headline(title: str) -> bool:
     """A title that states news (not a live blog, gallery, explainer or question)."""
-    return len(title.split()) >= 4 and not _NOT_A_HEADLINE.search(title)   # not a topic page ("Saudi Arabia")
+    return len(title.split()) >= 3 and not _NOT_A_HEADLINE.search(title)   # not a topic page ("Saudi Arabia")
 
 
 def pick_headline(articles: list[dict]) -> str:
     """The most typical article's title, skipping live blogs and galleries."""
     for a in articles[:8]:
-        if not _NOT_A_HEADLINE.search(a["title"]):
+        if is_headline(a["title"]):
             return clean_title(a["title"])
     return clean_title(articles[0]["title"])
 

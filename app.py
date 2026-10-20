@@ -161,11 +161,12 @@ def _story(s: Story) -> dict:
 LATEST = timedelta(hours=6)
 
 
-def _same_news(a, b):
-    """Two titles that mostly share their words: the headline reworded, not a development."""
+def _develops(title, headline):
+    """A title that moves the story on: it shares some of the headline's words (not
+    another story chained in) but not most of them (not the headline reworded)."""
     from cluster import tokens
-    ta, tb = set(tokens(a)), set(tokens(b))
-    return not ta or not tb or len(ta & tb) / min(len(ta), len(tb)) >= 0.5
+    a, b = set(tokens(title)), set(tokens(headline))
+    return bool(a and b) and 0 < len(a & b) / min(len(a), len(b)) < 0.5
 
 
 def _latest(s: Story, sources: list[dict]) -> dict | None:
@@ -176,7 +177,7 @@ def _latest(s: Story, sources: list[dict]) -> dict | None:
     for src in sources:                       # newest first
         if not src["published"] or datetime.fromisoformat(src["published"]) < since:
             return None
-        if is_headline(src["title"]) and not _same_news(src["title"], s.headline):
+        if is_headline(src["title"]) and _develops(src["title"], s.headline):
             return {"title": src["title"], "outlet": src["outlet"], "at": src["published"], "url": src["url"]}
     return None
 

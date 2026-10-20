@@ -50,6 +50,8 @@ def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
             name = (entry.get("source") or {}).get("title")
             if name and title.endswith(f" - {name}"):
                 title = title[: -len(name) - 3].rstrip()
+            if len(title.split()) < 4:
+                continue   # a topic page ("Saudi Arabia"), not an article
         items.append({
             "source": source.key, "outlet": source.outlet, "title": title, "url": url,
             "summary": summary,
