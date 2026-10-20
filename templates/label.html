@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#070a0b">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
+    <title>Situation · Label</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
+    <script>window.APP_ROOT = {{ request.script_root|tojson }};</script>
+</head>
+<body class="label-page">
+    <header class="bar">
+        <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark" aria-hidden="true"></span>SITUATION<span class="brand-sub">label</span></a>
+        <div class="readouts">
+            <span class="readout"><span class="k">TODAY</span> <span id="countToday">—</span></span>
+            <span class="readout"><span class="k">TOTAL</span> <span id="countTotal">—</span></span>
+        </div>
+    </header>
+    <main class="label-main">
+        <p class="label-intro">Your answers are what the grouping and ranking get measured against. Go with your first instinct; “not sure” is a fine answer.</p>
+        <div id="question" aria-live="polite"><div class="empty">Loading…</div></div>
+    </main>
+    <script src="{{ url_for('static', filename='js/signed_out.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/label.js') }}"></script>
+</body>
+</html>

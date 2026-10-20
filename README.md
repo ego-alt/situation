@@ -37,7 +37,18 @@ uv run flask --app app:create_app run --port 8000           # http://127.0.0.1:8
 
 The server also fetches every 15 minutes on its own (`FETCH_LOOP=0` turns that off). `uv run flask --app app:create_app brief` prints today's top headlines, as the morning brief will send them.
 
-Tests and lint: `uv run pytest` and `uvx ruff check .` The tests run on a real snapshot from 18 October 2026.
+Tests and lint: `uv run pytest` and `uvx ruff check .` The tests run on real snapshots from 18–20 October 2026.
+
+### Measuring it
+
+`/label` (linked at the foot of the page) asks two kinds of question: are these two articles the same story, and which of two stories matters more. The questions are the close calls, and each is asked about a saved snapshot of the articles, so any version of the code can be scored on exactly what you judged:
+
+```sh
+uv run flask --app app:create_app evaluate                                  # the code as it is
+uv run flask --app app:create_app evaluate --set cluster.EVENT=0.25         # a variant
+```
+
+It prints grouping precision and recall and how often the ranking agrees with you, with the last two days of labels held out: tune on the older ones, and keep a change only if the held-out numbers agree. `labels.py` has the details.
 
 On the home stack it's added from the dashboard's Deploy tab, which reads `homestack.toml`.
 
@@ -52,7 +63,8 @@ Outlets, their weights and regions are in `sources.py`.
 
 ## Data
 
-- `instance/situation.db`: articles from the last 30 days, the stories they form, and Wikipedia snapshots.
+- `instance/situation.db`: articles from the last 30 days, the stories they form, Wikipedia snapshots, and your labels.
+- `instance/snapshots/`: the articles as they were when you labelled (one every 6 hours while you do; ones without labels go after 30 days).
 - The map is built from Natural Earth's 1:110m countries (public domain) with `python -I tools/build_map.py <countries.geojson>`; it writes `static/map/world.json` and `data/countries.json`.
 - The zoomed-in map and the place names come from Natural Earth's 1:10m countries and states/provinces, and GeoNames' towns of over 15,000 people (CC BY 4.0, [geonames.org](https://www.geonames.org/)). `tools/build_regions.py` writes `static/map/regions/<country>.json` (loaded as you zoom) and `data/gazetteer.json`; its docstring says how to run it.
 - Fonts: Inter and IBM Plex Mono (SIL Open Font License), served by the app.

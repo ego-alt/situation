@@ -64,6 +64,8 @@ def cosine(a: dict, b: dict) -> float:
     return sum(x * b.get(t, 0.0) for t, x in a.items())
 
 
+# How much two articles must resemble each other to be linked.
+THRESHOLD = 0.26
 # How much a member must resemble its group's centroid to stay in it.
 CORE = 0.3
 # A linked group is first cut into tight cores: parts whose articles resemble
@@ -97,7 +99,7 @@ def _centroid(members: list[int], vectors: list[dict], keep=lambda t: True) -> d
     return {t: x / norm for t, x in c.items()}
 
 
-def cores(members: list[int], vectors: list[dict], link: float = LINK) -> list[list[int]]:
+def cores(members: list[int], vectors: list[dict]) -> list[list[int]]:
     """Average linkage: two parts join only if their articles resemble each
     other as a whole, so one article about two events can't fuse them."""
     parts = {i: [i] for i in members}
@@ -107,7 +109,7 @@ def cores(members: list[int], vectors: list[dict], link: float = LINK) -> list[l
     while len(parts) > 1:
         (a, b), best = max(((k, t / (len(parts[k[0]]) * len(parts[k[1]]))) for k, t in total.items()),
                            key=lambda kv: kv[1])
-        if best < link:
+        if best < LINK:
             break
         parts[a] += parts.pop(b)
         for c in parts:
@@ -150,7 +152,7 @@ def split(members: list[int], vectors: list[dict], named: set[str]) -> list[list
     return out
 
 
-def cluster(articles: list[dict], threshold: float = 0.26) -> list[list[int]]:
+def cluster(articles: list[dict]) -> list[list[int]]:
     """Indexes of `articles`, grouped by event, each group's most typical
     article first. Two articles from the same
     outlet are never joined directly (an outlet's own follow-ups would
@@ -174,7 +176,7 @@ def cluster(articles: list[dict], threshold: float = 0.26) -> list[list[int]]:
         for j in candidates:
             if articles[i].get("outlet", articles[i]["source"]) == articles[j].get("outlet", articles[j]["source"]):
                 continue
-            if cosine(v, vectors[j]) >= threshold:
+            if cosine(v, vectors[j]) >= THRESHOLD:
                 parent[find(i)] = find(j)
     groups: dict[int, list[int]] = {}
     for i in range(len(articles)):

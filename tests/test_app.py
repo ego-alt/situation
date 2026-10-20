@@ -267,3 +267,37 @@ def test_a_running_story_shows_its_latest_development(app, monkeypatch):
     assert latest["title"].startswith("Paris police") and latest["outlet"] == "AP"
     monkeypatch.setattr(pipeline, "clock", lambda: NOW + timedelta(hours=8))   # nothing new for 9 hours
     assert _story(story)["latest"] is None
+
+
+def test_labelling_questions_answers_and_evaluation(loaded, app):
+    import random
+
+    import labels
+    from models import Label
+    client = app.test_client()
+    body = client.get("/api/label").get_json()
+    q = body["question"]
+    assert q["kind"] in ("same", "rank") and body["counts"] == {"today": 0, "total": 0}
+    assert client.post("/api/label", json={**q, "answer": "same" if q["kind"] == "same" else "a"}).status_code == 200
+    assert client.post("/api/label", json={**q, "answer": "maybe"}).status_code == 400
+    assert client.post("/api/label", json={**q, "snapshot": "../../etc/passwd", "answer": "a"}).status_code == 400
+    assert Label.query.count() == 1
+
+    # Plant answers that agree with the grouping and ranking: they should score perfectly.
+    name = q["snapshot"]
+    items, itn, taken = labels.load_snapshot(name)
+    stories = sorted(labels.assessed(items, itn, taken), key=lambda s: -s[1]["score"])
+    big, other = stories[0][0], stories[1][0]
+    Label.query.delete()
+    rng = random.Random(1)
+    for _ in range(5):
+        a, b = rng.sample(big, 2)
+        a, b, c = labels._article(a), labels._article(b), labels._article(rng.choice(other))
+        labels.record({"kind": "same", "snapshot": name, "answer": "same", "a": a, "b": b})
+        labels.record({"kind": "same", "snapshot": name, "answer": "different", "a": a, "b": c})
+    hi, lo = stories[0], stories[5]
+    labels.record({"kind": "rank", "snapshot": name, "answer": "a",
+                   "a": {"headline": hi[1]["headline"], "urls": [x["url"] for x in hi[0]]},
+                   "b": {"headline": lo[1]["headline"], "urls": [x["url"] for x in lo[0]]}})
+    r = labels.evaluate(Label.query.all())
+    assert (r["same_pairs"], r["precision"], r["recall"], r["rank_pairs"], r["rank_agreement"]) == (10, 1, 1, 1, 1)

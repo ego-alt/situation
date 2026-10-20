@@ -90,6 +90,18 @@ class DayTally(db.Model):
     cleared = db.Column(db.Integer, nullable=False, default=0)    # before the cap
 
 
+class Label(db.Model):
+    """One of your judgements on /label (see labels.py)."""
+    __tablename__ = "labels"
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String, nullable=False, index=True)     # same | rank
+    snapshot = db.Column(db.String, nullable=False, index=True) # instance/snapshots/<name>.json.gz
+    a = db.Column(db.JSON, nullable=False)                      # same: an article; rank: a story's headline and urls
+    b = db.Column(db.JSON, nullable=False)
+    answer = db.Column(db.String, nullable=False)               # same|different|unsure, or a|b|equal
+    at = db.Column(db.DateTime, default=utcnow, index=True)
+
+
 def migrate():
     """Add columns that create_all() can't add to an existing table."""
     def columns(table):

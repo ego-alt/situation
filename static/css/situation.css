@@ -180,8 +180,33 @@ body {
 .credit a { color: inherit; }
 .capped { padding: 10px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font: 11px var(--mono); }
 
+/* ---- /label: judging pairs ---- */
+.label-page { height: auto; min-height: 100%; }
+.label-page .brand { text-decoration: none; }
+.label-main { max-width: 900px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom)); }
+.label-intro { color: var(--muted); font: 12px/1.5 var(--mono); margin: 0 0 16px; }
+.label-ask { font: 600 17px/1.3 var(--sans); margin: 0 0 12px; }
+.label-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.label-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.label-side { color: var(--phosphor); font: 600 11px var(--mono); letter-spacing: 0.12em; margin-bottom: 6px; }
+.label-meta { color: var(--muted); font: 11px/1.4 var(--mono); margin: 4px 0; }
+.label-title { font-weight: 600; font-size: 15px; line-height: 1.35; }
+.label-summary { color: var(--text-2); font-size: 13px; margin: 8px 0 0; }
+.label-titles { margin: 8px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13px; }
+.label-titles li + li { margin-top: 4px; }
+.label-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.label-choices button {
+    flex: 1 1 160px; min-height: 44px; padding: 10px 14px; border-radius: 8px; cursor: pointer;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line-2); font: 13px var(--sans);
+}
+.label-choices button:hover:not(:disabled) { border-color: var(--phosphor); }
+.label-choices button:disabled { opacity: 0.5; cursor: default; }
+.label-choices .k { color: var(--muted); font: 11px var(--mono); margin-right: 4px; }
+
 /* ---- phone: the map on top, the list under it ---- */
 @media (max-width: 860px) {
+    .label-pair { grid-template-columns: 1fr; }
+    .label-choices .k { display: none; }
     .bar { height: auto; min-height: 44px; gap: 10px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
     .brand { letter-spacing: 0.12em; }
     .brand-sub, .readout.clock { display: none; }

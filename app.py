@@ -4,7 +4,8 @@ import threading
 import time
 from datetime import UTC, datetime, timedelta
 
-from flask import Flask, jsonify, render_template, send_from_directory
+import click
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import Story, db, migrate
@@ -65,6 +66,53 @@ def create_app(config=None):
         already running; skips one if the last finished under SYNC_COOLDOWN ago."""
         return jsonify({"status": sync_now()})
 
+    @app.route("/label")
+    def label_page():
+        return render_template("label.html")
+
+    @app.route("/api/label")
+    def label_next():
+        """A question to judge (see labels.py), and how many you've answered."""
+        from labels import counts, next_question
+        from pipeline import clock
+        return jsonify({"question": next_question(clock()), "counts": counts(clock())})
+
+    @app.route("/api/label", methods=["POST"])
+    def label_answer():
+        from labels import counts, record
+        from pipeline import clock
+        try:
+            record(request.get_json(silent=True) or {})
+        except ValueError as e:
+            return {"error": str(e)}, 400
+        return jsonify({"counts": counts(clock())})
+
+    @app.cli.command("evaluate")
+    @click.option("--set", "overrides", multiple=True, metavar="MODULE.NAME=VALUE",
+                  help="Try a threshold, e.g. cluster.EVENT=0.25 (repeatable).")
+    @click.option("--holdout", default=None, type=int, help="Days of the newest labels to hold out.")
+    def evaluate_command(overrides, holdout):
+        """Score the grouping and ranking against your labels from /label."""
+        import importlib
+
+        from labels import HOLDOUT_DAYS, evaluate, split_holdout
+        from models import Label
+        for o in overrides:
+            target, _, value = o.partition("=")
+            module, _, name = target.rpartition(".")
+            mod = importlib.import_module(module)
+            if not hasattr(mod, name):
+                raise click.BadParameter(f"{target} doesn't exist")
+            setattr(mod, name, type(getattr(mod, name))(value))
+        labels = Label.query.all()
+        older, held = split_holdout(labels, HOLDOUT_DAYS if holdout is None else holdout)
+        for title, part in (("older", older), ("held out", held), ("all", labels)):
+            r = evaluate(part)
+            pct = lambda x: "—" if x is None else f"{x:.0%}"  # noqa: E731
+            print(f"{title:9} same-story pairs {r['same_pairs']:4}  precision {pct(r['precision']):>4}  "
+                  f"recall {pct(r['recall']):>4}  F1 {pct(r['f1']):>4}   "
+                  f"rank pairs {r['rank_pairs']:4}  agreement {pct(r['rank_agreement']):>4}")
+
     @app.cli.command("fetch")
     def fetch_command():
         """Fetch every source once and re-score."""
@@ -109,6 +157,8 @@ def fetch_once(now=None) -> dict:
     result = run(lambda: fetch_all(report=report), fetch_itn, now)
     record_sources(report, now)
     prune()
+    from labels import prune_snapshots
+    prune_snapshots()
     return result
 
 
