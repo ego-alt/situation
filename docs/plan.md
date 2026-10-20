@@ -38,12 +38,13 @@ Every fetch (every 15 minutes):
 3. **Score** each cluster:
    - **breadth:** the number of distinct outlets carrying it, weighted per outlet. This is the core signal.
    - **lead:** a bonus when front-page-ordered outlets put it among their top three stories.
-   - **curated:** a large bonus when it matches a Wikipedia "In the news" item.
+   - **curated:** a bonus worth about two outlets when it matches a Wikipedia "In the news" item. It's confirmation, not a trump card: it lifts an under-covered story to Headline, but makes a story Major only alongside real coverage.
    - **region:** a bonus for Hong Kong, Taiwan, China and the UK.
-   - **recency:** decays over about a day, so yesterday's story yields to today's.
+   - **freshness:** full for 8 hours from when the story broke (a second outlet picked it up), then halving every 12 hours, unless three or more outlets are still writing about it; so yesterday's story yields to today's.
 4. **Tier** each story:
-   - **Major:** on ITN within a day of the item appearing, or carried by six or more outlets with at least two leading with it. These can trigger the second push.
+   - **Major:** carried by six or more outlets with at least two leading with it, or new on ITN (within a day) and carried by four or more. These can trigger the second push.
    - **Headline:** carried by four or more outlets, or three when one of them leads with it; for Hong Kong, Taiwan, China and the UK, a weighted breadth of 2. These are shown on the page and in the brief, at most ten at a time (the best by score).
+   - Sport and entertainment stay below the bar, even on ITN, which lists recurring finals.
    - Everything else stays out of sight. It's searchable later, never shown by default.
 5. **Ongoing:** each item in ITN's "Ongoing" list becomes a storyline. Clusters that match it attach to it, and the page shows its latest development.
 
