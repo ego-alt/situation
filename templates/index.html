@@ -17,7 +17,9 @@
         <div class="readouts">
             <span class="readout clock"><span class="k">UTC</span> <span id="clockUtc">--:--</span></span>
             <span class="readout clock"><span class="k" id="localZone">LOCAL</span> <span id="clockLocal">--:--</span></span>
-            <span class="readout"><span class="k">SYNC</span> <span id="sync">—</span></span>
+            <button type="button" class="readout sync-button" id="syncButton" title="Fetch the news now">
+                <span class="k">SYNC</span> <span id="sync">—</span> <span class="sync-icon" aria-hidden="true">↻</span>
+            </button>
             <span class="readout" id="sourcesReadout"><span class="k">SRC</span> <span id="sources">—</span></span>
             <span class="readout tally"><span class="k flash">FLASH</span> <span id="countMajor">0</span></span>
             <span class="readout tally"><span class="k priority">PRIORITY</span> <span id="countHeadline">0</span></span>

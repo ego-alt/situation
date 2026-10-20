@@ -549,9 +549,11 @@
         $('countHeadline').textContent = data.counts.headline;
     }
 
+    let syncing = false;
+
     function drawStatus() {
-        $('sync').textContent = failure === 'signed-out' ? 'signed out'
-            : failure ? 'offline' : data?.fetched ? `${ago(data.fetched)} ago` : 'never';
+        $('sync').textContent = syncing ? 'syncing…' : failure === 'signed-out' ? 'signed out'
+            : failure ? 'offline' : data?.fetched ? (ago(data.fetched) === '0m' ? 'just now' : `${ago(data.fetched)} ago`) : 'never';
         const src = data?.sources;
         if (src) {
             $('sources').textContent = `${src.ok}/${src.total}`;
@@ -692,6 +694,24 @@
         drawStatus();
     }
 
+    /** Fetch the news now (the server joins a fetch already running, and skips
+     * one if the last was a minute or two ago), then show what it found. */
+    async function syncNow() {
+        if (syncing) return;
+        syncing = true;
+        $('syncButton').setAttribute('aria-busy', 'true');
+        drawStatus();
+        try {
+            const res = await fetch(url('/api/sync'), { method: 'POST', credentials: 'same-origin' });
+            if (res.status === 401) failure = 'signed-out';
+        } catch (_) {
+            failure = 'offline';
+        }
+        syncing = false;
+        $('syncButton').removeAttribute('aria-busy');
+        await refresh();
+    }
+
     async function loadMap() {
         try {
             world = await (await fetch(url('/static/map/world.json'))).json();
@@ -704,6 +724,7 @@
     }
 
     function start() {
+        $('syncButton').addEventListener('click', syncNow);
         tick();
         setInterval(tick, 15000);
         // The stories don't wait for the map: the list is what matters.

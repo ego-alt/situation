@@ -59,6 +59,12 @@ def create_app(config=None):
     def situation():
         return jsonify(snapshot())
 
+    @app.route("/api/sync", methods=["POST"])
+    def sync():
+        """Fetch now instead of waiting for the next round. Joins a fetch that's
+        already running; skips one if the last finished under SYNC_COOLDOWN ago."""
+        return jsonify({"status": sync_now()})
+
     @app.cli.command("fetch")
     def fetch_command():
         """Fetch every source once and re-score."""
@@ -72,6 +78,28 @@ def create_app(config=None):
     if app.config["FETCH_LOOP"] and not app.config.get("TESTING") and os.environ.get("WERKZEUG_RUN_MAIN") != "false":
         start_loop(app)
     return app
+
+
+# One fetch at a time: the background loop and the Sync button share it.
+_fetch_lock = threading.Lock()
+SYNC_COOLDOWN = timedelta(minutes=2)
+
+
+def sync_now() -> str:
+    """"fetched", "joined" (one was already running; this waited for it) or
+    "recent" (the last fetch was moments ago: spare the news sites)."""
+    from pipeline import clock, last_fetch_ok
+    if not _fetch_lock.acquire(blocking=False):
+        with _fetch_lock:
+            return "joined"
+    try:
+        last = last_fetch_ok()
+        if last and clock() - last < SYNC_COOLDOWN:
+            return "recent"
+        fetch_once()
+        return "fetched"
+    finally:
+        _fetch_lock.release()
 
 
 def fetch_once(now=None) -> dict:
@@ -97,7 +125,7 @@ def start_loop(app):
     def loop():
         while True:
             try:
-                with app.app_context():
+                with app.app_context(), _fetch_lock:
                     fetch_once()
             except Exception:  # noqa: BLE001 — a bad fetch must not stop the loop
                 app.logger.exception("fetch failed")

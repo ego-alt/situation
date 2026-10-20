@@ -48,6 +48,14 @@ body {
 .k.flash { color: var(--flash); }
 .k.priority { color: var(--priority); }
 .readout.warn, .readout.warn .k { color: var(--flash); }
+/* SYNC is also a button: tap it to fetch now. */
+.sync-button { padding: 2px 6px; margin: -2px -6px; border: 1px solid transparent; border-radius: 2px;
+    background: none; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; }
+.sync-button:hover, .sync-button:focus-visible { border-color: var(--line-2); color: var(--text); outline: none; }
+.sync-button[aria-busy="true"] { cursor: progress; }
+.sync-button[aria-busy="true"] .sync-icon { display: inline-block; animation: spin 1s linear infinite; }
+.sync-icon { color: var(--muted); }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---- board: map + intel panel ---- */
 .board {

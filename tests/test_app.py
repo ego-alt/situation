@@ -194,3 +194,34 @@ def test_the_zoomed_map_files():
     assert x1 - x0 < 50 and fr["bbox"][2] - fr["bbox"][0] > 400      # the mainland, not French Guiana
     gazetteer = json.loads((root / "data/gazetteer.json").read_text())
     assert ["Pokrovsk", "UA"] in [g[:2] for g in gazetteer]
+
+
+def test_sync_fetches_now_but_not_twice_in_a_row(app, monkeypatch):
+    import threading
+    from datetime import timedelta
+
+    import app as app_module
+    from models import SourceStatus, db
+    from pipeline import record_sources
+    calls = []
+
+    def fake_fetch(now=None):
+        calls.append(1)
+        record_sources({"bbc": (5, None)})
+    monkeypatch.setattr(app_module, "fetch_once", fake_fetch)
+    client = app.test_client()
+    assert client.post("/api/sync").get_json()["status"] == "fetched" and len(calls) == 1
+    # Moments later: spare the news sites.
+    assert client.post("/api/sync").get_json()["status"] == "recent" and len(calls) == 1
+    db.session.get(SourceStatus, "bbc").last_ok = (NOW - timedelta(minutes=10)).replace(tzinfo=None)
+    db.session.commit()
+    # A fetch already running (the background loop): the button waits for it instead of starting another.
+    app_module._fetch_lock.acquire()
+    result = {}
+    t = threading.Thread(target=lambda: result.setdefault("status", app_module.sync_now()))
+    t.start()
+    t.join(0.2)
+    assert t.is_alive()
+    app_module._fetch_lock.release()
+    t.join(2)
+    assert result["status"] == "joined" and len(calls) == 1
