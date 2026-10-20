@@ -132,7 +132,7 @@ def test_the_second_day_is_capped_at_ten(app, monkeypatch):
     snap = snapshot()
     assert len(snap["stories"]) == 10 and snap["cleared"] > 10
     assert snap["stories"][0]["iso"] == "FR" and snap["stories"][0]["tier"] == "major"
-    assert {"FR", "CA", "UA", "YE", "IL"} <= {s["iso"] for s in snap["stories"]}   # the Pope's (a day old) makes way
+    assert {"FR", "CA", "UA", "IL"} <= {s["iso"] for s in snap["stories"]}   # a day on, the Pope and the Houthis make way
     tally = DayTally.query.one()
     assert (tally.cleared, tally.major + tally.headline) == (snap["cleared"], 10)
 

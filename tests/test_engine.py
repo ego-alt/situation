@@ -150,6 +150,17 @@ def test_a_story_still_being_written_about_stays_up():
 
 
 def test_sport_and_celebrity_stay_below_the_bar():
-    soft = assess(_story(1, title="Ronaldo banned for 30 days over spat"), None, None, NOW)
-    assert soft["tier"] == "background"
-    assert assess(_story(1, title="Ronaldo banned for 30 days over spat"), None, "ITN item", NOW)["tier"] == "major"
+    soft = _story(1, title="Ronaldo banned for 30 days over spat")
+    assert assess(soft, None, None, NOW)["tier"] == "background"
+    assert assess(soft, None, "ITN item", NOW)["tier"] == "background"    # even a recurring final on ITN
+
+
+def test_wikipedia_confirms_rather_than_decides():
+    two = _story(1, outlets=("bbc", "nyt"))
+    assert assess(two, None, None, NOW)["tier"] == "background"
+    assert assess(two, None, "ITN item", NOW)["tier"] == "headline"         # under-covered: lifted, not FLASH
+    four = _story(1)
+    assert assess(four, None, "ITN item", NOW)["tier"] == "major"          # well covered and new on ITN
+    assert assess(four, None, "ITN item", NOW, itn_fresh=False)["tier"] == "headline"
+    bonus = assess(four, None, "ITN item", NOW)["score"] - assess(four, None, None, NOW)["score"]
+    assert round(bonus, 1) == 2.0

@@ -4,8 +4,10 @@ Signals (see docs/plan.md):
   breadth   distinct outlets carrying it, each counted once at its weight
   lead      outlets that put it among their top three items (front-page-ordered
             feeds only; in a newest-first feed the top spot just means recent)
-  curated   it matches an item in Wikipedia's "In the news"; FLASH only while
-            that item is under a day old, a boost after that
+  curated   it matches an item in Wikipedia's "In the news": confirmation, not a
+            trump card. It adds ITN_BONUS, lifts a story with few outlets to
+            PRIORITY (catching what these feeds under-cover), and makes it
+            FLASH only with ITN_FLASH_OUTLETS+ outlets, while the item is new
   region    it happens in a place you live or follow
   freshness a story fades with age from when it broke (when a second outlet
             picked it up): full for 8 hours, then halving every 12, unless
@@ -22,9 +24,12 @@ HOME_REGIONS = {"HK", "TW", "CN", "GB"}
 
 MAJOR, HEADLINE, BACKGROUND = "major", "headline", "background"
 
+ITN_BONUS = 2.0            # a match is worth about two more outlets
+ITN_FLASH_OUTLETS = 4      # and makes a story FLASH only with this many outlets too
+
 # Sport and entertainment: news, but not the kind this app is for. A story most
-# of whose headlines match stays below the bar, unless Wikipedia's editors put
-# it "In the news". Edit freely.
+# of whose headlines match stays below the bar, even when Wikipedia's "In the
+# news" carries it (it lists recurring finals and tournaments). Edit freely.
 _SOFT = re.compile(
     r"\b(football|soccer|premier league|champions league|la liga|serie a|bundesliga|fifa|uefa|"
     r"world cup|olympics?|paralympics?|tennis|wimbledon|grand slam|cricket|rugby|golf|nba|nfl|mlb|nhl|"
@@ -130,11 +135,11 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     silence = 1.0 if quiet <= 12 else max(0.3, 1.0 - (quiet - 12) / 50)
     freshness = min(fade, silence)
 
-    score = (breadth + 0.5 * len(leads) + (4.0 if itn_item else 0.0) + (1.0 if home else 0.0)) * freshness
+    score = (breadth + 0.5 * len(leads) + (ITN_BONUS if itn_item else 0.0) + (1.0 if home else 0.0)) * freshness
 
-    if not itn_item and is_soft(articles):
+    if is_soft(articles):
         tier = BACKGROUND
-    elif (itn_item and itn_fresh) or (outlets >= 6 and len(leads) >= 2):
+    elif (itn_item and itn_fresh and outlets >= ITN_FLASH_OUTLETS) or (outlets >= 6 and len(leads) >= 2):
         tier = MAJOR
     elif itn_item or outlets >= 4 or (outlets >= 3 and leads) or (home and breadth >= 2.0):
         tier = HEADLINE
