@@ -1,10 +1,9 @@
 """Your judgements, to measure the grouping and ranking against.
 
 Two kinds of question, asked on /label:
-  same   two articles: would you want them under one headline? "related"
-         (one situation, a different development: Macron's response to the
-         riots) counts as yes for the grouping, and is kept apart for story
-         timelines later. Half are pairs the grouping put in
+  same   two articles: would you want them under one headline? (Macron's
+         response to the riots and the riots: yes, the page shows a running
+         situation as one story with its latest development.) Half are pairs the grouping put in
          one story (the least alike of them), half pairs it kept apart that
          came close (likeness LOW..HIGH): the cases it most often gets wrong.
   rank   two stories: which matters more? Pairs are close calls among the
@@ -35,7 +34,7 @@ import cluster as clustering
 from models import Article, Label, db, utcnow
 from sources import BY_KEY
 
-SAME_ANSWERS = {"same", "related", "different", "unsure"}
+SAME_ANSWERS = {"same", "different", "unsure"}
 RANK_ANSWERS = {"a", "b", "equal"}
 LOW, HIGH = 0.18, 0.45        # likeness of the kept-apart "same story?" pairs
 RANK_RATIO = 2.0
@@ -257,7 +256,7 @@ def evaluate(labels: list[Label]) -> dict:
             if label.kind == "same" and label.answer != "unsure":
                 ga, gb = where.get(label.a["url"]), where.get(label.b["url"])
                 together = ga is not None and ga == gb
-                truth = label.answer in ("same", "related")   # the page shows a situation as one story
+                truth = label.answer == "same"
                 same[("t" if together == truth else "f") + ("p" if together else "n")] += 1
             elif label.kind == "rank" and label.answer != "equal":
                 ga = _home(label.a["urls"], [g for g, _ in stories], where)

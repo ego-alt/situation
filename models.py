@@ -98,7 +98,7 @@ class Label(db.Model):
     snapshot = db.Column(db.String, nullable=False, index=True) # instance/snapshots/<name>.json.gz
     a = db.Column(db.JSON, nullable=False)                      # same: an article; rank: a story's headline and urls
     b = db.Column(db.JSON, nullable=False)
-    answer = db.Column(db.String, nullable=False)               # same|related|different|unsure, or a|b|equal
+    answer = db.Column(db.String, nullable=False)               # same|different|unsure, or a|b|equal
     at = db.Column(db.DateTime, default=utcnow, index=True)
 
 

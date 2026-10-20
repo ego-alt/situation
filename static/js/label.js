@@ -6,8 +6,7 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     const CHOICES = {
-        same: [['same', 'Same story', '1'], ['related', 'Same situation, different development', '2'],
-            ['different', 'Different stories', '3'], ['unsure', 'Not sure', '4']],
+        same: [['same', 'Yes, one headline', '1'], ['different', 'No, separate', '2'], ['unsure', 'Not sure', '3']],
         rank: [['a', 'A matters more', '1'], ['b', 'B matters more', '2'], ['equal', 'About equal', '3']],
     };
     let current = null;
