@@ -11,6 +11,8 @@ import math
 import re
 from collections import Counter
 
+from geo import places
+
 STOPWORDS = set("""
 a an the and or but of to in on at for from by with as is are was were be been being it its
 this that these those after before over under into about amid than then there their they he she
@@ -74,6 +76,25 @@ LINK = 0.15
 # Cores are one story if they share what happened, not only who and where:
 # their likeness counting only event words ("riot", "fire", "vote"), not names.
 EVENT = 0.2
+# ...and if they happen in the same place: cores mostly about different
+# countries stay apart however alike their events (riots in France and riots
+# in Italy). "Mostly": the country holds at least this share of the mentions.
+PLACE_SHARE = 0.5
+
+
+def where(article: dict) -> Counter:
+    """The countries an article names, its headline counting three times."""
+    found = Counter({iso: n * 3 for iso, n in places(article["title"]).items()})
+    found.update(places(article.get("summary") or ""))
+    return found
+
+
+def _main_place(members: list[int], wheres: list[Counter]) -> str | None:
+    total = sum((wheres[i] for i in members), Counter())
+    if not total:
+        return None
+    iso, n = total.most_common(1)[0]
+    return iso if n >= PLACE_SHARE * sum(total.values()) else None
 
 
 def names(articles: list[dict]) -> set[str]:
@@ -119,11 +140,13 @@ def cores(members: list[int], vectors: list[dict]) -> list[list[int]]:
     return list(parts.values())
 
 
-def split(members: list[int], vectors: list[dict], named: set[str]) -> list[list[int]]:
+def split(members: list[int], vectors: list[dict], named: set[str],
+          wheres: list[Counter] | None = None) -> list[list[int]]:
     """A linked group as the stories in it. A fire at a base in Alberta and
     Alberta's referendum share names, and one article mentions both, but not
-    what happened; the riots' cores share "riot" and "loot" however they're told.
-    Leftover articles join the story they are most about."""
+    what happened; the riots' cores share "riot" and "loot" however they're told,
+    unless they're riots in two countries. Leftover articles join the story
+    they are most about."""
     if len(members) < 4:
         return [members]
     parts = cores(members, vectors)
@@ -131,6 +154,7 @@ def split(members: list[int], vectors: list[dict], named: set[str]) -> list[list
     if len(big) < 2:
         return [members]
     event = [_centroid(c, vectors, lambda t: t not in named and not t.isdigit()) for c in big]
+    place = [_main_place(c, wheres) if wheres else None for c in big]
     parent = list(range(len(big)))
     def find(i):
         while parent[i] != i:
@@ -138,6 +162,8 @@ def split(members: list[int], vectors: list[dict], named: set[str]) -> list[list
         return i
     for a in range(len(big)):
         for b in range(a + 1, len(big)):
+            if place[a] and place[b] and place[a] != place[b]:
+                continue
             if cosine(event[a], event[b]) >= EVENT:
                 parent[find(a)] = find(b)
     stories: dict[int, list[int]] = {}
@@ -185,7 +211,8 @@ def cluster(articles: list[dict]) -> list[list[int]]:
     # share nothing. Keep only members that resemble the group as a whole.
     out = []
     named = names(articles)
-    for members in (part for group in groups.values() for part in split(group, vectors, named)):
+    wheres = [where(a) for a in articles]
+    for members in (part for group in groups.values() for part in split(group, vectors, named, wheres)):
         if len(members) < 3:
             out.append(members)
             continue

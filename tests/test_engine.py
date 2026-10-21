@@ -200,3 +200,29 @@ def test_a_wires_copy_is_not_a_second_vote():
     bbc = {"source": "bbc", "outlet": "BBC", "title": "China's growth beats forecasts as exports boom"}
     assert copies([wire, cna, bbc]) == {"CNA"}
     assert need(4, 13) == 4 and need(4, 16) == 5 and need(4, None) == 4   # the bar scales with newsrooms
+
+
+def test_riots_in_two_countries_are_two_stories():
+    """The French unrest and Italy's Milan riots, as they were fused on 21 Oct
+    2026: alike in what happened (riots, curfews, troops), apart in where."""
+    import json
+    import pathlib
+
+    from geo import locate
+
+    items = json.loads((pathlib.Path(__file__).parent / "fixtures" / "france_italy_riots.json").read_text())
+    groups = [[items[i] for i in g] for g in cluster(items)]
+    italy = [g for g in groups if any("Milan" in a["title"] for a in g)]
+    assert italy, "the Milan articles went missing"
+    for g in italy:
+        assert locate(g)["iso"] == "IT"
+        assert not any(a["title"].startswith(("France", "French")) for a in g)
+    for g in groups:
+        if g not in italy:
+            assert locate(g)["iso"] == "FR" and not any("Milan" in a["title"] for a in g)
+
+
+def test_headline_names_the_story_country():
+    arts = [{"title": "Italy deploys troops into Milan"}, {"title": "France extends curfews in Paris"}]
+    assert pick_headline(arts, "FR") == "France extends curfews in Paris"
+    assert pick_headline(arts) == "Italy deploys troops into Milan"

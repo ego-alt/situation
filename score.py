@@ -19,9 +19,11 @@ Signals (see docs/plan.md):
             fades once nobody has written about it for 12 hours
 """
 import re
+from collections import Counter
 from datetime import UTC, datetime
 
-from cluster import cosine, document, tfidf, tokens
+from cluster import cosine, document, tfidf, tokens, where
+from geo import places
 from sources import BY_KEY
 
 HOME_REGIONS = {"HK", "TW", "CN", "GB"}
@@ -97,12 +99,24 @@ def is_headline(title: str) -> bool:
     return len(title.split()) >= 3 and not _NOT_A_HEADLINE.search(title)   # not a topic page ("Saudi Arabia")
 
 
-def pick_headline(articles: list[dict]) -> str:
-    """The most typical article's title, skipping live blogs and galleries."""
+def pick_headline(articles: list[dict], place: str | None = None) -> str:
+    """The most typical article's title, skipping live blogs and galleries,
+    and, when the story has a main country, titles that name only another."""
+    def fits(a):
+        named = places(a["title"])
+        return not place or not named or place in named
+    for a in articles[:8]:
+        if is_headline(a["title"]) and fits(a):
+            return clean_title(a["title"])
     for a in articles[:8]:
         if is_headline(a["title"]):
             return clean_title(a["title"])
     return clean_title(articles[0]["title"])
+
+
+def _main_country(articles: list[dict]) -> str | None:
+    total = sum((where(a) for a in articles), Counter())
+    return total.most_common(1)[0][0] if total else None
 
 
 def match_itn(groups_articles: list[list[dict]], itn_items: list[str], threshold: float = 0.2) -> dict:
@@ -182,8 +196,9 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
         tier = HEADLINE
     else:
         tier = BACKGROUND
+    recent_articles = [a for a in articles if hours(when(a)) <= HEADLINE_HOURS]
     return {
-        "headline": pick_headline([a for a in articles if hours(when(a)) <= HEADLINE_HOURS] or articles),
+        "headline": pick_headline(recent_articles or articles, _main_country(articles)),
         "outlets": outlets, "breadth": breadth,
         "leads": len(leads), "home": home, "itn": itn_item, "score": round(score, 2), "tier": tier,
         "newest": newest,

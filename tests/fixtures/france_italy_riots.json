@@ -1,0 +1,330 @@
+[
+ {
+  "source": "taipeitimes",
+  "outlet": "taipeitimes",
+  "title": "French PM calls for local curfews as unrest persists",
+  "summary": "",
+  "published": "2026-10-20 00:00:00.000000",
+  "position": 3
+ },
+ {
+  "source": "bbc",
+  "outlet": "bbc",
+  "title": "Curfew imposed in parts of central Paris and other cities after rioting across France",
+  "summary": "It comes after the country's interior minister admits that police \"lost control\" in some cities.",
+  "published": "2026-10-19 21:14:53.000000",
+  "position": 0
+ },
+ {
+  "source": "dw",
+  "outlet": "dw",
+  "title": "France: Partial curfews issued in Paris, Nice after unrest",
+  "summary": "French authorities imposed curfews in parts of several cities on Monday night after cost-of-living and anti-government protests descended into rioting and looting over the weekend. DW has the latest.",
+  "published": "2026-10-19 19:57:00.000000",
+  "position": 1
+ },
+ {
+  "source": "dw",
+  "outlet": "dw",
+  "title": "France: Partial curfews imposed in Paris, Nice after unrest",
+  "summary": "French authorities imposed curfews in towns and cities on Monday night after cost-of-living and anti-government protests descended into rioting and looting over the weekend. DW has the latest.",
+  "published": "2026-10-19 19:57:00.000000",
+  "position": 1
+ },
+ {
+  "source": "bloomberg",
+  "outlet": "bloomberg",
+  "title": "French Unrest Tapers Off as Tougher Security Measures Imposed",
+  "summary": "French protests largely died down after authorities rolled out tougher security measures, including targeted curfews, following cost-of-living protests over the weekend that degenerated into violence, vandalism and looting.",
+  "published": "2026-10-19 20:30:55.000000",
+  "position": 19
+ },
+ {
+  "source": "dw",
+  "outlet": "dw",
+  "title": "French authorities impose partial curfews in Paris, Nice",
+  "summary": "French authorities imposed curfews in towns and cities on Monday night after cost-of-living and anti-government protests descended into rioting and looting over the weekend. DW has the latest.",
+  "published": "2026-10-19 19:57:00.000000",
+  "position": 6
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "Live: Curfews come into effect around France to combat looting",
+  "summary": "Curfews came into effect in cities across France, including Paris, Bordeaux, Nice and Lyon, as French police attempted to crack down on looting during protests. Prime Minister Sebastien Lecornu has said that implementing a state of emergency is not out of the question. Follow our liveblog for the latest updates.",
+  "published": "2026-10-20 02:51:36.000000",
+  "position": 19
+ },
+ {
+  "source": "lemonde",
+  "outlet": "lemonde",
+  "title": "France to impose new curfews where necessary",
+  "summary": "'Targeted curfews have contributed to calm overnight,' the French prime minister wrote on X, as he announced 'new curfews will be decided where the situation requires it.'",
+  "published": "2026-10-20 06:27:43.000000",
+  "position": 1
+ },
+ {
+  "source": "bbc",
+  "outlet": "bbc",
+  "title": "French cities calm overnight after curfews imposed to quell violence, PM says",
+  "summary": "Sébastien Lecornu said new curfews for Tuesday night would be decided where necessary.",
+  "published": "2026-10-20 06:35:57.000000",
+  "position": 18
+ },
+ {
+  "source": "euronews",
+  "outlet": "euronews",
+  "title": "France to impose new curfews where 'situation requires it', PM Lecornu says",
+  "summary": "Under pressure, the government scheduled another series of emergency meetings on Tuesday, including talks involving representatives of major social media platforms.",
+  "published": "2026-10-20 07:15:34.000000",
+  "position": 48
+ },
+ {
+  "source": "euronews",
+  "outlet": "euronews",
+  "title": "Police patrol Paris streets under overnight curfew",
+  "summary": "Paris police imposed an overnight curfew on Monday around Place de la Republique and Les Halles after France’s worst rioting in years. Streets were calm.",
+  "published": "2026-10-20 07:10:57.000000",
+  "position": 49
+ },
+ {
+  "source": "cna",
+  "outlet": "cna",
+  "title": "France to impose new curfews where necessary: PM",
+  "summary": "",
+  "published": "2026-10-20 07:38:00.000000",
+  "position": 18
+ },
+ {
+  "source": "guardian",
+  "outlet": "guardian",
+  "title": "French cities ‘calm overnight’ after targeted curfews, prime minister says – Europe live",
+  "summary": "Sébastien Lecornu suggests more curfews could be introduced to quell unrest after weekend protests French prime minister Sébastien Lecornu said that targeted curfews introduced in parts of Paris and other major cities “have contributed to calm overnight,” as he suggested more curfews could be introduced if needed today. In a particular symbol of stepped up security measures, a helicopter flew over",
+  "published": "2026-10-20 07:37:55.000000",
+  "position": 24
+ },
+ {
+  "source": "reuters",
+  "outlet": "reuters",
+  "title": "France calm under night curfews as government awaits new weekend protests",
+  "summary": "",
+  "published": "2026-10-20 05:40:00.000000",
+  "position": 43
+ },
+ {
+  "source": "nyt",
+  "outlet": "nyt",
+  "title": "France to Extend Curfews After a Night of Calm, Prime Minister Says",
+  "summary": "The restrictions are part of a state effort to reassert control after the country’s largest riots in years, as those arrested in the unrest face expedited trials.",
+  "published": "2026-10-20 09:31:33.000000",
+  "position": 29
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "France protests: Govt to impose new curfews where 'situation requires it'",
+  "summary": "Following weekend protests and riots across the country, curfews have been imposed by the government in some parts of Paris and several cities in France. In Paris, the night passed without any disturbance as FRANCE 24's Emerald Maxwell reports. French Prime Minister Sébastien Lecornu said that local authorities can decide to extend curfews if necessary.",
+  "published": "2026-10-20 09:49:26.000000",
+  "position": 23
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "France first night under targeted curfews passed calmly",
+  "summary": "France’s first night under curfew passed without incident, as authorities sought to restore order following a weekend of demonstrations that escalated into riots. The government will impose further curfews where necessary on Tuesday, Prime Minister Sébastien Lecornu said. FRANCE 24 International Affairs Editor Philip Turle tells us more.",
+  "published": "2026-10-20 10:01:39.000000",
+  "position": 23
+ },
+ {
+  "source": "aljazeera",
+  "outlet": "aljazeera",
+  "title": "France PM promises more curfews as authorities seek to regain control",
+  "summary": "Prime Minister Sebastien Lecornu says local authorities will coordinate with mayors to decide whether to impose curfews.",
+  "published": "2026-10-20 12:07:46.000000",
+  "position": 21
+ },
+ {
+  "source": "euronews",
+  "outlet": "euronews",
+  "title": "'Everything is destroyed,' Paris pharmacy owner says after protests",
+  "summary": "France will impose new curfews in areas where needed on Tuesday, Prime Minister Sébastien Lecornu said, adding that the measures introduced in several cities the previous day had \"helped keep the night calm\".",
+  "published": "2026-10-20 12:14:36.000000",
+  "position": 47
+ },
+ {
+  "source": "ap",
+  "outlet": "ap",
+  "title": "Curfews bring calm to Paris as France cracks down on weekend rioters",
+  "summary": "",
+  "published": "2026-10-20 12:58:00.000000",
+  "position": 62
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "France unrest: Public reacts to PM’s announcement of new targeted curfews",
+  "summary": "French Prime Minister Sébastien Lecornu has announced that new targeted curfews would be put in place this Tuesday in France. This comes after measures introduced overnight helped maintain calm following unrest over the weekend.",
+  "published": "2026-10-20 13:47:20.000000",
+  "position": 17
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "French PM blames 'ultra-left' groups for weekend riots, promises 'massive' security deployment",
+  "summary": "French Prime Minister Sébastien Lecornu said Tuesday during a session of the National Assembly that authorities would mobilise a \"massive\" security presence next weekend after organisers announced plans for new protests. Lecornu also accused ultra-left groups of fomenting an \"insurrection\" leading to the past weekend's riots on the sidelines of nationwide demonstrations over the cost of living and",
+  "published": "2026-10-20 14:16:16.000000",
+  "position": 22
+ },
+ {
+  "source": "dw",
+  "outlet": "dw",
+  "title": "France plans 'massive' weekend police surge amid protests",
+  "summary": "French Prime Minister Sebastien Lecornu told parliament the government would respond and reinforce police in major cities. He also accused extreme-left groups of trying to hijack what began as protests. DW has more.",
+  "published": "2026-10-20 08:49:00.000000",
+  "position": 20
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "French PM vows 'massive' police deployment for new demonstrations Saturday",
+  "summary": "French Prime Minister Sebastien Lecornu said Tuesday authorities would mobilise a \"massive\" security presence next weekend, with organisers announcing plans for new protests after riots erupted on the sidelines of nationwide demonstrations. \"The deployment for next Saturday will be massive,\" Lecornu said in parliament, acknowledging that the security operation for the protests last weekend had bee",
+  "published": "2026-10-20 14:54:15.000000",
+  "position": 23
+ },
+ {
+  "source": "lemonde",
+  "outlet": "lemonde",
+  "title": "New Paris curfew ordered as PM vows 'massive' police deployment at next protests",
+  "summary": "There were no major incidents on Monday night as the government imposed curfews in parts of Paris and other cities, following violence and looting over the weekend.",
+  "published": "2026-10-20 15:45:55.000000",
+  "position": 10
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "France: Local curfews imposed after protests",
+  "summary": "French cities that imposed a curfew Monday saw a generally calm night, after October 17 protests devolved into violent riots this past weekend. Despite criticism from citizens, France's government said it is maintaining the measure where necessary on Tuesday night.",
+  "published": "2026-10-20 16:09:44.000000",
+  "position": 23
+ },
+ {
+  "source": "scmp",
+  "outlet": "scmp",
+  "title": "France to deploy troops in response to protests after violent riots sweep cities",
+  "summary": "France will reinforce police with troops and mount a huge security operation for more protests planned on Saturday, the government said on Tuesday, acknowledging failures in its response to last weekend’s violence. “The deployment next Saturday will be massive,” Prime Minister Sebastien Lecornu said, adding that the immediate priority was to restore order after rioting and looting swept Paris, Mar",
+  "published": "2026-10-20 16:17:23.000000",
+  "position": 48
+ },
+ {
+  "source": "taipeitimes",
+  "outlet": "taipeitimes",
+  "title": "French unrest tapers off after curfews imposed",
+  "summary": "",
+  "published": "2026-10-21 00:00:00.000000",
+  "position": 4
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "New Paris curfew ordered in parts of city from 2100 GMT Tuesday",
+  "summary": "Paris police ordered a new curfew for parts of the city for Tuesday overnight, after one the previous night that authorities said resulted in calm being restored following weekend riots and looting. The fresh curfew runs from 2100 GMT Tuesday to 0400 GMT Wednesday and applies to the Republique public square in the city's central east, where many weekend clashes took place, and in the central les H",
+  "published": "2026-10-20 19:01:31.000000",
+  "position": 22
+ },
+ {
+  "source": "ap",
+  "outlet": "ap",
+  "title": "Italy’s Meloni approves tougher measures to crack down on protests after Milan riots",
+  "summary": "",
+  "published": "2026-10-20 19:15:00.000000",
+  "position": 26
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "Italy sends troops, toughens security laws after Milan clashes",
+  "summary": "Italy on Tuesday approved the deployment of 500 troops to Milan after violent clashes as fuel price protests hit pasta production and food deliveries in southern Italy. A cabinet meeting on Tuesday also approved a series of security measures, including making the detention of minors easier and introducing the crime of \"violent participation in a demonstration\". FRANCE 24's Seema Gupta reports from",
+  "published": "2026-10-20 20:09:52.000000",
+  "position": 22
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "French PM vows 'massive' police deployment for new demonstrations",
+  "summary": "French Prime Minister Sebastien Lecornu on Tuesday vowed a \"massive\" police presence at fresh protests called for the coming weekend, as he faced criticism over the handling of recent street violence. The eurozone's second-largest economy was rocked on Saturday by some of its worst rioting in recent years, just six months before voters head to the polls to elect a successor to President Emmanuel M",
+  "published": "2026-10-20 20:05:44.000000",
+  "position": 23
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "Italy announces new security measures after Milan riots, deploying 500 soldiers",
+  "summary": "Italy announced tougher security measures on Tuesday after weekend riots in Milan left more than 100 police officers injured and shops looted. The government will deploy 500 additional soldiers, impose harsher penalties for violent protesters and hold parents financially responsible for damage caused by minors.",
+  "published": "2026-10-20 23:33:16.000000",
+  "position": 20
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "Live: French PM Lecornu to meet with unions ahead of new protests",
+  "summary": "After implementing curfews in cities across France to prevent a continuation of the weekend's violence and looting, French Prime Minister Sébastien Lecornu prepared to meet with trade union organisations on Wednesday to discuss protest security and responses to the high school students who began the now nationwide protests. Follow our liveblog for the latest updates.",
+  "published": "2026-10-21 00:45:06.000000",
+  "position": 23
+ },
+ {
+  "source": "aljazeera",
+  "outlet": "aljazeera",
+  "title": "Italy approves sweeping security measures in response to protests",
+  "summary": "Italy's government approves sending 500 troops to Milan after clashes and protests.",
+  "published": "2026-10-21 04:13:00.000000",
+  "position": 23
+ },
+ {
+  "source": "npr",
+  "outlet": "npr",
+  "title": "France announces nightly curfews 'for as long as necessary' in Paris and other cities",
+  "summary": "Fresh curfews were being imposed across the city centers of Paris and Lyon on Tuesday after the first quiet night since France's most destructive rioting in years.",
+  "published": "2026-10-21 05:37:28.000000",
+  "position": 7
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "French PM vows stronger security as country prepares for more protests",
+  "summary": "French prime minister Sebastien Lecornu and Interior Minister Laurent Nunez both faced tough questions from members of parliament over the handling of last weekend's violence. Lecornu has promised a massive deployment of police for future protests, while Nunez said the military will be used to back up the security forces. Details by FRANCE 24’s Ellen Gainsford live from the prime minister's office",
+  "published": "2026-10-21 09:01:44.000000",
+  "position": 19
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "Italy deploys army and approves tougher anti-riot laws after violence",
+  "summary": "Italian Prime Minister Giorgia Meloni on Tuesday announced the deployment of 500 troops to Milan to assist police following clashes in the city. Meloni said a cabinet meeting also approved measures to make the detention of minors easier and to impose fines on their parents for any damage. Story by Morgan Ayre.",
+  "published": "2026-10-21 08:57:04.000000",
+  "position": 20
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "Italy deploys troops into Milan in response to recent riots",
+  "summary": "Italy approved troop deployment after intense riots in Milan. Prime Minister Giorgia Meloni toughened security laws after clashes between youths and the police, following a weekend of unrest in several Italian cities. FRANCE 24's correspondent Seema Gupta reports from the ground.",
+  "published": "2026-10-21 10:08:24.000000",
+  "position": 23
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "French Prime Minister vows 'massive' police deployment for new demonstrations",
+  "summary": "Prime Minister Sébastien Lecornu has vowed a \"massive\" police deployment for the fresh demonstrations called for Saturday by the \"Yellow Vest\" movement. Facing angry lawmakers in parliament, Lecornu acknowledged that the security response had fallen short and promised a stronger approach ahead of this new wave of protests.",
+  "published": "2026-10-21 10:25:03.000000",
+  "position": 23
+ },
+ {
+  "source": "france24",
+  "outlet": "france24",
+  "title": "Italy: Giorgia Meloni approves tougher anti-riot laws after Milan violence 🇮🇹",
+  "summary": "Italy approved a raft of security measures on Tuesday including a new offence of violent participation in a demonstration, tougher penalties for rioters, and financial liability for parents whose children take part in vandalism and looting.",
+  "published": "2026-10-21 15:18:08.000000",
+  "position": 10
+ }
+]
