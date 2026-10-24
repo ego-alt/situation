@@ -35,7 +35,8 @@ A retrospective per phase, and the road ahead. The product plan is in [`plan.md`
 
 **Phase 2: events, measured properly**
 
-- [ ] Event-level labels (running): compare the hand rules with the off-the-shelf grouping on headline-size stories, with intervals. If the off-the-shelf method wins, ship it as a one-file switch.
+- [x] Event-level labels (October 2026: 5 snapshots, 2,909 news articles, 2,721 events; healthy partition, the 5 biggest events about 7% of articles). The hand rules against the off-the-shelf grouping, held out by snapshot: level on all articles (+1.2% to off-the-shelf, interval −0.1 to +2.4), but **the hand rules are better on headline-size stories** (−4.3% to off-the-shelf, −8.5 to −0.2), about 83% against 80% B-cubed F1. No fast win: the hand rules stay. (The earlier "win" for the off-the-shelf method came from situation-level labels, which reward merging more.)
+- [ ] Look at the hand rules' mistakes on headline-size events (splits and wrong merges) and fix what's systematic.
 - [ ] Labelling over time:
   - a weekly run;
   - the latest week held out as the test set;
