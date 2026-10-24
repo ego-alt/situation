@@ -277,8 +277,8 @@ def test_labelling_questions_answers_and_evaluation(loaded, app):
     client = app.test_client()
     body = client.get("/api/label").get_json()
     q = body["question"]
-    assert q["kind"] in ("story", "rank") and body["counts"] == {"today": 0, "total": 0}
-    answer = "checked" if q["kind"] == "story" else "a"
+    assert q["kind"] in ("story", "rank", "show") and body["counts"] == {"today": 0, "total": 0}
+    answer = {"story": "checked", "rank": "a", "show": "yes"}[q["kind"]]
     assert client.post("/api/label", json={**q, "answer": answer}).status_code == 200
     assert client.post("/api/label", json={**q, "answer": "maybe"}).status_code == 400
     assert client.post("/api/label", json={**q, "snapshot": "../../etc/passwd", "answer": "a"}).status_code == 400
