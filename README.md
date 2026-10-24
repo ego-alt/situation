@@ -56,7 +56,7 @@ uv run flask --app app:create_app train                                     # fi
 uv run flask --app app:create_app train --save --only pairs,place           # and use them
 ```
 
-`evaluate` prints grouping precision and recall per article (B-cubed) and per pair, how often the ranking agrees with you and how often stories are placed where you said, with the last two days of labels held out. `train` fits the models (`learn.py` for events, ranking and places; `situations.py` for joining stories into situations) holding out the newest snapshots, and prints them against the hand rules there: save a model only where it does better. Training takes a minute or two, so do it on the Mac (`tools/compare_grouping.py` runs the fuller comparison) and copy `instance/models/*.json` to the Pi. On the Pi: `docker exec situation flask train`. How the models work, and what comes next: [`docs/plan.md`](docs/plan.md#learning-from-your-labels).
+`evaluate` prints grouping precision and recall per article (B-cubed) and per pair, how often the ranking agrees with you and how often stories are placed where you said, with the last two days of labels held out. `train` fits the models (`learn.py` for events, ranking and places; `situations.py` for joining stories into situations) holding out the newest snapshots, and prints them against the hand rules there: save a model only where it does better. Training takes a minute or two, so do it on the Mac (`tools/compare_grouping.py` runs the fuller comparison) and copy `instance/models/*.json` to the Pi. How the models work, and what comes next: [`docs/plan.md`](docs/plan.md#learning-from-your-labels).
 
 On the home stack it's added from the dashboard's Deploy tab, which reads `homestack.toml`.
 
