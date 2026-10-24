@@ -425,29 +425,35 @@ def _by_snapshot(labels: list[Label]):
             continue
 
 
-def bcubed(label: Label, where: dict[str, int]) -> tuple[float, float, int]:
-    """B-cubed over one of Claude's groupings: for each article, precision is the
-    share of the articles grouped with it that truly belong with it, recall the
-    share of those truly belonging with it that were grouped with it. Every
-    article counts once, however big its story (pair counts let one 146-article
-    story outweigh a hundred small ones). Only the articles Claude saw side by
-    side (its bundle) count. Returns (sum of precisions, sum of recalls, articles)."""
-    truth = {u: n for n, g in enumerate(label.a["groups"]) for u in g}
-    bundle = [u for u in label.a["bundle"] if u in truth and u in where]
+def bcubed(truth: dict[str, object], where: dict[str, int]) -> tuple[float, float, int]:
+    """B-cubed over a snapshot: for each labelled article, precision is the share
+    of the articles grouped with it that truly belong with it, recall the share
+    of those truly belonging with it that were grouped with it. Every article
+    counts once, however big its story (pair counts let one 146-article story
+    outweigh a hundred small ones). `truth` is each article's true group;
+    articles without one aren't counted, and nor are they counted against
+    others. Returns (sum of precisions, sum of recalls, articles)."""
+    scored = [u for u in truth if u in where]
     found: dict[int, list[str]] = {}
-    for u in bundle:
+    for u in scored:
         found.setdefault(where[u], []).append(u)
-    sizes = {n: sum(1 for u in bundle if truth[u] == n) for n in set(truth.values())}
+    sizes = Counter(truth[u] for u in scored)
     p = r = 0.0
     for members in found.values():
-        counts: dict[int, int] = {}
+        counts = Counter(truth[u] for u in members)
         for u in members:
-            counts[truth[u]] = counts.get(truth[u], 0) + 1
-        for u in members:
-            both = counts[truth[u]]
-            p += both / len(members)
-            r += both / sizes[truth[u]]
-    return p, r, len(bundle)
+            p += counts[truth[u]] / len(members)
+            r += counts[truth[u]] / sizes[truth[u]]
+    return p, r, len(scored)
+
+
+def snapshot_truth(group_labels: list[Label]) -> dict[str, tuple[int, int]]:
+    """Each article's true group, from Claude's groupings of one snapshot. Its
+    second pass saw every story of the snapshot and joined those of one
+    situation, so stories it left apart, in different labels too, are judged
+    different: together the labels are one grouping of the snapshot."""
+    return {u: (label.id, n) for label in group_labels if label.kind == "grouping"
+            for n, g in enumerate(label.a["groups"]) for u in g}
 
 
 def evaluate(labels: list[Label]) -> dict:
@@ -466,9 +472,8 @@ def evaluate(labels: list[Label]) -> dict:
         stories = assessed(items, itn, taken)
         where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
         by_url = {a["url"]: a for a in items}
+        b3 = [x + y for x, y in zip(b3, bcubed(snapshot_truth(group_labels), where), strict=True)]
         for label in group_labels:
-            if label.kind == "grouping":
-                b3 = [x + y for x, y in zip(b3, bcubed(label, where), strict=True)]
             for u, v, truth in judged_pairs(label):
                 together = where.get(u) is not None and where.get(u) == where.get(v)
                 same[("t" if together == truth else "f") + ("p" if together else "n")] += 1
@@ -574,7 +579,14 @@ def training_data(labels: list[Label], first: dict | None = None) -> dict:
     """The labels as examples for learn.py: pair features with same-or-not,
     the score's parts for both sides of a ranking, and each checked story's
     place candidates with the one you chose. Stories are grouped by the hand
-    rules here, so the examples don't depend on a model already trained."""
+    rules here, so the examples don't depend on a model already trained.
+
+    Pairs from Claude's groupings are the pairs the model will score when it
+    runs: every candidate pair (events.Articles.candidates) of the snapshot's
+    labelled articles, same or different by the snapshot's grouping
+    (snapshot_truth). Pairs from one label alone left out the commonest
+    "different", two stories in different labels that share a country or a few
+    words, and the models learned to merge too eagerly."""
     import embed
     import events
     import learn
@@ -588,8 +600,16 @@ def training_data(labels: list[Label], first: dict | None = None) -> dict:
             ctx = events.Articles(items, meaning=meaning) if kinds & {"same", "story", "grouping"} else None
             stories = assessed(items, itn, taken) if "rank" in kinds else []
             where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
+            truth = snapshot_truth(group_labels)
+            if truth:
+                pairs = [(i, j) for i, j in ctx.candidates() if items[i]["url"] in truth and items[j]["url"] in truth]
+                if pairs:
+                    rows = ctx.rows(pairs, first)
+                    data["pairs"] += [(row.tolist(), truth[items[i]["url"]] == truth[items[j]["url"]])
+                                      for row, (i, j) in zip(rows, pairs, strict=True)]
             for label in group_labels:
-                judged = [(index[u], index[v], same) for u, v, same in judged_pairs(label) if u in index and v in index]
+                judged = [(index[u], index[v], same) for u, v, same in judged_pairs(label)
+                          if u in index and v in index and label.kind != "grouping"]
                 if judged:
                     rows = ctx.rows([(min(i, j), max(i, j)) for i, j, _ in judged], first)
                     data["pairs"] += [(row.tolist(), same) for row, (_, _, same) in zip(rows, judged, strict=True)]
@@ -608,7 +628,7 @@ def training_data(labels: list[Label], first: dict | None = None) -> dict:
 def situation_data(labels: list[Label], pairs_model: dict | None) -> list[tuple[list[float], bool]]:
     """Training pairs for stage 2 (situations.py): each snapshot grouped by stage
     1 (this pair model, or the hand rules without one), and every candidate pair
-    of its stories with what the labels say about their articles."""
+    of its stories with what the snapshot's grouping says about their articles."""
     import embed
     import events
     import learn
@@ -616,12 +636,12 @@ def situation_data(labels: list[Label], pairs_model: dict | None) -> list[tuple[
     out = []
     with learn.using({}):
         for items, itn, _, group_labels in _by_snapshot(labels):
-            judged = {frozenset((u, v)): same for lb in group_labels for u, v, same in judged_pairs(lb)}
-            if not judged:
+            truth = snapshot_truth(group_labels)
+            if not truth:
                 continue
             ctx = events.Articles(items, meaning=embed.available())
             groups = ctx.group(pairs_model) if pairs_model else clustering.by_rules(items)
-            out += situations.Stories(groups, ctx, itn.get("ongoing", [])).examples(judged)
+            out += situations.Stories(groups, ctx, itn.get("ongoing", [])).examples(truth)
     return out
 
 

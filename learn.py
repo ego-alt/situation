@@ -92,20 +92,26 @@ def using(models: dict | None):
 
 # Fitting --------------------------------------------------------------------
 
-def fit_logistic(x: np.ndarray, y: np.ndarray, l2: float = 1.0, steps: int = 2000) -> dict:
-    """A logistic regression on standardised features, with an L2 penalty so a
-    few labels can't push any weight far. Plain gradient descent: the data is
-    hundreds of rows."""
+def fit_logistic(x: np.ndarray, y: np.ndarray) -> dict:
+    """A logistic regression on standardised features, its L2 penalty (which
+    keeps any weight from running away on few labels) chosen by 5-fold
+    cross-validation on log loss: scikit-learn's LogisticRegressionCV. For
+    training only, on the Mac; applying a model is one dot product
+    (predict_logistic), so the Pi doesn't need scikit-learn."""
+    try:
+        from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
+    except ImportError as e:
+        raise RuntimeError("training needs scikit-learn: run it on the Mac (uv sync installs it)") from e
     mean = x.mean(axis=0)
     scale = x.std(axis=0)
     scale[scale == 0] = 1.0
     z = (x - mean) / scale
-    w, b, n = np.zeros(x.shape[1]), 0.0, len(y)
-    for _ in range(steps):
-        p = 1 / (1 + np.exp(-(z @ w + b)))
-        w -= 0.5 * ((z.T @ (p - y)) / n + l2 * w / n)
-        b -= 0.5 * float((p - y).mean())
-    return {"mean": mean.tolist(), "scale": scale.tolist(), "weights": w.tolist(), "bias": b}
+    folds = min(5, int(min((y == 0).sum(), (y == 1).sum())))
+    fitted = (LogisticRegressionCV(Cs=10, cv=folds, scoring="neg_log_loss", max_iter=5000, l1_ratios=(0.0,),
+                                   use_legacy_attributes=False) if folds >= 2
+              else LogisticRegression(max_iter=5000)).fit(z, y)
+    return {"mean": mean.tolist(), "scale": scale.tolist(), "weights": fitted.coef_[0].tolist(),
+            "bias": float(fitted.intercept_[0])}
 
 
 def predict_logistic(model: dict, x: np.ndarray) -> np.ndarray:

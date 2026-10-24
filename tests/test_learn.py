@@ -244,10 +244,10 @@ def test_the_second_pass_joins_a_situation_across_bundles():
 
 def test_bcubed_counts_every_article_once():
     """Truth: {a b c d} and {e}. Found: {a b} {c d e}. a, b: precision 1, recall
-    2/4; c, d: precision 2/3, recall 2/4; e: precision 1/3, recall 1."""
-    from types import SimpleNamespace
-    label = SimpleNamespace(a={"bundle": list("abcde"), "groups": [list("abcd"), ["e"]]})
-    p, r, n = labels.bcubed(label, {"a": 0, "b": 0, "c": 1, "d": 1, "e": 1})
+    2/4; c, d: precision 2/3, recall 2/4; e: precision 1/3, recall 1. f has no
+    true group: it isn't counted."""
+    truth = {u: 0 for u in "abcd"} | {"e": 1}
+    p, r, n = labels.bcubed(truth, {"a": 0, "b": 0, "c": 1, "d": 1, "e": 1, "f": 1})
     assert n == 5
     assert round(p / n, 4) == round((1 + 1 + 2 / 3 + 2 / 3 + 1 / 3) / 5, 4)
     assert round(r / n, 4) == round((0.5 + 0.5 + 0.5 + 0.5 + 1) / 5, 4)

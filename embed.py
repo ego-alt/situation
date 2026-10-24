@@ -14,6 +14,7 @@ import json
 import os
 import pathlib
 import struct
+from collections import OrderedDict
 from functools import lru_cache
 
 MODEL_DIR = pathlib.Path(os.environ.get("EMBED_MODEL_DIR")
@@ -51,21 +52,32 @@ def available() -> bool:
     return _model() is not None
 
 
+_cache: "OrderedDict[str, object]" = OrderedDict()
+CACHE = 10_000        # vectors kept (about 10 MB): a window's articles, read again every fetch
+
+
 def encode(texts: list[str]):
     """One unit-length vector per text (a numpy array, len(texts) × 256), or
-    None without the model. A text with no known pieces gets zeros."""
+    None without the model. A text with no known pieces gets zeros. Vectors
+    are cached by text: every fetch re-reads the same articles."""
     model = _model()
     if model is None:
         return None
     import numpy as np
     tokenizer, vectors, unk = model
+    texts = [t or "" for t in texts]
+    new = list(dict.fromkeys(t for t in texts if t not in _cache))
+    for t, enc in zip(new, tokenizer.encode_batch(new, add_special_tokens=False) if new else [], strict=True):
+        ids = [i for i in enc.ids if i != unk]
+        v = vectors[ids].mean(axis=0) if ids else np.zeros(vectors.shape[1], dtype=np.float32)
+        n = float(np.linalg.norm(v))
+        _cache[t] = v / n if n else v
     out = np.zeros((len(texts), vectors.shape[1]), dtype=np.float32)
-    for i, enc in enumerate(tokenizer.encode_batch([t or "" for t in texts], add_special_tokens=False)):
-        ids = [t for t in enc.ids if t != unk]
-        if ids:
-            v = vectors[ids].mean(axis=0)
-            n = float(np.linalg.norm(v))
-            out[i] = v / n if n else v
+    for k, t in enumerate(texts):
+        out[k] = _cache[t]
+        _cache.move_to_end(t)
+    while len(_cache) > CACHE:
+        _cache.popitem(last=False)
     return out
 
 

@@ -10,6 +10,7 @@ names far more reliably than they share verbs.
 import math
 import re
 from collections import Counter
+from functools import lru_cache
 
 from geo import places
 
@@ -31,7 +32,13 @@ def _stem(word: str) -> str:
 
 
 def tokens(text: str) -> Counter:
-    """Weighted terms: names (capitalised, not sentence-initial) count double."""
+    """Weighted terms: names (capitalised, not sentence-initial) count double.
+    Cached by text: every fetch re-reads the same articles."""
+    return Counter(dict(_tokens(text or "")))
+
+
+@lru_cache(maxsize=50_000)
+def _tokens(text: str) -> tuple:
     out = Counter()
     words = re.findall(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’-]+|\d{2,}", text or "")
     for i, raw in enumerate(words):
@@ -40,7 +47,7 @@ def tokens(text: str) -> Counter:
             continue
         name = raw[0].isupper() and i > 0
         out[_stem(low)] += 2 if name else 1
-    return out
+    return tuple(out.items())
 
 
 def document(article: dict) -> Counter:

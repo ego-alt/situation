@@ -124,7 +124,8 @@ def features(a: Story, b: Story) -> list[float]:
 def candidates(stories: list[Story]) -> set[tuple[int, int]]:
     """Pairs worth asking about: each story's NEIGHBOURS most alike in meaning
     (or words, without meaning), among those sharing a country, a name or an
-    "Ongoing" item. Stories with nothing in common aren't scored."""
+    "Ongoing" item, found through an index of each (stories with nothing in
+    common are never compared)."""
     n = len(stories)
     if n < 2:
         return set()
@@ -133,22 +134,22 @@ def candidates(stories: list[Story]) -> set[tuple[int, int]]:
         sims = m @ m.T
     else:
         sims = np.array([[cosine(a.words, b.words) for b in stories] for a in stories])
+    index: dict[tuple, set[int]] = {}
+    for k, s in enumerate(stories):
+        keys = [("c", c) for c in s.countries] + [("n", t) for t in s.names]
+        if s.ongoing is not None:
+            keys.append(("o", s.ongoing))
+        for key in keys:
+            index.setdefault(key, set()).add(k)
     out = set()
-    for i, a in enumerate(stories):
-        order = np.argsort(-sims[i])
-        picked = 0
-        for j in order:
-            j = int(j)
-            if j == i:
-                continue
-            b = stories[j]
-            related = (a.countries & b.countries or a.names.keys() & b.names.keys()
-                       or (a.ongoing is not None and a.ongoing == b.ongoing))
-            if related:
-                out.add((min(i, j), max(i, j)))
-                picked += 1
-                if picked >= NEIGHBOURS:
-                    break
+    for i, s in enumerate(stories):
+        keys = [("c", c) for c in s.countries] + [("n", t) for t in s.names]
+        if s.ongoing is not None:
+            keys.append(("o", s.ongoing))
+        related = sorted(set().union(*(index[key] for key in keys)) - {i}) if keys else []
+        if related:
+            nearest = np.array(related)[np.argsort(-sims[i, related], kind="stable")[:NEIGHBOURS]]
+            out |= {(min(i, int(j)), max(i, int(j))) for j in nearest}
     return out
 
 
@@ -182,18 +183,21 @@ class Stories(grouping.Layer):
         out = [[i for k in g for i in self.stories[k].members] for g in groups]
         return sorted(out, key=len, reverse=True)
 
-    def examples(self, judged: dict[frozenset, bool]) -> list[tuple[list[float], bool]]:
-        """Training pairs: candidate pairs of stories with what the labels say
-        about them, the majority of the judged pairs of their articles (pairs of
-        stories with none judged are left out)."""
+    def examples(self, truth: dict[str, object]) -> list[tuple[list[float], bool]]:
+        """Training pairs: every candidate pair of stories with what the true
+        grouping (an article's url to its group) says of their articles: one
+        situation when most pairs of their labelled articles share a group.
+        Stories with no labelled articles are left out."""
         url = [a["url"] for a in self.ctx.articles]
+        groups = [Counter(truth[url[a]] for a in s.members if url[a] in truth) for s in self.stories]
         pairs, answers = [], []
         for i, j in self.candidates():
-            votes = [judged[k] for a in self.stories[i].members for b in self.stories[j].members
-                     if (k := frozenset((url[a], url[b]))) in judged]
-            if votes:
+            a, b = groups[i], groups[j]
+            total = sum(a.values()) * sum(b.values())
+            if total:
+                same = sum(n * b[g] for g, n in a.items())
                 pairs.append((i, j))
-                answers.append(sum(votes) * 2 > len(votes))
+                answers.append(same * 2 > total)
         return list(zip(self.rows(pairs).tolist(), answers, strict=True))
 
 

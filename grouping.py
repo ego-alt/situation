@@ -140,8 +140,11 @@ class Layer:
         bundles: dict[int, list[int]] = {}
         for u in range(self.n):
             bundles.setdefault(find(u), []).append(u)
-        merge = correlation if model.get("clustering", self.MERGE_RULE) == "correlation" else average_linkage
-        groups = [self.ordered(g, near) for members in bundles.values() for g in merge(members, near)]
+        rule = model.get("clustering", self.MERGE_RULE)
+        groups = []
+        for members in bundles.values():
+            found = correlation(members, near) if rule == "correlation" else average_linkage(members, near)
+            groups += [self.ordered(g, near) for g in found]
         return sorted(groups, key=len, reverse=True)
 
 
@@ -163,14 +166,18 @@ def average_linkage(members: list[int], near: dict[int, dict[int, float]]) -> li
 def correlation(members: list[int], near: dict[int, dict[int, float]]) -> list[list[int]]:
     """Join the two groups whose pairs, all together, most favour "same": each
     pair adds its log-odds, a pair never scored counts as UNSCORED. Joining
-    stops when no two groups' evidence comes out in favour (a greedy take on
-    correlation clustering)."""
+    stops when no two groups' evidence comes out in favour. This is greedy
+    additive edge contraction (GAEC), the standard heuristic for correlation
+    clustering. (A Kernighan-Lin pass of local moves after it was tried in
+    October 2026 and gained nothing on the labels.)"""
     prior = math.log(UNSCORED / (1 - UNSCORED))
+    return agglomerate(members, near, _odds, lambda total, n: total + n * prior, 1e-9)
 
-    def odds(q):
-        q = min(max(q, 1e-4), 1 - 1e-4)
-        return math.log(q / (1 - q)) - prior        # stored relative to an unscored pair
-    return agglomerate(members, near, odds, lambda total, n: total + n * prior, 1e-9)
+
+def _odds(q: float) -> float:
+    """A pair's evidence for "same", relative to a pair never scored."""
+    q = min(max(q, 1e-4), 1 - 1e-4)
+    return math.log(q / (1 - q)) - math.log(UNSCORED / (1 - UNSCORED))
 
 
 def agglomerate(members, near, weight, value, threshold) -> list[list[int]]:

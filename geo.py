@@ -150,7 +150,8 @@ def _table():
     return countries, regex, lookup, kinds
 
 
-def mentions(text: str) -> list[tuple[str, str]]:
+@lru_cache(maxsize=50_000)        # every fetch re-reads the same articles
+def mentions(text: str) -> tuple[tuple[str, str], ...]:
     """Each country the text names, in order, with how it's named: (iso, kind),
     kind one of name, demonym, alias, capital, city, leader, actor (a capital
     or institution named as the one acting: "Washington says") or ambiguous
@@ -162,7 +163,7 @@ def mentions(text: str) -> list[tuple[str, str]]:
         if word in lookup:
             kind = "actor" if word in ACTOR_WORDS else "ambiguous" if word in AMBIGUOUS else kinds[word]
             out.append((lookup[word], kind))
-    return out
+    return tuple(out)
 
 
 def places(text: str) -> Counter:
