@@ -42,21 +42,19 @@ The server also fetches every 15 minutes on its own (`FETCH_LOOP=0` turns that o
 
 Tests and lint: `uv run pytest` and `uvx ruff check .` The tests run on real snapshots from 18–20 October 2026.
 
-### Measuring and training it
+### Measuring it
 
-`/label` (linked at the foot of the page) asks mostly what only you can answer: which of two stories matters more, and whether you'd want a story on your page at all. Now and then it shows one of Claude's stories to check: tap the articles that don't belong, the near misses that do, and say where it's happening.
+`/label` (linked at the foot of the page) asks mostly what only you can answer: which of two stories matters more, and whether you'd want a story on your page at all. Now and then it shows one of Claude's events to check.
 
-Which articles are one story, and where it happens, Claude labels in bulk with a one-off script, run on the Mac from a copy of the database (`tools/claude_label.py`; its docstring has the steps, and `--dry-run` counts the tokens first). Import the result on the Pi with `docker exec situation flask import-labels instance/labels.json.gz`. The models train on Claude's labels and your older ones, and are tested on your newest; `evaluate` also prints how often Claude agrees with you. Each is asked about a saved snapshot of the articles, so any version of the code can be scored, and the models trained, on exactly what you judged:
+Which articles report one event, and where it happens, Claude labels in bulk from a copy of the database, run on the Mac (`tools/claude_label.py`; its docstring has the steps, and `--dry-run` counts the tokens first). Import the result on the Pi with `docker exec situation flask import-labels instance/labels.json.gz`.
 
 ```sh
-uv run flask --app app:create_app evaluate                                  # the code as it is
-uv run flask --app app:create_app evaluate --hand                           # ignoring trained models
-uv run flask --app app:create_app evaluate --set cluster.EVENT=0.25         # a variant
-uv run flask --app app:create_app train                                     # fit, compare on held-out labels
-uv run flask --app app:create_app train --save --only pairs,place           # and use them
+uv run python -I tools/fast_win.py <snapshots dir> <labels.json.gz>        # hand rules vs off-the-shelf grouping
+uv run flask --app app:create_app evaluate                                  # grouping, ranking and placing against the labels
+uv run flask --app app:create_app train --save --only place                 # fit the place (or rank) model and use it
 ```
 
-`evaluate` prints grouping precision and recall per article (B-cubed) and per pair, how often the ranking agrees with you and how often stories are placed where you said, with the last two days of labels held out. `train` fits the models (`learn.py` for events, ranking and places; `situations.py` for joining stories into situations) holding out the newest snapshots, and prints them against the hand rules there: save a model only where it does better. Training takes a minute or two, so do it on the Mac (`tools/compare_grouping.py` runs the fuller comparison) and copy `instance/models/*.json` to the Pi. How the models work, and what comes next: [`docs/plan.md`](docs/plan.md#learning-from-your-labels).
+Grouping is scored per article (B-cubed), over all articles and over headline-size stories, with bootstrap intervals. The off-the-shelf grouping is switched on by `instance/models/meaning.json` (`{"cut": 0.55}`) and off by deleting it. What's been tried and what's next: [`docs/phases.md`](docs/phases.md).
 
 On the home stack it's added from the dashboard's Deploy tab, which reads `homestack.toml`.
 
