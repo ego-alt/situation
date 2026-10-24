@@ -62,15 +62,19 @@ killed, ousted, resigning or dying. Everything else, however dramatic, stays wit
 base and Alberta's referendum; Israel's election (a US endorsement of a candidate, a US minister visiting days \
 before the vote) and Russia's diplomacy with Iran. The same kind of event in different countries is different \
 stories (France's riots, Portugal's cost-of-living protests), but one outbreak, war or disaster that spreads \
-across borders is one story.
-- Features about a long-running issue that don't report a current development (daily life under it, photo essays, \
-profiles) stand on their own; analysis and explainers of a current story go with it.
+across borders is one story. Separate incidents in a wider rivalry are separate stories too (China shadowing a US \
+ship near a disputed shoal; China watching the Philippines resupply its warship; China's coast guard near \
+Taiwan's Pratas): only a war or a single crisis joins them.
+- Analysis, explainers, investigations, look-backs and aftermath features about a situation go with it (children \
+recovering after the Tai Po fire, with the fire; an investigation into a massacre warned of during Haiti's gang \
+crisis, with the crisis). Features about a wider issue that the situation is only part of stand on their own \
+(daily life under settler violence in the West Bank, apart from settlers attacking European diplomats).
 - Pages that aren't articles (scores and stats pages, topic pages, TV news bulletins) each stand alone.
 - Every article goes in exactly one story. A story can be a single article.
 
 For each story, say where it is centred: the ISO 3166-1 alpha-2 code of the country that is the situation's home \
-(a war's main theatre, an election's country, where a summit or trial is held), not of those commenting or acting \
-from afar. Hong Kong is HK, Taiwan TW, the Palestinian territories PS, Kosovo XK. Use "none" when it isn't centred \
+(a war's main theatre, an election's country, where a summit or trial is held, where a leader's visit abroad takes \
+place: Macron securing diesel from Qatar on a Gulf tour is in Qatar), not of those commenting or acting from afar. Hong Kong is HK, Taiwan TW, the Palestinian territories PS, Kosovo XK. Use "none" when it isn't centred \
 in any one country (world markets, a global study). Under "also", list other countries where significant action in \
 it is happening now (Saudi Arabia, where strikes land, for the Houthi war centred in Yemen); otherwise leave it empty.
 
@@ -81,8 +85,8 @@ Answer only by calling record_stories, once, with every article in it."""
 SITUATIONS = """Below are the stories found in a 48-hour window of news, each with a number, where it's centred and up \
 to three of its headlines. They were found in separate batches, so some are parts of the same story under the rules \
 above: most often one running situation (a war, an election campaign) split into several. List each set of story \
-numbers that is one story. Keep decisive moments apart from their situation, and leave out stories that stand \
-alone. Answer only by calling record_situations, once."""
+numbers that is one story. Keep decisive moments apart from their situation: a referendum or election result \
+is its own story, never joined to the campaign before it. Leave out stories that stand alone. Answer only by calling record_situations, once."""
 
 TOOL = {
     "name": "record_stories",
