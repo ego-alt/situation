@@ -2,6 +2,9 @@
 
 The models, each small enough to read, saved as instance/models/<name>.json:
 
+  meaning     off-the-shelf grouping: average linkage on the articles' meaning
+              vectors, cut at {"cut": ...} (cluster.by_meaning); used when
+              there's no pairs or situations model
   pairs       stage 1 of grouping, articles into events (events.py)
   situations  stage 2, events into situations (situations.py); both are
               grouping.Layer, the same machine over different units
@@ -32,7 +35,7 @@ import numpy as np
 import embed
 from geo import mentions
 
-NAMES = ("pairs", "situations", "rank", "place")
+NAMES = ("pairs", "situations", "meaning", "rank", "place")
 
 
 # Saved models ---------------------------------------------------------------

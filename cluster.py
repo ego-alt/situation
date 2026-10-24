@@ -196,6 +196,9 @@ def cluster(articles: list[dict], ongoing: list[str] | None = None) -> list[list
     import learn
     pairs, joined = learn.load("pairs"), learn.load("situations")
     if not (pairs or joined):
+        meaning = learn.load("meaning")
+        if meaning and embed.available():
+            return by_meaning(articles, meaning["cut"])
         return by_rules(articles)
     import events
     meaning = embed.available() and bool((pairs or {}).get("embed") or (joined or {}).get("embed"))
@@ -205,6 +208,29 @@ def cluster(articles: list[dict], ongoing: list[str] | None = None) -> list[list
         import situations
         groups = situations.join(groups, joined, layer, ongoing or [])
     return groups
+
+
+def by_meaning(articles: list[dict], cut: float) -> list[list[int]]:
+    """Off the shelf: average-linkage clustering of the articles' meaning
+    vectors (embed.py), cut where groups are on average further apart than
+    `cut` (cosine distance). Switched on by instance/models/meaning.json
+    ({"cut": ...}); each group's most typical article (nearest the rest) first."""
+    import numpy as np
+    from scipy.cluster.hierarchy import fcluster, linkage
+
+    import embed
+    if len(articles) < 2:
+        return [[i] for i in range(len(articles))]
+    vectors = embed.encode([embed.text(a) for a in articles])
+    labels = fcluster(linkage(vectors, method="average", metric="cosine"), t=cut, criterion="distance")
+    groups: dict[int, list[int]] = {}
+    for i, c in enumerate(labels.tolist()):
+        groups.setdefault(c, []).append(i)
+    out = []
+    for g in groups.values():
+        sims = vectors[g] @ vectors[g].T
+        out.append([g[k] for k in np.argsort(-sims.sum(axis=1), kind="stable")])
+    return sorted(out, key=len, reverse=True)
 
 
 def by_rules(articles: list[dict]) -> list[list[int]]:

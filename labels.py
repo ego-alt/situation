@@ -425,26 +425,46 @@ def _by_snapshot(labels: list[Label]):
             continue
 
 
-def bcubed(truth: dict[str, object], where: dict[str, int]) -> tuple[float, float, int]:
-    """B-cubed over a snapshot: for each labelled article, precision is the share
-    of the articles grouped with it that truly belong with it, recall the share
-    of those truly belonging with it that were grouped with it. Every article
-    counts once, however big its story (pair counts let one 146-article story
-    outweigh a hundred small ones). `truth` is each article's true group;
-    articles without one aren't counted, and nor are they counted against
-    others. Returns (sum of precisions, sum of recalls, articles)."""
+def bcubed_parts(truth: dict[str, object], where: dict[str, int]) -> dict[str, tuple[float, float]]:
+    """B-cubed per article: for each labelled article, precision is the share of
+    the articles grouped with it that truly belong with it, recall the share of
+    those truly belonging with it that were grouped with it. `truth` is each
+    article's true group; articles without one aren't counted, and nor are they
+    counted against others."""
     scored = [u for u in truth if u in where]
     found: dict[int, list[str]] = {}
     for u in scored:
         found.setdefault(where[u], []).append(u)
     sizes = Counter(truth[u] for u in scored)
-    p = r = 0.0
+    out = {}
     for members in found.values():
         counts = Counter(truth[u] for u in members)
         for u in members:
-            p += counts[truth[u]] / len(members)
-            r += counts[truth[u]] / sizes[truth[u]]
-    return p, r, len(scored)
+            out[u] = (counts[truth[u]] / len(members), counts[truth[u]] / sizes[truth[u]])
+    return out
+
+
+def bcubed(truth: dict[str, object], where: dict[str, int],
+           only: set[str] | None = None) -> tuple[float, float, int]:
+    """B-cubed summed over a snapshot's articles (or only those in `only`):
+    every article counts once, however big its story (pair counts let one
+    146-article story outweigh a hundred small ones). Returns (sum of
+    precisions, sum of recalls, articles)."""
+    parts = [pr for u, pr in bcubed_parts(truth, where).items() if only is None or u in only]
+    return sum(p for p, _ in parts), sum(r for _, r in parts), len(parts)
+
+
+HEADLINE_OUTLETS = 3    # a story this many outlets carry can reach the page
+
+
+def headline_articles(truth: dict[str, object], items: list[dict]) -> set[str]:
+    """The articles in true stories that HEADLINE_OUTLETS or more outlets carry:
+    the ones the page can show, where grouping matters most."""
+    outlets: dict[object, set] = {}
+    for a in items:
+        if a["url"] in truth:
+            outlets.setdefault(truth[a["url"]], set()).add(a["outlet"])
+    return {u for u, g in truth.items() if len(outlets.get(g, ())) >= HEADLINE_OUTLETS}
 
 
 def snapshot_truth(group_labels: list[Label]) -> dict[str, tuple[int, int]]:
@@ -467,12 +487,14 @@ def evaluate(labels: list[Label]) -> dict:
     rank = {"agree": 0, "disagree": 0}
     place = {"right": 0, "wrong": 0}
     bar = {"agree": 0, "disagree": 0}
-    b3 = [0.0, 0.0, 0]
+    b3, big = [0.0, 0.0, 0], [0.0, 0.0, 0]
     for items, itn, taken, group_labels in _by_snapshot(labels):
         stories = assessed(items, itn, taken)
         where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
         by_url = {a["url"]: a for a in items}
-        b3 = [x + y for x, y in zip(b3, bcubed(snapshot_truth(group_labels), where), strict=True)]
+        truth = snapshot_truth(group_labels)
+        b3 = [x + y for x, y in zip(b3, bcubed(truth, where), strict=True)]
+        big = [x + y for x, y in zip(big, bcubed(truth, where, headline_articles(truth, items)), strict=True)]
         for label in group_labels:
             for u, v, truth in judged_pairs(label):
                 together = where.get(u) is not None and where.get(u) == where.get(v)
@@ -500,8 +522,11 @@ def evaluate(labels: list[Label]) -> dict:
     f1 = 2 * precision * recall / (precision + recall) if precision and recall else None
     judged, placed, barred = rank["agree"] + rank["disagree"], place["right"] + place["wrong"], sum(bar.values())
     bp, br = (b3[0] / b3[2], b3[1] / b3[2]) if b3[2] else (None, None)
+    hp, hr = (big[0] / big[2], big[1] / big[2]) if big[2] else (None, None)
     return {"b3_articles": b3[2], "b3_precision": bp, "b3_recall": br,
             "b3_f1": 2 * bp * br / (bp + br) if bp and br else None,
+            "headline_articles": big[2], "headline_precision": hp, "headline_recall": hr,
+            "headline_f1": 2 * hp * hr / (hp + hr) if hp and hr else None,
             "same_pairs": sum(same.values()), "precision": precision, "recall": recall, "f1": f1,
             "rank_pairs": judged, "rank_agreement": rank["agree"] / judged if judged else None,
             "placed": placed, "place_accuracy": place["right"] / placed if placed else None,
