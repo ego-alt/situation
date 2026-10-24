@@ -3,11 +3,8 @@
 The models, each small enough to read, saved as instance/models/<name>.json:
 
   meaning     off-the-shelf grouping: average linkage on the articles' meaning
-              vectors, cut at {"cut": ...} (cluster.by_meaning); used when
-              there's no pairs or situations model
-  pairs       stage 1 of grouping, articles into events (events.py)
-  situations  stage 2, events into situations (situations.py); both are
-              grouping.Layer, the same machine over different units
+              vectors, cut at {"cut": ...} (cluster.by_meaning) instead of the
+              hand rules. Not trained: the cut is chosen with tools/fast_win.py.
   rank        which story matters more? The score keeps its shape, (breadth +
               lead + Wikipedia + home region) x freshness, and the weights of
               the parts are fitted to your "which matters more" answers
@@ -18,11 +15,13 @@ The models, each small enough to read, saved as instance/models/<name>.json:
               or only summaries, as a place or only as an actor ("Washington
               says") or a leader ("Trump"), first or later; or nowhere.
 
-Here: saving and loading them, the logistic regression they share, and the
-rank and place models. `flask train` fits them holding out the newest
-snapshots and compares them with the hand rules there; `flask train --save`
-fits them on everything and writes the files the app then uses. Delete a
-file (or set LEARNED=0) and the hand rules come back.
+Here: saving and loading them, a logistic regression, and the rank and place
+models. `flask train` fits rank and place holding out the newest snapshots
+and compares them with the hand rules there; `flask train --save` fits them
+on everything and writes the files the app then uses. Delete a file (or set
+LEARNED=0) and the hand rules come back. Learned grouping (events, then
+situations) is parked on the learned-grouping branch until events are
+measured well: see docs/phases.md.
 """
 import json
 import os
@@ -35,7 +34,7 @@ import numpy as np
 import embed
 from geo import mentions
 
-NAMES = ("pairs", "situations", "meaning", "rank", "place")
+NAMES = ("meaning", "rank", "place")
 
 
 # Saved models ---------------------------------------------------------------

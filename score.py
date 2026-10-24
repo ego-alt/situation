@@ -99,6 +99,33 @@ def is_headline(title: str) -> bool:
     return len(title.split()) >= 3 and not _NOT_A_HEADLINE.search(title)   # not a topic page ("Saudi Arabia")
 
 
+# Not live news: commentary, explainers, retrospectives and pages that aren't
+# articles. Left out of grouping and the page (the database keeps them). Live
+# blogs and videos of what's happening stay: they're live news. Checked against
+# Claude on 2,000 articles (October 2026): about a quarter aren't live news;
+# this catches a fifth of those, wrongly dropping one news item in ten it
+# drops. Headlines alone can't tell a feature from news (an embedding
+# classifier did no better); the article body could.
+_NOT_NEWS = re.compile(
+    r"\b(opinion|analysis|comment|commentary|editorial|editorial cartoon|letters?(?: to the editor)?|column|"
+    r"explainer|explained|what to know|what we know|what you need to know|q&a|fact ?check|"
+    r"podcast|newsletter|quiz|crossword|in pictures|photos? of the (?:day|week)|gallery|"
+    r"the week in|year in review|a look back|timeline|scores?, news (?:&|and) stats|evening news|morning brief(?:ing)?|"
+    r"first thing|today in history|horoscope)\b|\?\s*$", re.I)
+
+
+def is_news(article: dict) -> bool:
+    """A report of something happening: not opinion, analysis, an explainer, a
+    look back, a question or a page that isn't an article (a topic page,
+    scores, a TV bulletin)."""
+    title = article["title"]
+    return len(title.split()) >= 3 and not _NOT_NEWS.search(title) and "/opinion" not in article.get("url", "")
+
+
+def news_only(items: list[dict]) -> list[dict]:
+    return [a for a in items if is_news(a)]
+
+
 def pick_headline(articles: list[dict], place: str | None = None) -> str:
     """The most typical article's title, skipping live blogs and galleries,
     and, when the story has a main country, titles that name only another."""

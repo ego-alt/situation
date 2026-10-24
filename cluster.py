@@ -186,28 +186,16 @@ def split(members: list[int], vectors: list[dict], named: set[str],
 
 
 def cluster(articles: list[dict], ongoing: list[str] | None = None) -> list[list[int]]:
-    """Indexes of `articles` grouped into stories, biggest first, each group's
-    most typical article first. Two layers (grouping.py), each a model learned
-    from labels when one is saved (learn.py), else as below:
-      1. events: events.Articles with the pairs model, or these hand rules (by_rules);
-      2. situations: situations.Stories joins stories that are one situation
-         (it uses Wikipedia's "Ongoing" items); without a model, none are."""
+    """Indexes of `articles` grouped into stories (events), biggest first, each
+    group's most typical article first: by meaning when a "meaning" model is
+    saved (learn.py, by_meaning), else by the hand rules (by_rules). `ongoing`
+    (Wikipedia's "Ongoing" items) is for a future situations layer."""
     import embed
     import learn
-    pairs, joined = learn.load("pairs"), learn.load("situations")
-    if not (pairs or joined):
-        meaning = learn.load("meaning")
-        if meaning and embed.available():
-            return by_meaning(articles, meaning["cut"])
-        return by_rules(articles)
-    import events
-    meaning = embed.available() and bool((pairs or {}).get("embed") or (joined or {}).get("embed"))
-    layer = events.Articles(articles, meaning=meaning)
-    groups = layer.group(pairs) if pairs else by_rules(articles)
-    if joined:
-        import situations
-        groups = situations.join(groups, joined, layer, ongoing or [])
-    return groups
+    meaning = learn.load("meaning")
+    if meaning and embed.available():
+        return by_meaning(articles, meaning["cut"])
+    return by_rules(articles)
 
 
 def by_meaning(articles: list[dict], cut: float) -> list[list[int]]:

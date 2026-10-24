@@ -135,10 +135,10 @@ def create_app(config=None):
 
     @app.cli.command("train")
     @click.option("--save", is_flag=True, help="Fit on every label and use the models from now on.")
-    @click.option("--only", default="pairs,situations,place", help="Which models: pairs,situations,rank,place.")
+    @click.option("--only", default="rank,place", help="Which models: rank,place.")
     @click.option("--holdout", default=None, type=int, help="Days of the newest snapshots to hold out.")
     def train_command(save, only, holdout):
-        """Fit the models (learn.py, situations.py) on the labels, holding out the
+        """Fit the models (learn.py) on the labels, holding out the
         newest snapshots, and compare them with the hand rules there."""
         import learn
         from labels import HOLDOUT_DAYS, evaluate, fit_models, split_holdout
@@ -160,9 +160,6 @@ def create_app(config=None):
                 print(f"saved {learn.save(name, model)}")
 
     def _describe(model):
-        if "first" in model:
-            return f"two passes, {model.get('clustering', 'average')} clustering: " + _describe(
-                {k: v for k, v in model.items() if k != "first"})
         if "features" in model and "weights" in model and isinstance(model["weights"], list):
             return ", ".join(f"{f} {w:+.2f}" for f, w in zip(model["features"], model["weights"], strict=True))
         return ", ".join(f"{k} {v:g}" for k, v in model["weights"].items())

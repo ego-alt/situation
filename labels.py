@@ -58,9 +58,8 @@ MIX = {"rank": 0.55, "show": 0.25, "story": 0.2}     # how often each question c
 STORY_SHOWN = 10              # articles of a story shown at once: the most typical, then the loosest fits
 NEARBY = 5                    # near misses shown under it
 CANDIDATES = 12               # stories looked at to find the least certain one
-LOW, HIGH = 0.18, 0.45        # without a model: likeness to a story that makes a near miss
-LOOSE = 0.35                  # without a model: a member less like its story than this fits loosely
-UNSURE = (0.2, 0.8)           # with a model: the probabilities it isn't sure about
+LOW, HIGH = 0.18, 0.45        # likeness to a story that makes a near miss
+LOOSE = 0.35                  # a member less like its story than this fits loosely
 RANK_RATIO = 2.0
 RANK_POOL = 40                # stories near the bar that rank questions draw from
 SNAPSHOT_EVERY = timedelta(hours=6)
@@ -128,7 +127,8 @@ def assessed(items: list[dict], itn: dict, now: datetime) -> list[tuple[list[dic
     counts as fresh."""
     from geo import locate
     from pipeline import SHOWN
-    from score import assess, match_itn
+    from score import assess, match_itn, news_only
+    items = news_only(items)                 # as the pipeline groups them
     groups = [[items[i] for i in g] for g in clustering.cluster(items, itn.get("ongoing"))]
     matched = match_itn(groups, itn.get("items", []))
     active = len({i["outlet"] for i in items if i["published"] and i["published"] >= now - SHOWN})
@@ -141,19 +141,15 @@ def _prepared(name: str) -> dict:
     """A snapshot's articles, their vectors, its stories and the pair model's
     view of them (cached: one snapshot at a time)."""
     if name not in _cache:
-        import events
-        import learn
         items, itn, taken = load_snapshot(name)
         everything = assessed(items, itn, taken)
         index = {id(a): n for n, a in enumerate(items)}
         groups = [[index[id(a)] for a in g] for g, _ in everything]
-        model = learn.load("pairs")
         stories = sorted(((g, a) for g, a in everything if a["outlets"] >= 2), key=lambda s: -s[1]["score"])
         _cache.clear()
         _cache[name] = {"items": items, "vectors": clustering.tfidf([clustering.document(a) for a in items]),
                         "groups": groups, "assessments": [a for _, a in everything], "stories": stories[:RANK_POOL],
-                        "taken": taken, "model": model,
-                        "pairs": events.Articles(items, meaning=bool(model.get("embed"))) if model else None}
+                        "taken": taken}
     return _cache[name]
 
 
@@ -175,27 +171,17 @@ def _story(group: dict, assessment: dict) -> dict:
 
 
 def _fits(p: dict, members: list[int]) -> tuple[dict[int, float], dict[int, float]]:
-    """How well each member fits its story, and how like it the closest
-    non-members are: the pair model's average probability when there is one,
-    else likeness to the story's centroid."""
+    """How well each member fits its story (likeness to the story's centroid),
+    and how like it the closest non-members are."""
     vectors = p["vectors"]
     centroid = clustering._centroid(members, vectors)
     inside = set(members)
     near = sorted(((clustering.cosine(v, centroid), j) for j, v in enumerate(vectors) if j not in inside),
                   reverse=True)[:40]
-    if not p["model"]:
-        return {i: clustering.cosine(vectors[i], centroid) for i in members}, {j: c for c, j in near if c > 0.05}
-    pairs = {(min(i, j), max(i, j)) for i in members for j in members if i != j}
-    pairs |= {(min(i, j), max(i, j)) for i in members for _, j in near}
-    prob = p["pairs"].probabilities(p["model"], pairs)
-    q = lambda i, j: prob.get((min(i, j), max(i, j)), 0.0)  # noqa: E731
-    fit = {i: sum(q(i, j) for j in members if j != i) / max(len(members) - 1, 1) for i in members}
-    return fit, {j: sum(q(i, j) for i in members) / len(members) for _, j in near}
+    return {i: clustering.cosine(vectors[i], centroid) for i in members}, {j: c for c, j in near if c > 0.05}
 
 
-def _unsure(value: float, member: bool, model: bool) -> bool:
-    if model:
-        return UNSURE[0] <= value <= UNSURE[1]
+def _unsure(value: float, member: bool) -> bool:
     return value < LOOSE if member else LOW <= value <= HIGH
 
 
@@ -210,7 +196,7 @@ def story_question(name: str, rng: random.Random) -> dict | None:
     from geo import _table, locate
     from learn import NOWHERE, place_candidates
     p = _prepared(name)
-    items, model = p["items"], bool(p["model"])
+    items = p["items"]
     since = p["taken"] - timedelta(hours=24)
     asked = _asked_story_urls(name)
     fresh = [g for g in p["groups"]
@@ -219,8 +205,8 @@ def story_question(name: str, rng: random.Random) -> dict | None:
     best = None
     for g in rng.sample(fresh, min(len(fresh), CANDIDATES)):
         fit, near = _fits(p, g)
-        doubt = (sum(_unsure(v, True, model) for v in fit.values())
-                 + sum(_unsure(v, False, model) for v in near.values()))
+        doubt = (sum(_unsure(v, True) for v in fit.values())
+                 + sum(_unsure(v, False) for v in near.values()))
         if best is None or doubt > best[0]:
             best = (doubt, g, fit, near)
     if best is None:
@@ -228,7 +214,7 @@ def story_question(name: str, rng: random.Random) -> dict | None:
     _, g, fit, near = best
     shown = g if len(g) <= STORY_SHOWN else g[:3] + sorted(g[3:], key=fit.get)[:STORY_SHOWN - 3]
     close = sorted(near, key=near.get, reverse=True)
-    nearby = [j for j in close if _unsure(near[j], False, model)][:NEARBY] or close[:2]
+    nearby = [j for j in close if _unsure(near[j], False)][:NEARBY] or close[:2]
     articles = [items[i] for i in shown]
     guess = locate(articles)
     countries = _table()[0]
@@ -600,44 +586,21 @@ def import_labels(data: dict) -> tuple[int, int]:
     return written, added
 
 
-def training_data(labels: list[Label], first: dict | None = None) -> dict:
-    """The labels as examples for learn.py: pair features with same-or-not,
-    the score's parts for both sides of a ranking, and each checked story's
-    place candidates with the one you chose. Stories are grouped by the hand
-    rules here, so the examples don't depend on a model already trained.
-
-    Pairs from Claude's groupings are the pairs the model will score when it
-    runs: every candidate pair (events.Articles.candidates) of the snapshot's
-    labelled articles, same or different by the snapshot's grouping
-    (snapshot_truth). Pairs from one label alone left out the commonest
-    "different", two stories in different labels that share a country or a few
-    words, and the models learned to merge too eagerly."""
-    import embed
-    import events
+def training_data(labels: list[Label]) -> dict:
+    """The labels as examples for learn.py: the score's parts for both sides of
+    a ranking, and each labelled story's place candidates with its place.
+    Stories are grouped by the hand rules here, so the examples don't depend on
+    a model already trained."""
     import learn
     from score import rank_features
-    meaning = embed.available()
-    data = {"pairs": [], "rank": [], "place": [], "meaning": meaning}
+    data = {"rank": [], "place": []}
     with learn.using({}):
         for items, itn, taken, group_labels in _by_snapshot(labels):
             index = {a["url"]: n for n, a in enumerate(items)}
             kinds = {lb.kind for lb in group_labels}
-            ctx = events.Articles(items, meaning=meaning) if kinds & {"same", "story", "grouping"} else None
             stories = assessed(items, itn, taken) if "rank" in kinds else []
             where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
-            truth = snapshot_truth(group_labels)
-            if truth:
-                pairs = [(i, j) for i, j in ctx.candidates() if items[i]["url"] in truth and items[j]["url"] in truth]
-                if pairs:
-                    rows = ctx.rows(pairs, first)
-                    data["pairs"] += [(row.tolist(), truth[items[i]["url"]] == truth[items[j]["url"]])
-                                      for row, (i, j) in zip(rows, pairs, strict=True)]
             for label in group_labels:
-                judged = [(index[u], index[v], same) for u, v, same in judged_pairs(label)
-                          if u in index and v in index and label.kind != "grouping"]
-                if judged:
-                    rows = ctx.rows([(min(i, j), max(i, j)) for i, j, _ in judged], first)
-                    data["pairs"] += [(row.tolist(), same) for row, (_, _, same) in zip(rows, judged, strict=True)]
                 for urls, truth in judged_places(label):
                     isos, x = learn.place_candidates([items[index[u]] for u in urls if u in index])
                     if truth in isos:
@@ -650,60 +613,22 @@ def training_data(labels: list[Label], first: dict | None = None) -> dict:
     return data
 
 
-def situation_data(labels: list[Label], pairs_model: dict | None) -> list[tuple[list[float], bool]]:
-    """Training pairs for stage 2 (situations.py): each snapshot grouped by stage
-    1 (this pair model, or the hand rules without one), and every candidate pair
-    of its stories with what the snapshot's grouping says about their articles."""
-    import embed
-    import events
-    import learn
-    import situations
-    out = []
-    with learn.using({}):
-        for items, itn, _, group_labels in _by_snapshot(labels):
-            truth = snapshot_truth(group_labels)
-            if not truth:
-                continue
-            ctx = events.Articles(items, meaning=embed.available())
-            groups = ctx.group(pairs_model) if pairs_model else clustering.by_rules(items)
-            out += situations.Stories(groups, ctx, itn.get("ongoing", [])).examples(truth)
-    return out
-
-
 def fit_models(labels: list[Label], names: list[str], say=lambda *_: None) -> dict:
-    """The models named (learn.NAMES), fitted on these labels:
-      pairs       stage 1: the pair model, in two passes (the second sees each
-                  pair's neighbourhood), grouping by correlation clustering
-      situations  stage 2 on top of stage 1 (this pairs model, else the saved
-                  one, else the hand rules)
-      rank, place as in learn.py
-    Models with too few labels to fit are left out."""
+    """The models named (rank, place: learn.py) fitted on these labels; those
+    with too few labels to fit are left out."""
     from datetime import UTC, datetime
 
-    import events
     import learn
-    import situations
+    data = training_data(labels)
+    say(f"examples: {len(data['rank'])} rankings, {len(data['place'])} places")
+    fits = {"rank": lambda: learn.fit_rank(data["rank"]), "place": lambda: learn.fit_place(data["place"])}
     out = {}
-    data = training_data(labels) if names else None
-    if data:
-        say(f"examples: {len(data['pairs'])} same-story pairs, {len(data['rank'])} rankings, {len(data['place'])} "
-            f"places; meaning likeness {'on' if data['meaning'] else 'off (no model here)'}")
-    if "pairs" in names and (first := events.fit(data["pairs"], data["meaning"])):
-        second = training_data(labels, first=first)
-        out["pairs"] = events.fit(second["pairs"], data["meaning"], first=first, clustering="correlation")
-    if "situations" in names:
-        pairs = out.get("pairs") or learn.load("pairs")
-        examples = situation_data(labels, pairs)
-        say(f"stage 2: {len(examples)} pairs of stories ({sum(y for _, y in examples)} one situation)")
-        if (model := situations.fit(examples)):
-            out["situations"] = model
-    if "rank" in names and (model := learn.fit_rank(data["rank"])):
-        out["rank"] = model
-    if "place" in names and (model := learn.fit_place(data["place"])):
-        out["place"] = model
     for name in names:
-        if name not in out:
+        model = fits[name]() if name in fits else None
+        if model is None:
             say(f"{name}: too few labels to fit yet")
+        else:
+            out[name] = model
     stamp = datetime.now(UTC).isoformat(timespec="minutes")
     return {name: {**model, "trained": stamp} for name, model in out.items()}
 

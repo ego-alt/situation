@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from cluster import cluster
 from geo import locate, places, spots
 from models import Article, DayTally, ItnSnapshot, SourceStatus, Story, db, story_articles
-from score import BACKGROUND, MAJOR, assess, match_itn
+from score import BACKGROUND, MAJOR, assess, match_itn, news_only
 
 WINDOW = timedelta(hours=48)
 ITN_FRESH = timedelta(hours=24)     # how long an "In the news" match makes a story FLASH
@@ -61,7 +61,7 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
     for a in articles:
         if a.spots is None:            # stored before places were tracked
             a.spots = article_spots(a)
-    items = [a.as_item() for a in articles]
+    items = news_only([a.as_item() for a in articles])     # opinion, explainers etc. aren't grouped or shown
     by_id = {a.id: a for a in articles}
     itn = itn if itn is not None else latest_itn()
     groups = [[items[i] for i in g] for g in cluster(items, itn.get("ongoing"))]

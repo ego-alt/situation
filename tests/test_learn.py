@@ -48,10 +48,7 @@ def test_answers_that_agree_score_perfectly_and_train(loaded, app):
     found = labels.evaluate(Label.query.all())
     assert found["precision"] == 1 and found["recall"] == 1 and found["place_accuracy"] == 1
     data = labels.training_data(Label.query.all())
-    assert data["pairs"] and data["place"]
-    import events
-    model = events.fit(data["pairs"], data["meaning"])
-    assert model and len(model["weights"]) == len(model["features"])
+    assert data["place"]
     assert learn.fit_place(data["place"])
 
 
@@ -90,23 +87,6 @@ def test_a_place_model_can_learn_that_actors_are_not_places():
     assert learn.choose_place(model, [{"title": "Protests in Paris", "summary": ""}]) == "FR"
 
 
-def test_grouping_with_a_pair_model(loaded, app):
-    """A made-up model that mostly trusts word likeness, standing in for a
-    trained one: every article lands in exactly one group, biggest first, and
-    the riots still form a story across several outlets."""
-    from cluster import cluster
-    from tests.conftest import snapshot_items
-    model = {"features": ["likeness", "event_likeness", "other_country"], "embed": False,
-             "mean": [0.0, 0.0, 0.0], "scale": [0.1, 0.1, 1.0], "weights": [1.2, 0.6, -2.0], "bias": -3.0}
-    items, _ = snapshot_items()
-    with learn.using({"pairs": model}):
-        groups = [[items[i] for i in g] for g in cluster(items)]
-    riots = max((g for g in groups if any("macron" in a["title"].lower() for a in g)), key=len)
-    assert len({a["outlet"] for a in riots}) >= 4
-    assert all(len(g) >= len(h) for g, h in zip(groups, groups[1:], strict=False))
-    assert sorted(i for g in cluster(items) for i in g) == list(range(len(items)))
-
-
 def test_train_compares_saves_and_the_app_uses_it(loaded, app, tmp_path):
     name = labels.current_snapshot(NOW)
     rng = random.Random(7)
@@ -116,13 +96,13 @@ def test_train_compares_saves_and_the_app_uses_it(loaded, app, tmp_path):
             labels.record(_story_answer(q))
     app.config["MODELS_DIR"] = str(tmp_path / "models")
     runner = app.test_cli_runner()
-    result = runner.invoke(args=["train", "--holdout", "0", "--only", "pairs,place"])
+    result = runner.invoke(args=["train", "--holdout", "0", "--only", "place"])
     assert result.exit_code == 0, result.output
     assert "hand" in result.output and "learned" in result.output
     assert not (tmp_path / "models").exists()                     # nothing changes without --save
     result = runner.invoke(args=["train", "--save", "--only", "place"])
     assert result.exit_code == 0 and (tmp_path / "models" / "place.json").exists()
-    assert learn.load("place") and not learn.load("pairs")
+    assert learn.load("place") and not learn.load("rank")
     assert "trained models for place" in runner.invoke(args=["evaluate"]).output
     assert "hand rules" in runner.invoke(args=["evaluate", "--hand"]).output
 
@@ -171,13 +151,13 @@ def test_claude_groupings_import_check_and_train(loaded, app, tmp_path):
     arts = [items[i] for i in riots]
     assert claude_label.parse({"stories": [{"articles": [1], "place": "fr"}]}, len(arts)) is None   # some left out
     everything = list(range(1, len(arts) + 1))
-    parsed = claude_label.parse({"stories": [{"articles": everything, "place": "fr", "also": ["it", "XX"]}]}, len(arts))
-    assert parsed == ([list(range(len(arts)))], ["FR"], [["IT"]])
+    parsed = claude_label.parse({"stories": [{"articles": everything, "place": "fr"}]}, len(arts))
+    assert parsed == ([list(range(len(arts)))], ["FR"])
     assert "[1]" in claude_label.prompt(arts) and "Macron" in claude_label.prompt(arts)
 
     name = "2026-10-18T1200"
     urls = [a["url"] for a in arts]
-    made = claude_label.label(name, urls, [urls], ["FR"], [["IT"]], "claude-test")
+    made = claude_label.label(name, urls, [urls], ["FR"], "claude-test")
     data = {"snapshots": {name: snap}, "labels": [made]}
     path = tmp_path / "labels.json"
     path.write_text(json.dumps(data))
@@ -197,8 +177,8 @@ def test_claude_groupings_import_check_and_train(loaded, app, tmp_path):
     assert agree["agreement"] == 1 and agree["place_agreement"] == 1
     assert labels.check_question(random.Random(1)) is None           # its only story is checked
 
-    out = runner.invoke(args=["train", "--holdout", "0", "--only", "pairs,situations,place"]).output
-    assert "training on 2 labels" in out and "stage 2:" in out and "B-cubed" in out
+    out = runner.invoke(args=["train", "--holdout", "0", "--only", "place"]).output
+    assert "training on 2 labels" in out and "B-cubed" in out
     assert "Claude vs you" in runner.invoke(args=["evaluate"]).output
 
 
@@ -220,28 +200,6 @@ def test_the_mix_is_mostly_what_only_you_can_answer(loaded, app):
     assert kinds.count("rank") + kinds.count("show") > 0.6 * len(kinds) and "story" in kinds
 
 
-def test_the_second_pass_joins_a_situation_across_bundles():
-    """Two bundles' stories and a lone article, joined as one situation: one label
-    spanning them, so the pairs across them are judged; an untouched bundle stays."""
-    import sys
-    sys.path.insert(0, "tools")
-    import claude_label
-    found = [{"urls": ["a1", "a2"], "place": "UA", "also": [], "bundle": "b1"},
-             {"urls": ["a3"], "place": "UA", "also": ["RU"], "bundle": "b1"},
-             {"urls": ["c1", "c2"], "place": "UA", "also": [], "bundle": "b2"},
-             {"urls": ["d1", "d2"], "place": "FR", "also": [], "bundle": "b3"},
-             {"urls": ["e1"], "place": None, "also": [], "bundle": None},
-             {"urls": ["f1"], "place": None, "also": [], "bundle": None}]
-    made = claude_label.merge("2026-10-18T1200", [], found, [[0, 2, 4]], "m")
-    assert len(made) == 2
-    joined = next(lb for lb in made if "c1" in lb["a"]["bundle"])
-    assert sorted(joined["a"]["bundle"]) == ["a1", "a2", "a3", "c1", "c2", "e1"]
-    assert sorted(map(sorted, joined["a"]["groups"])) == [["a1", "a2", "c1", "c2", "e1"], ["a3"]]
-    war = next(n for n, g in enumerate(joined["a"]["groups"]) if "c1" in g)
-    assert joined["b"]["places"][war] == "UA"
-    assert all("f1" not in lb["a"]["bundle"] for lb in made)        # a lone article no one took in: not judged
-
-
 def test_bcubed_counts_every_article_once():
     """Truth: {a b c d} and {e}. Found: {a b} {c d e}. a, b: precision 1, recall
     2/4; c, d: precision 2/3, recall 2/4; e: precision 1/3, recall 1. f has no
@@ -252,27 +210,16 @@ def test_bcubed_counts_every_article_once():
     assert round(p / n, 4) == round((1 + 1 + 2 / 3 + 2 / 3 + 1 / 3) / 5, 4)
     assert round(r / n, 4) == round((0.5 + 0.5 + 0.5 + 0.5 + 1) / 5, 4)
 
-
-def test_stage_two_joins_one_situations_stories(loaded, app):
-    """A made-up stage-2 model that trusts the same country and the same
-    "Ongoing" item: France's riot stories, split into several events by the
-    hand rules, come together; every article stays in exactly one story."""
+@pytest.mark.skipif(not embed.available(), reason="the embedding model isn't here")
+def test_grouping_by_meaning_when_switched_on(loaded, app, tmp_path):
+    """instance/models/meaning.json switches grouping from the hand rules to
+    average linkage on meaning; every article lands in exactly one story."""
     import cluster
-    import situations
     from tests.conftest import snapshot_items
     items, _ = snapshot_items()
-    from collections import Counter
-
-    import events
-    stage1 = cluster.by_rules(items)
-    ctx = events.Articles(items, meaning=False)
-
-    def french(groups):
-        return [g for g in groups if events.main_country(sum((cluster.where(items[i]) for i in g), Counter())) == "FR"]
-    model = {"features": situations.FEATURES, "embed": False, "mean": [0.0] * len(situations.FEATURES),
-             "scale": [1.0] * len(situations.FEATURES), "bias": -2.0,
-             "weights": [0, 2, 1, 0.5, 2, 1, 3, -3, -2, -0.2, 0, 0]}
-    joined = situations.join(stage1, model, ctx, ["2026 French unrest"])
-    assert len(french(joined)) < len(french(stage1))
-    assert sorted(i for g in joined for i in g) == list(range(len(items)))
-    assert all(len(g) >= len(h) for g, h in zip(joined, joined[1:], strict=False))
+    app.config["MODELS_DIR"] = str(tmp_path / "models")
+    assert cluster.cluster(items) == cluster.by_rules(items)
+    learn.save("meaning", {"cut": 0.55})
+    groups = cluster.cluster(items)
+    assert groups == cluster.by_meaning(items, 0.55) != cluster.by_rules(items)
+    assert sorted(i for g in groups for i in g) == list(range(len(items)))
