@@ -9,8 +9,8 @@ A retrospective per phase, and the road ahead. The product plan is in [`plan.md`
 **Kept**
 
 - **`/label`**: rankings ("which matters more?"), the bar ("would you want this on your page today?"), and checks of Claude's stories. Every label records who made it.
-- **Claude labelling** (`tools/claude_label.py`): snapshots cut from the database, split into bundles of loosely related articles, each labelled through the Batch API. About $2 a run.
-- **Scoring**: B-cubed (per article, so one huge story can't dominate) over whole snapshots, a headline-size score (stories three or more outlets carry, the ones the page can show), and bootstrap intervals (`tools/fast_win.py`).
+- **Claude labelling** (`tools/label_week.py` today): snapshots cut from the database, split into bundles of loosely related articles, each labelled through the Batch API. About $2 a run.
+- **Scoring**: B-cubed (per article, so one huge story can't dominate) over whole snapshots, a headline-size score (stories three or more outlets carry, the ones the page can show), and bootstrap intervals (`metrics.py`, `tools/evaluate_grouping.py` today).
 - **A non-news filter** (`score.is_news`): opinion, explainers, look-backs and non-articles are left out of grouping.
 - **An off-the-shelf grouping**, average linkage on meaning vectors, switched on by `instance/models/meaning.json`. Not on yet.
 - **Map**: regions drawn as areas, country cards, local times on stories.
@@ -35,13 +35,15 @@ A retrospective per phase, and the road ahead. The product plan is in [`plan.md`
 
 **Phase 2: events, measured properly**
 
-- [x] Event-level labels (October 2026: 5 snapshots, 2,909 news articles, 2,721 events; healthy partition, the 5 biggest events about 7% of articles). The hand rules against the off-the-shelf grouping, held out by snapshot: level on all articles (+1.2% to off-the-shelf, interval −0.1 to +2.4), but **the hand rules are better on headline-size stories** (−4.3% to off-the-shelf, −8.5 to −0.2), about 83% against 80% B-cubed F1. No fast win: the hand rules stay. (The earlier "win" for the off-the-shelf method came from situation-level labels, which reward merging more.)
+- [x] Event-level ground truth (October 2026, week 43: 3 windows, 4,241 news articles, 218 headline-size events; healthy partition, the 5 biggest events about 7% of articles). The hand rules against the off-the-shelf grouping, each window held out in turn and the off-the-shelf cut tuned on headline-size F1: a tie, 83% each on headline-size events (−0.2%, interval −3.5 to +2.8) and 88% each on all articles. The hand rules find more of each event, the off-the-shelf method is more precise. No switch. (The earlier "win" for the off-the-shelf method came from situation-level labels, which reward merging more.)
+- [x] The apparatus, cleaned up:
+  - `metrics.py`: B-cubed, headline-size, bootstrap intervals; pure functions.
+  - `groundtruth.py`: one file per week in `instance/groundtruth/` (not in git, backed up on the Pi), with its rubric, its windows and Claude's events, plus a review of each window.
+  - `tools/label_week.py`: labels a week, two windows (weekday and weekend).
+  - `tools/evaluate_grouping.py`: compares grouping methods; to try a method, add it to its table.
+  - `/label` keeps only what's taste: rankings and the bar.
 - [ ] Look at the hand rules' mistakes on headline-size events (splits and wrong merges) and fix what's systematic.
-- [ ] Labelling over time:
-  - a weekly run;
-  - the latest week held out as the test set;
-  - a review of the partition each run (sizes, imbalance, oddities) before trusting it.
-- [ ] Your checks of Claude's events on `/label`, to measure Claude against you.
+- [ ] Run `tools/label_week.py` each week. Once there are two weeks, the newest is the test set automatically. Read each window's review before trusting it, and drop weeks that are thin or odd.
 
 **Later, once events hold up**
 

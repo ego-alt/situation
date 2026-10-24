@@ -1,48 +1,24 @@
-"""Your judgements, to measure the grouping, ranking and placing against, and
-to train the small models in learn.py.
+"""Your judgements on /label: what only you can say, which stories matter.
 
-Questions asked on /label, mostly the one only you can answer (what matters):
-  rank   two stories: which matters more? Pairs are close calls among the
-         stories near the bar (scores within a factor of RANK_RATIO).
+  rank   two stories: which matters more? Close calls among the stories near
+         the bar (scores within a factor of RANK_RATIO).
   show   one story: would you want it on your page today? Rankings set the
          order; this says where the bar goes.
-  story  now and then, a check on Claude's labels: one story as Claude grouped
-         and placed it (or, without those, as the app did): tap the articles that don't belong,
-         then the nearby ones it left out that do, and say where it's
-         happening. One screen gives a dozen or more "same story?" answers
-         (every pair it implies) and a place. Stories are chosen where the
-         grouping is least sure: members that fit loosely, and near misses.
-  same   (no longer asked; earlier answers still count) two articles: would
-         you want them under one headline?
 
 Each question is asked about a saved snapshot of the articles (instance/
-snapshots/), so `flask evaluate` can re-run any version of the code, or any
-variant of its thresholds, on exactly what you judged, and `flask train` can
-fit the models on it:
+snapshots/), so `flask evaluate` can score any version of the ranking on
+exactly what you judged, and `flask train` can fit the rank model on it. The
+newest HOLDOUT_DAYS days of labels are held out: tune on the older ones, and
+believe a change only if the held-out numbers agree.
 
-    flask evaluate                          # the code as it is
-    flask evaluate --hand                   # the hand rules, ignoring trained models
-    flask evaluate --set cluster.EVENT=0.25 --set score.COPY=0.9
-    flask train                             # fit on older labels, compare on held-out ones
-    flask train --save                      # fit on all of them, and use the models
-
-Which story is which, and where it happens, have answers anyone careful would
-agree on, so Claude can give them in bulk: tools/claude_label.py sorts whole
-snapshots into stories ("grouping" labels, source claude:<model>), imported
-with `flask import-labels`. The models train on those; your own labels are
-what they, and Claude, are tested against.
-
-It reports the most recent HOLDOUT_DAYS days of labels apart from the rest:
-tune on the older ones, and believe a change only if the held-out numbers
-agree. Questions are drawn from the hard cases, so the numbers are low next to
-a random sample's; they are for comparing versions, not for quoting.
+(Which articles are one event isn't a matter of taste: Claude labels it, in
+groundtruth.py.)
 """
 import gzip
 import json
 import pathlib
 import random
 import re
-from collections import Counter
 from datetime import UTC, datetime, timedelta
 
 from flask import current_app
@@ -52,16 +28,10 @@ from models import Article, Label, db, utcnow
 from sources import BY_KEY
 
 RANK_ANSWERS = {"a", "b", "equal"}
-STORY_ANSWERS = {"checked"}
 SHOW_ANSWERS = {"yes", "no", "borderline"}
-MIX = {"rank": 0.55, "show": 0.25, "story": 0.2}     # how often each question comes up
-STORY_SHOWN = 10              # articles of a story shown at once: the most typical, then the loosest fits
-NEARBY = 5                    # near misses shown under it
-CANDIDATES = 12               # stories looked at to find the least certain one
-LOW, HIGH = 0.18, 0.45        # likeness to a story that makes a near miss
-LOOSE = 0.35                  # a member less like its story than this fits loosely
+MIX = {"rank": 0.7, "show": 0.3}     # how often each question comes up
 RANK_RATIO = 2.0
-RANK_POOL = 40                # stories near the bar that rank questions draw from
+RANK_POOL = 40                # stories near the bar that questions draw from
 SNAPSHOT_EVERY = timedelta(hours=6)
 HOLDOUT_DAYS = 2
 _NAME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{4}$")
@@ -138,18 +108,13 @@ def assessed(items: list[dict], itn: dict, now: datetime) -> list[tuple[list[dic
 # Questions ------------------------------------------------------------------
 
 def _prepared(name: str) -> dict:
-    """A snapshot's articles, their vectors, its stories and the pair model's
-    view of them (cached: one snapshot at a time)."""
+    """A snapshot's stories near the bar, best first (cached: one snapshot at a time)."""
     if name not in _cache:
         items, itn, taken = load_snapshot(name)
-        everything = assessed(items, itn, taken)
-        index = {id(a): n for n, a in enumerate(items)}
-        groups = [[index[id(a)] for a in g] for g, _ in everything]
-        stories = sorted(((g, a) for g, a in everything if a["outlets"] >= 2), key=lambda s: -s[1]["score"])
+        stories = sorted(((g, a) for g, a in assessed(items, itn, taken) if a["outlets"] >= 2),
+                         key=lambda s: -s[1]["score"])
         _cache.clear()
-        _cache[name] = {"items": items, "vectors": clustering.tfidf([clustering.document(a) for a in items]),
-                        "groups": groups, "assessments": [a for _, a in everything], "stories": stories[:RANK_POOL],
-                        "taken": taken}
+        _cache[name] = {"stories": stories[:RANK_POOL], "taken": taken}
     return _cache[name]
 
 
@@ -157,74 +122,11 @@ def _name(a: dict) -> str:
     return BY_KEY[a["source"]].name if a["source"] in BY_KEY else a["outlet"]
 
 
-def _article(a: dict) -> dict:
-    return {"url": a["url"], "title": a["title"], "outlet": _name(a),
-            "summary": " ".join((a.get("summary") or "").split()[:40]),
-            "published": a["published"].isoformat() if a["published"] else None}
-
-
 def _story(group: dict, assessment: dict) -> dict:
     outlets = sorted({_name(a) for a in group})
     newest = sorted(group, key=lambda a: a["published"] or datetime.min.replace(tzinfo=UTC), reverse=True)
     return {"headline": assessment["headline"], "urls": [a["url"] for a in group], "outlets": outlets,
             "titles": [a["title"] for a in newest[:4]]}
-
-
-def _fits(p: dict, members: list[int]) -> tuple[dict[int, float], dict[int, float]]:
-    """How well each member fits its story (likeness to the story's centroid),
-    and how like it the closest non-members are."""
-    vectors = p["vectors"]
-    centroid = clustering._centroid(members, vectors)
-    inside = set(members)
-    near = sorted(((clustering.cosine(v, centroid), j) for j, v in enumerate(vectors) if j not in inside),
-                  reverse=True)[:40]
-    return {i: clustering.cosine(vectors[i], centroid) for i in members}, {j: c for c, j in near if c > 0.05}
-
-
-def _unsure(value: float, member: bool) -> bool:
-    return value < LOOSE if member else LOW <= value <= HIGH
-
-
-def _asked_story_urls(name: str) -> set[str]:
-    rows = Label.query.filter_by(kind="story", snapshot=name).all()
-    return {u for r in rows for u in r.a["urls"][:1]} | {u for r in rows for u in r.a["urls"] + r.b.get("in", [])}
-
-
-def story_question(name: str, rng: random.Random) -> dict | None:
-    """The least certain of a few recent stories, as grouped: its articles (the
-    most typical, then the loosest fits), the near misses, and where it's placed."""
-    from geo import _table, locate
-    from learn import NOWHERE, place_candidates
-    p = _prepared(name)
-    items = p["items"]
-    since = p["taken"] - timedelta(hours=24)
-    asked = _asked_story_urls(name)
-    fresh = [g for g in p["groups"]
-             if len({items[i]["outlet"] for i in g}) >= 2 and items[g[0]]["url"] not in asked
-             and any(items[i]["published"] and items[i]["published"] >= since for i in g)]
-    best = None
-    for g in rng.sample(fresh, min(len(fresh), CANDIDATES)):
-        fit, near = _fits(p, g)
-        doubt = (sum(_unsure(v, True) for v in fit.values())
-                 + sum(_unsure(v, False) for v in near.values()))
-        if best is None or doubt > best[0]:
-            best = (doubt, g, fit, near)
-    if best is None:
-        return None
-    _, g, fit, near = best
-    shown = g if len(g) <= STORY_SHOWN else g[:3] + sorted(g[3:], key=fit.get)[:STORY_SHOWN - 3]
-    close = sorted(near, key=near.get, reverse=True)
-    nearby = [j for j in close if _unsure(near[j], False)][:NEARBY] or close[:2]
-    articles = [items[i] for i in shown]
-    guess = locate(articles)
-    countries = _table()[0]
-    options = [i for i in place_candidates(articles)[0] if i != NOWHERE][:5]
-    if guess and guess["iso"] not in options:
-        options.insert(0, guess["iso"])
-    return {"kind": "story", "snapshot": name, "headline": p["assessments"][p["groups"].index(g)]["headline"],
-            "members": [_article(a) for a in articles], "nearby": [_article(items[j]) for j in nearby],
-            "place": {"guess": guess["iso"] if guess else None,
-                      "options": [[i, countries[i]["name"]] for i in options if i in countries]}}
 
 
 def rank_question(name: str, rng: random.Random) -> dict | None:
@@ -250,53 +152,12 @@ def show_question(name: str, rng: random.Random) -> dict | None:
     return {"kind": "show", "snapshot": name, "story": _story(*rng.choice(stories))}
 
 
-def check_question(rng: random.Random) -> dict | None:
-    """One of Claude's stories, as a story question: your answer checks Claude's."""
-    from geo import _table
-    from learn import NOWHERE, place_candidates
-    checked = {u for r in Label.query.filter_by(kind="story", source="you") for u in r.a["urls"]}
-    options = [(r, n, g) for r in Label.query.filter_by(kind="grouping").all()
-               for n, g in enumerate(r.a["groups"]) if len(g) >= 2 and not checked & set(g)]
-    if not options:
-        return None
-    label, n, group = rng.choice(options)
-    try:
-        items, _, _ = load_snapshot(label.snapshot)
-    except (OSError, ValueError):
-        return None
-    by_url = {a["url"]: a for a in items}
-    members = [by_url[u] for u in group if u in by_url][:STORY_SHOWN]
-    rest = [by_url[u] for u in label.a["bundle"] if u in by_url and u not in group]
-    if len(members) < 2:
-        return None
-    vectors = clustering.tfidf([clustering.document(a) for a in members + rest])
-    centroid = clustering._centroid(list(range(len(members))), vectors)
-    nearby = sorted(range(len(members), len(vectors)), key=lambda i: -clustering.cosine(vectors[i], centroid))[:NEARBY]
-    place = label.b["places"][n]
-    countries = _table()[0]
-    names = [i for i in place_candidates(members)[0] if i != NOWHERE][:5]
-    if place and place != NOWHERE and place not in names:
-        names.insert(0, place)
-    from score import clean_title
-    return {"kind": "story", "snapshot": label.snapshot, "by": "claude", "headline": clean_title(members[0]["title"]),
-            "members": [_article(a) for a in members], "nearby": [_article(rest[i - len(members)]) for i in nearby],
-            "place": {"guess": None if place == NOWHERE else place,
-                      "options": [[i, countries[i]["name"]] for i in names if i in countries]}}
-
-
 def next_question(now: datetime, rng: random.Random | None = None) -> dict | None:
-    """Mostly rankings and "would you show it?" (what only you can say), now
-    and then a check on one of Claude's stories."""
+    """A ranking or a "would you show it?", in the MIX proportions."""
     rng = rng or random.Random()
     name = current_snapshot(now)
-    ask = {"rank": lambda: rank_question(name, rng), "show": lambda: show_question(name, rng),
-           "story": lambda: check_question(rng) or story_question(name, rng)}
-    roll, first = rng.random(), "story"
-    for kind, share in MIX.items():
-        if roll < share:
-            first = kind
-            break
-        roll -= share
+    ask = {"rank": lambda: rank_question(name, rng), "show": lambda: show_question(name, rng)}
+    first = "rank" if rng.random() < MIX["rank"] else "show"
     for kind in [first, *(k for k in ask if k != first)]:
         q = ask[kind]()
         if q:
@@ -307,47 +168,23 @@ def next_question(now: datetime, rng: random.Random | None = None) -> dict | Non
 def record(answer: dict) -> Label:
     """Store an answer to a question from next_question (as the page sends it back)."""
     kind, value = answer.get("kind"), answer.get("answer")
-    answers = {"rank": RANK_ANSWERS, "story": STORY_ANSWERS, "show": SHOW_ANSWERS}
-    if value not in answers.get(kind, ()):
+    if value not in {"rank": RANK_ANSWERS, "show": SHOW_ANSWERS}.get(kind, ()):
         raise ValueError("unknown question or answer")
     load_snapshot(answer.get("snapshot"))      # it must be one of ours
-    if kind == "story":
-        a, b = _story_answer(answer)
-    elif kind == "show":
+    if kind == "show":
         story = answer.get("story")
         if not (isinstance(story, dict) and story.get("headline") and isinstance(story.get("urls"), list)):
             raise ValueError("incomplete question")
         a, b = {k: story[k] for k in ("headline", "urls", "outlets") if k in story}, {}
     else:
-        need, keep = ("headline", "urls"), ("headline", "urls", "outlets")
         a, b = answer.get("a"), answer.get("b")
-        if not all(isinstance(x, dict) and all(k in x for k in need) for x in (a, b)):
+        if not all(isinstance(x, dict) and "headline" in x and "urls" in x for x in (a, b)):
             raise ValueError("incomplete question")
-        a, b = ({k: x[k] for k in keep if k in x} for x in (a, b))
+        a, b = ({k: x[k] for k in ("headline", "urls", "outlets") if k in x} for x in (a, b))
     label = Label(kind=kind, snapshot=answer["snapshot"], a=a, b=b, answer=value)
     db.session.add(label)
     db.session.commit()
     return label
-
-
-def _story_answer(answer: dict) -> tuple[dict, dict]:
-    """(what was shown, what you said) for a story question."""
-    from geo import _table
-    from learn import NOWHERE
-    try:
-        urls = [m["url"] for m in answer["members"]]
-        nearby = [m["url"] for m in answer.get("nearby") or []]
-        guess = (answer.get("place") or {}).get("guess")
-    except (KeyError, TypeError) as e:
-        raise ValueError("incomplete question") from e
-    out, joined = answer.get("out") or [], answer.get("in") or []
-    where = answer.get("where")
-    if not (urls and set(out) <= set(urls) and set(joined) <= set(nearby)):
-        raise ValueError("those articles weren't in the question")
-    if where is not None and where != NOWHERE and where not in _table()[0]:
-        raise ValueError("not a country")
-    return ({"headline": answer.get("headline"), "urls": urls, "nearby": nearby, "guess": guess},
-            {"out": out, "in": joined, "place": where})
 
 
 def counts(now: datetime) -> dict:
@@ -357,38 +194,6 @@ def counts(now: datetime) -> dict:
 
 
 # What the answers say -------------------------------------------------------------
-
-def story_urls(label: Label) -> list[str]:
-    """The story as you'd have it: what was shown, minus what you took out,
-    plus the near misses you put in (most typical first)."""
-    out, joined = set(label.b.get("out", [])), set(label.b.get("in", []))
-    return [u for u in label.a["urls"] if u not in out] + [u for u in label.a.get("nearby", []) if u in joined]
-
-
-def judged_pairs(label: Label) -> list[tuple[str, str, bool]]:
-    """Every "same story?" answer a label gives: (url, url, same)."""
-    if label.kind == "same":
-        return [] if label.answer == "unsure" else [(label.a["url"], label.b["url"], label.answer == "same")]
-    if label.kind == "grouping":
-        group = {u: n for n, g in enumerate(label.a["groups"]) for u in g}
-        bundle = [u for u in label.a["bundle"] if u in group]
-        return [(x, y, group[x] == group[y]) for n, x in enumerate(bundle) for y in bundle[n + 1:]]
-    if label.kind != "story":
-        return []
-    kept = story_urls(label)
-    apart = set(label.b.get("out", [])) | {u for u in label.a.get("nearby", []) if u not in kept}
-    return ([(x, y, True) for n, x in enumerate(kept) for y in kept[n + 1:]]
-            + [(x, y, False) for x in sorted(apart) for y in kept])
-
-
-def judged_places(label: Label) -> list[tuple[list[str], str]]:
-    """(a story's urls, where it happens) for each place a label gives."""
-    if label.kind == "story" and label.b.get("place") is not None:
-        return [(story_urls(label), label.b["place"])]
-    if label.kind == "grouping":
-        return [(g, p) for g, p in zip(label.a["groups"], label.b["places"], strict=True) if p]
-    return []
-
 
 def _home(urls: list[str], where: dict[str, int]) -> int | None:
     """The group holding most of a judged story's articles."""
@@ -411,83 +216,28 @@ def _by_snapshot(labels: list[Label]):
             continue
 
 
-def bcubed_parts(truth: dict[str, object], where: dict[str, int]) -> dict[str, tuple[float, float]]:
-    """B-cubed per article: for each labelled article, precision is the share of
-    the articles grouped with it that truly belong with it, recall the share of
-    those truly belonging with it that were grouped with it. `truth` is each
-    article's true group; articles without one aren't counted, and nor are they
-    counted against others."""
-    scored = [u for u in truth if u in where]
-    found: dict[int, list[str]] = {}
-    for u in scored:
-        found.setdefault(where[u], []).append(u)
-    sizes = Counter(truth[u] for u in scored)
-    out = {}
-    for members in found.values():
-        counts = Counter(truth[u] for u in members)
-        for u in members:
-            out[u] = (counts[truth[u]] / len(members), counts[truth[u]] / sizes[truth[u]])
-    return out
-
-
-def bcubed(truth: dict[str, object], where: dict[str, int],
-           only: set[str] | None = None) -> tuple[float, float, int]:
-    """B-cubed summed over a snapshot's articles (or only those in `only`):
-    every article counts once, however big its story (pair counts let one
-    146-article story outweigh a hundred small ones). Returns (sum of
-    precisions, sum of recalls, articles)."""
-    parts = [pr for u, pr in bcubed_parts(truth, where).items() if only is None or u in only]
-    return sum(p for p, _ in parts), sum(r for _, r in parts), len(parts)
-
-
-HEADLINE_OUTLETS = 3    # a story this many outlets carry can reach the page
-
-
-def headline_articles(truth: dict[str, object], items: list[dict]) -> set[str]:
-    """The articles in true stories that HEADLINE_OUTLETS or more outlets carry:
-    the ones the page can show, where grouping matters most."""
-    outlets: dict[object, set] = {}
-    for a in items:
-        if a["url"] in truth:
-            outlets.setdefault(truth[a["url"]], set()).add(a["outlet"])
-    return {u for u, g in truth.items() if len(outlets.get(g, ())) >= HEADLINE_OUTLETS}
-
-
-def snapshot_truth(group_labels: list[Label]) -> dict[str, tuple[int, int]]:
-    """Each article's true group, from Claude's groupings of one snapshot. Its
-    second pass saw every story of the snapshot and joined those of one
-    situation, so stories it left apart, in different labels too, are judged
-    different: together the labels are one grouping of the snapshot."""
-    return {u: (label.id, n) for label in group_labels if label.kind == "grouping"
-            for n, g in enumerate(label.a["groups"]) for u in g}
+def _by_snapshot(labels: list[Label]):
+    """(snapshot's articles, ITN, time taken, its labels) for each snapshot still on disk."""
+    by: dict[str, list[Label]] = {}
+    for label in labels:
+        by.setdefault(label.snapshot, []).append(label)
+    for name, group_labels in by.items():
+        try:
+            yield (*load_snapshot(name), group_labels)
+        except (OSError, ValueError):
+            continue
 
 
 def evaluate(labels: list[Label]) -> dict:
-    """Grouping: B-cubed on Claude's groupings (per article; see bcubed), and
-    precision and recall on every "same story" pair (unsure left out).
-    Ranking: how often the higher score is the one you picked ("equal" left out).
-    Placing: how often the story you checked is put where you said."""
-    from geo import locate
-    from learn import NOWHERE
-    same = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
+    """Ranking: how often the higher score is the one you picked ("equal" left
+    out). The bar: how often a story's tier agrees with whether you'd show it
+    ("borderline" left out)."""
     rank = {"agree": 0, "disagree": 0}
-    place = {"right": 0, "wrong": 0}
     bar = {"agree": 0, "disagree": 0}
-    b3, big = [0.0, 0.0, 0], [0.0, 0.0, 0]
     for items, itn, taken, group_labels in _by_snapshot(labels):
         stories = assessed(items, itn, taken)
         where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
-        by_url = {a["url"]: a for a in items}
-        truth = snapshot_truth(group_labels)
-        b3 = [x + y for x, y in zip(b3, bcubed(truth, where), strict=True)]
-        big = [x + y for x, y in zip(big, bcubed(truth, where, headline_articles(truth, items)), strict=True)]
         for label in group_labels:
-            for u, v, truth in judged_pairs(label):
-                together = where.get(u) is not None and where.get(u) == where.get(v)
-                same[("t" if together == truth else "f") + ("p" if together else "n")] += 1
-            for urls, truth in judged_places(label):
-                found = locate([by_url[u] for u in urls if u in by_url])
-                place["right" if (found["iso"] if found else NOWHERE) == truth else "wrong"] += 1
             if label.kind == "show" and label.answer != "borderline":
                 home = _home(label.a["urls"], where)
                 if home is not None:
@@ -502,135 +252,47 @@ def evaluate(labels: list[Label]) -> dict:
                     rank["disagree"] += 1      # a tie doesn't put the right one first
                 else:
                     rank["agree" if (sa > sb) == (label.answer == "a") else "disagree"] += 1
-    tp, fp, fn = same["tp"], same["fp"], same["fn"]
-    precision = tp / (tp + fp) if tp + fp else None
-    recall = tp / (tp + fn) if tp + fn else None
-    f1 = 2 * precision * recall / (precision + recall) if precision and recall else None
-    judged, placed, barred = rank["agree"] + rank["disagree"], place["right"] + place["wrong"], sum(bar.values())
-    bp, br = (b3[0] / b3[2], b3[1] / b3[2]) if b3[2] else (None, None)
-    hp, hr = (big[0] / big[2], big[1] / big[2]) if big[2] else (None, None)
-    return {"b3_articles": b3[2], "b3_precision": bp, "b3_recall": br,
-            "b3_f1": 2 * bp * br / (bp + br) if bp and br else None,
-            "headline_articles": big[2], "headline_precision": hp, "headline_recall": hr,
-            "headline_f1": 2 * hp * hr / (hp + hr) if hp and hr else None,
-            "same_pairs": sum(same.values()), "precision": precision, "recall": recall, "f1": f1,
-            "rank_pairs": judged, "rank_agreement": rank["agree"] / judged if judged else None,
-            "placed": placed, "place_accuracy": place["right"] / placed if placed else None,
+    judged, barred = sum(rank.values()), sum(bar.values())
+    return {"rank_pairs": judged, "rank_agreement": rank["agree"] / judged if judged else None,
             "bar_stories": barred, "bar_agreement": bar["agree"] / barred if barred else None}
 
 
-def claude_agreement(labels: list[Label]) -> dict:
-    """How often Claude's groupings and places agree with yours, on the articles
-    both of you judged (matched by url, whatever the snapshot). Only pairs Claude
-    saw side by side count: a story can span two of its bundles."""
-    group, place = {}, {}
-    for label in labels:
-        if label.kind == "grouping":
-            for n, g in enumerate(label.a["groups"]):
-                for u in g:
-                    group[u] = (label.id, n)
-                    place[u] = label.b["places"][n]
-    pairs = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
-    places = {"agree": 0, "disagree": 0}
-    for label in labels:
-        if label.source != "you":
-            continue
-        for u, v, truth in judged_pairs(label):
-            if u in group and v in group and group[u][0] == group[v][0]:
-                together = group[u] == group[v]
-                pairs[("t" if together == truth else "f") + ("p" if together else "n")] += 1
-        for urls, truth in judged_places(label):
-            said = Counter(place[u] for u in urls if u in place).most_common(1)
-            if said:
-                places["agree" if said[0][0] == truth else "disagree"] += 1
-    n = sum(pairs.values())
-    tp, fp, fn = pairs["tp"], pairs["fp"], pairs["fn"]
-    m = sum(places.values())
-    return {"pairs": n, "agreement": (tp + pairs["tn"]) / n if n else None,
-            "precision": tp / (tp + fp) if tp + fp else None, "recall": tp / (tp + fn) if tp + fn else None,
-            "places": m, "place_agreement": places["agree"] / m if m else None}
-
-
-def import_labels(data: dict) -> tuple[int, int]:
-    """Labels from tools/claude_label.py, with the snapshots they're about:
-    (snapshots written, labels added). Importing the same file twice adds nothing."""
-    written = 0
-    for name, snap in data.get("snapshots", {}).items():
-        if not _NAME.match(name):
-            raise ValueError(f"not a snapshot name: {name}")
-        path = snapshots_dir() / f"{name}.json.gz"
-        if path.exists():
-            with gzip.open(path, "rt", encoding="utf-8") as f:
-                here = {i["url"] for i in json.load(f)["items"]}
-            if here != {i["url"] for i in snap["items"]}:
-                raise ValueError(f"a different snapshot called {name} is already here")
-        else:
-            with gzip.open(path, "wt", encoding="utf-8") as f:
-                json.dump(snap, f, ensure_ascii=False)
-            written += 1
-    added = 0
-    for row in data.get("labels", []):
-        if row.get("kind") != "grouping" or not str(row.get("source", "")).startswith("claude"):
-            raise ValueError("only Claude's grouping labels are imported")
-        load_snapshot(row["snapshot"])
-        a, b = row["a"], row["b"]
-        if len(a["groups"]) != len(b["places"]) or not set(u for g in a["groups"] for u in g) <= set(a["bundle"]):
-            raise ValueError("a grouping that doesn't add up")
-        same = Label.query.filter_by(kind="grouping", source=row["source"], snapshot=row["snapshot"]).all()
-        if any(x.a["bundle"] == a["bundle"] for x in same):
-            continue
-        db.session.add(Label(kind="grouping", snapshot=row["snapshot"], a=a, b=b, answer="grouped",
-                             source=row["source"]))
-        added += 1
-    db.session.commit()
-    return written, added
-
-
-def training_data(labels: list[Label]) -> dict:
-    """The labels as examples for learn.py: the score's parts for both sides of
-    a ranking, and each labelled story's place candidates with its place.
-    Stories are grouped by the hand rules here, so the examples don't depend on
-    a model already trained."""
+def rank_examples(labels: list[Label]) -> list[tuple[list[float], list[float], bool]]:
+    """Your rankings as examples for learn.fit_rank: both stories' score parts
+    and which you picked. Stories are grouped as the app groups them."""
     import learn
     from score import rank_features
-    data = {"rank": [], "place": []}
+    out = []
     with learn.using({}):
-        for items, itn, taken, group_labels in _by_snapshot(labels):
-            index = {a["url"]: n for n, a in enumerate(items)}
-            kinds = {lb.kind for lb in group_labels}
-            stories = assessed(items, itn, taken) if "rank" in kinds else []
+        for items, itn, taken, group_labels in _by_snapshot([lb for lb in labels if lb.kind == "rank"]):
+            stories = assessed(items, itn, taken)
             where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
             for label in group_labels:
-                for urls, truth in judged_places(label):
-                    isos, x = learn.place_candidates([items[index[u]] for u in urls if u in index])
-                    if truth in isos:
-                        data["place"].append((x, isos.index(truth)))
-                if label.kind == "rank" and label.answer != "equal":
-                    ga, gb = _home(label.a["urls"], where), _home(label.b["urls"], where)
-                    if ga is not None and gb is not None and ga != gb:
-                        data["rank"].append((rank_features(stories[ga][1]["parts"]),
-                                             rank_features(stories[gb][1]["parts"]), label.answer == "a"))
-    return data
+                if label.answer == "equal":
+                    continue
+                ga, gb = _home(label.a["urls"], where), _home(label.b["urls"], where)
+                if ga is not None and gb is not None and ga != gb:
+                    out.append((rank_features(stories[ga][1]["parts"]), rank_features(stories[gb][1]["parts"]),
+                                label.answer == "a"))
+    return out
 
 
-def fit_models(labels: list[Label], names: list[str], say=lambda *_: None) -> dict:
-    """The models named (rank, place: learn.py) fitted on these labels; those
-    with too few labels to fit are left out."""
-    from datetime import UTC, datetime
-
+def place_examples(windows) -> list:
+    """The ground truth's events with a place (groundtruth.py) as examples for
+    learn.fit_place: each event's candidate countries and the one it's in."""
     import learn
-    data = training_data(labels)
-    say(f"examples: {len(data['rank'])} rankings, {len(data['place'])} places")
-    fits = {"rank": lambda: learn.fit_rank(data["rank"]), "place": lambda: learn.fit_place(data["place"])}
-    out = {}
-    for name in names:
-        model = fits[name]() if name in fits else None
-        if model is None:
-            say(f"{name}: too few labels to fit yet")
-        else:
-            out[name] = model
-    stamp = datetime.now(UTC).isoformat(timespec="minutes")
-    return {name: {**model, "trained": stamp} for name, model in out.items()}
+    out = []
+    for w in windows:
+        members: dict[str, list[dict]] = {}
+        for a in w.items:
+            members.setdefault(w.truth[a["url"]], []).append(a)
+        for event, arts in members.items():
+            truth = w.places.get(event)
+            if truth:
+                isos, x = learn.place_candidates(arts)
+                if truth in isos:
+                    out.append((x, isos.index(truth)))
+    return out
 
 
 def split_holdout(labels: list[Label], days: int = HOLDOUT_DAYS) -> tuple[list[Label], list[Label]]:

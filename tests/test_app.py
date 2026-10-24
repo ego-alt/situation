@@ -270,35 +270,26 @@ def test_a_running_story_shows_its_latest_development(app, monkeypatch):
 
 
 def test_labelling_questions_answers_and_evaluation(loaded, app):
-    import random
-
     import labels
-    from models import Label, db
+    from models import Label
     client = app.test_client()
     body = client.get("/api/label").get_json()
     q = body["question"]
-    assert q["kind"] in ("story", "rank", "show") and body["counts"] == {"today": 0, "total": 0}
-    answer = {"story": "checked", "rank": "a", "show": "yes"}[q["kind"]]
+    assert q["kind"] in ("rank", "show") and body["counts"] == {"today": 0, "total": 0}
+    answer = {"rank": "a", "show": "yes"}[q["kind"]]
     assert client.post("/api/label", json={**q, "answer": answer}).status_code == 200
     assert client.post("/api/label", json={**q, "answer": "maybe"}).status_code == 400
     assert client.post("/api/label", json={**q, "snapshot": "../../etc/passwd", "answer": "a"}).status_code == 400
     assert Label.query.count() == 1
 
-    # Plant answers that agree with the grouping and ranking: they should score perfectly.
+    # A ranking that agrees with the scores scores perfectly.
     name = q["snapshot"]
     items, itn, taken = labels.load_snapshot(name)
     stories = sorted(labels.assessed(items, itn, taken), key=lambda s: -s[1]["score"])
-    big, other = stories[0][0], stories[1][0]
     Label.query.delete()
-    rng = random.Random(1)
-    for _ in range(5):
-        a, b = rng.sample(big, 2)
-        a, b, c = labels._article(a), labels._article(b), labels._article(rng.choice(other))
-        db.session.add(Label(kind="same", snapshot=name, answer="same", a=a, b=b))      # the old pair question
-        db.session.add(Label(kind="same", snapshot=name, answer="different", a=a, b=c))
     hi, lo = stories[0], stories[5]
     labels.record({"kind": "rank", "snapshot": name, "answer": "a",
                    "a": {"headline": hi[1]["headline"], "urls": [x["url"] for x in hi[0]]},
                    "b": {"headline": lo[1]["headline"], "urls": [x["url"] for x in lo[0]]}})
     r = labels.evaluate(Label.query.all())
-    assert (r["same_pairs"], r["precision"], r["recall"], r["rank_pairs"], r["rank_agreement"]) == (10, 1, 1, 1, 1)
+    assert (r["rank_pairs"], r["rank_agreement"]) == (1, 1)

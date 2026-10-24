@@ -94,11 +94,11 @@ class Label(db.Model):
     """One of your judgements on /label (see labels.py)."""
     __tablename__ = "labels"
     id = db.Column(db.Integer, primary_key=True)
-    kind = db.Column(db.String, nullable=False, index=True)     # story | rank | show | grouping | same
+    kind = db.Column(db.String, nullable=False, index=True)     # rank | show
     snapshot = db.Column(db.String, nullable=False, index=True) # instance/snapshots/<name>.json.gz
     a = db.Column(db.JSON, nullable=False)                      # same: an article; rank: a story's headline and urls
     b = db.Column(db.JSON, nullable=False)
-    answer = db.Column(db.String, nullable=False)               # e.g. checked, a|b|equal, yes|no|borderline
+    answer = db.Column(db.String, nullable=False)               # a|b|equal, or yes|no|borderline
     at = db.Column(db.DateTime, default=utcnow, index=True)
     source = db.Column(db.String, nullable=False, default="you", index=True)   # you, or claude:<model>
 

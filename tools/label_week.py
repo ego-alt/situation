@@ -1,52 +1,47 @@
-"""Claude labels whole snapshots into events, and where each happens.
-
-An event is one thing that happened, as a front page would run it as one
-headline (see RUBRIC). Which articles report the same event has an answer a
-careful reader would agree on, so Claude labels it in bulk; the labels are the
-evaluation set for grouping (tools/fast_win.py). Only news is labelled
-(score.is_news): opinion, explainers and the like are left out, as the app
-leaves them out.
+"""Label one week of news into events with Claude, for the ground truth (groundtruth.py).
 
     sqlite3 ~/Projects/situation/instance/situation.db ".backup /tmp/situation.db"   # on the Pi
     scp pi:/tmp/situation.db /tmp/situation.db
-    uv run --with anthropic python -I tools/claude_label.py /tmp/situation.db labels.json.gz --dry-run
-    uv run --with anthropic python -I tools/claude_label.py /tmp/situation.db labels.json.gz --direct --limit 10
-    uv run --with anthropic python -I tools/claude_label.py /tmp/situation.db labels.json.gz
-    scp labels.json.gz pi:Projects/situation/instance/
-    ssh pi docker exec situation flask import-labels instance/labels.json.gz
+    uv run --with anthropic python -I tools/label_week.py /tmp/situation.db --dry-run
+    uv run --with anthropic python -I tools/label_week.py /tmp/situation.db             # last full week
+    uv run --with anthropic python -I tools/label_week.py /tmp/situation.db --week 2026-W44
+    scp instance/groundtruth/2026-W44.json.gz pi:Projects/situation/instance/groundtruth/   # backed up there
 
-It reads a copy of the database (never the live one), cuts a snapshot every
-48 hours from the articles it holds (the window the app groups), and splits
-each snapshot into bundles: articles loosely alike, so every event falls
-inside one bundle and Claude sees each bundle whole. Articles in no bundle are
-labelled as one-article events (the bundling is loose enough that a related
-article would have joined one). The run goes through the Message Batches API
-(half the price; usually done within the hour); --direct asks one bundle at a
-time instead, for a quick look. Needs ANTHROPIC_API_KEY. If the wait is
-interrupted, run it again with --resume to collect the batch.
+It cuts two 48-hour windows from a copy of the database (never the live one):
+Monday to Wednesday morning and Friday to Sunday morning (UTC), a weekday and
+a weekend, keeping only news (score.is_news). Each window is split into
+bundles, articles loosely alike, so every event falls inside one bundle and
+Claude sees it whole; articles in no bundle are one-article events (the
+bundling is loose enough that a related article would have joined one).
+Claude labels the bundles through the Message Batches API (half the price,
+usually within the hour; --direct asks one bundle at a time). The week is
+written to the ground truth folder, and each window's review is printed:
+check it before trusting the week. Needs ANTHROPIC_API_KEY; if the wait is
+interrupted, run it again with --resume.
 """
 import argparse
-import gzip
 import json
 import pathlib
 import sqlite3
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import cluster  # noqa: E402
 import embed  # noqa: E402
+import groundtruth  # noqa: E402
 from geo import _table  # noqa: E402
 from labels import _name, read_snapshot  # noqa: E402
 from score import news_only  # noqa: E402
 
 MODEL = "claude-sonnet-5-5"
 WINDOW = timedelta(hours=48)
+ENDS = ((3, 3), (7, 3))   # windows end Wednesday and Sunday at 03:00 UTC (ISO weekday 1 = Monday, hour)
 BUNDLE = 0.15             # word likeness that puts two articles in one bundle
 MEANING = 0.55            # ...or meaning likeness, with the embedding model
-MAX_BUNDLE = 80           # bigger bundles are cut again, a little stricter (40 split running stories)
+MAX_BUNDLE = 80           # bigger bundles are cut again, a little stricter
 
 RUBRIC = """You label news for a live "monitor the situation" dashboard. Sort the articles into events.
 
@@ -83,10 +78,16 @@ TOOL = {
 }
 
 
-# Snapshots from the database -------------------------------------------------
+# The week's windows, from the database -------------------------------------------
 
-def snapshots(db_path: str, every: timedelta = WINDOW, limit: int | None = None) -> dict[str, dict]:
-    """{name: snapshot}, one per window back from the newest article, as labels.save_snapshot writes them."""
+def last_full_week(today: date | None = None) -> str:
+    year, week, _ = ((today or datetime.now(UTC).date()) - timedelta(days=7)).isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def windows(db_path: str, week: str) -> dict[str, dict]:
+    """{name: window} for the week, as labels.save_snapshot writes them."""
+    year, number = (int(x) for x in week.split("-W"))
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     rows = con.execute("SELECT source, title, url, summary, position, coalesce(published, fetched) AS at "
@@ -95,24 +96,19 @@ def snapshots(db_path: str, every: timedelta = WINDOW, limit: int | None = None)
     con.close()
     when = lambda text: datetime.fromisoformat(text).replace(tzinfo=UTC)  # noqa: E731
     articles = [(when(r["at"]), r) for r in rows]
-    if not articles:
-        return {}
-    newest = max(t for t, _ in articles)
-    oldest = min(t for t, _ in articles)
     out = {}
-    taken = newest.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    while taken > oldest and (limit is None or len(out) < limit):
+    for weekday, hour in ENDS:
+        taken = datetime.fromisocalendar(year, number, weekday).replace(hour=hour, tzinfo=UTC)
         items = news_only([{"source": r["source"], "title": r["title"], "url": r["url"], "summary": r["summary"],
                             "position": r["position"], "published": t.isoformat()}
                            for t, r in articles if taken - WINDOW < t <= taken])
         before = [x for x in itn if when(x["fetched"]) <= taken]
         last = before[-1] if before else None
         if len(items) >= 20:
-            name = taken.strftime("%Y-%m-%dT%H%M")
-            out[name] = {"taken": taken.isoformat(), "items": items,
-                         "itn": {"items": json.loads(last["items"]), "ongoing": json.loads(last["ongoing"])}
-                         if last else {"items": [], "ongoing": []}}
-        taken -= every
+            out[taken.strftime("%Y-%m-%dT%H%M")] = {
+                "taken": taken.isoformat(), "items": items,
+                "itn": {"items": json.loads(last["items"]), "ongoing": json.loads(last["ongoing"])}
+                if last else {"items": [], "ongoing": []}}
     return out
 
 
@@ -190,11 +186,6 @@ def parse(answer: dict, count: int) -> tuple[list[list[int]], list[str | None]] 
     return groups, places
 
 
-def label(name: str, urls: list[str], groups: list[list[str]], places: list, model: str) -> dict:
-    return {"kind": "grouping", "snapshot": name, "source": f"claude:{model}",
-            "a": {"bundle": urls, "groups": groups}, "b": {"places": places}}
-
-
 def answer_of(message) -> dict | None:
     for block in message.content:
         if block.type == "tool_use" and block.name == "record_stories":
@@ -205,96 +196,86 @@ def answer_of(message) -> dict | None:
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("db", help="a copy of instance/situation.db")
-    p.add_argument("out", help="where to write the labels (.json.gz)")
+    p.add_argument("--week", default=None, help="the ISO week to label, e.g. 2026-W44 (default: the last full one)")
+    p.add_argument("--dir", default=None, help="the ground truth folder (default: groundtruth.directory())")
     p.add_argument("--model", default=MODEL)
-    p.add_argument("--snapshots", type=int, default=None, help="at most this many snapshots, newest first")
-    p.add_argument("--limit", type=int, default=None, help="at most this many bundles")
-    p.add_argument("--skip", type=int, default=0, help="leave out the first this many bundles")
+    p.add_argument("--limit", type=int, default=None, help="at most this many bundles (a trial)")
     p.add_argument("--dry-run", action="store_true", help="count the work and the tokens; ask nothing")
     p.add_argument("--direct", action="store_true", help="one request at a time instead of a batch")
     p.add_argument("--resume", action="store_true", help="collect a batch this script submitted earlier")
     args = p.parse_args()
+    week = args.week or last_full_week()
+    state_path = groundtruth.directory(args.dir) / f".{week}.state.json"
 
-    state_path = pathlib.Path(args.out + ".state.json")
     if args.resume:
         state = json.loads(state_path.read_text())
-        snaps, work, model = state["snapshots"], state["work"], state["model"]
+        wins, work, model = state["windows"], state["work"], state["model"]
     else:
         model = args.model
-        snaps = snapshots(args.db, limit=args.snapshots)
+        wins = windows(args.db, week)
         work = []
-        for name, snap in snaps.items():
-            items, _, _ = read_snapshot(snap)
+        for name, win in wins.items():
+            items, _, _ = read_snapshot(win)
             for k, b in enumerate(bundles(items)):
-                work.append({"id": f"{name}-{k}", "snapshot": name, "urls": [items[i]["url"] for i in b]})
-        work = work[args.skip:args.skip + args.limit] if args.limit else work[args.skip:]
-    articles_of = {}
-    for name, snap in snaps.items():
-        items, _, _ = read_snapshot(snap)
-        articles_of[name] = {a["url"]: a for a in items}
-    jobs = {w["id"]: (w["snapshot"], [articles_of[w["snapshot"]][u] for u in w["urls"]]) for w in work}
-
-    # Measured on a sample: tool use adds a system prompt of its own, about 500 tokens a call.
-    tokens_in = sum(len(RUBRIC) + len(json.dumps(TOOL)) + len(prompt(arts)) for _, arts in jobs.values()) / 3.5
-    tokens_in += 500 * len(jobs)
-    print(f"{len(snaps)} snapshots, {len(jobs)} bundles, {sum(len(a) for _, a in jobs.values())} articles; "
-          f"about {tokens_in / 1e6:.2f}M input tokens and {len(jobs) * 150 / 1e6:.2f}M output, with {model}")
-    if args.dry_run:
+                work.append({"id": f"{name}-{k}", "window": name, "urls": [items[i]["url"] for i in b]})
+        work = work[:args.limit] if args.limit else work
+    articles_of = {name: {a["url"]: a for a in read_snapshot(win)[0]} for name, win in wins.items()}
+    jobs = {w["id"]: (w["window"], [articles_of[w["window"]][u] for u in w["urls"]]) for w in work}
+    # Measured: tool use adds a system prompt of its own, about 500 tokens a call.
+    tokens = sum(len(RUBRIC) + len(json.dumps(TOOL)) + len(prompt(a)) for _, a in jobs.values()) / 3.5 + 500 * len(jobs)
+    news = sum(len(a) for a in articles_of.values())
+    print(f"{week}: {len(wins)} windows, {news} news articles, {len(jobs)} bundles; "
+          f"about {tokens / 1e6:.2f}M input tokens and {len(jobs) * 150 / 1e6:.2f}M output, with {model}")
+    if args.dry_run or not jobs:
         return
 
     import anthropic
     client = anthropic.Anthropic()
     answers: dict[str, dict | None] = {}
     if args.direct:
-        used_in = used_out = 0
         for n, (key, (_, arts)) in enumerate(jobs.items(), 1):
-            message = client.messages.create(**request(arts, model))
-            answers[key] = answer_of(message)
-            used_in, used_out = used_in + message.usage.input_tokens, used_out + message.usage.output_tokens
+            answers[key] = answer_of(client.messages.create(**request(arts, model)))
             print(f"\r{n}/{len(jobs)}", end="", flush=True)
-        print(f"\ntokens used: {used_in} in, {used_out} out")
+        print()
     else:
         if args.resume:
             batch_id = state["batch"]
         else:
-            batch = client.messages.batches.create(requests=[
-                {"custom_id": key, "params": request(arts, model)} for key, (_, arts) in jobs.items()])
-            batch_id = batch.id
-            state_path.write_text(json.dumps({"batch": batch_id, "model": model, "snapshots": snaps, "work": work}))
+            batch_id = client.messages.batches.create(requests=[
+                {"custom_id": key, "params": request(arts, model)} for key, (_, arts) in jobs.items()]).id
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps({"batch": batch_id, "model": model, "windows": wins, "work": work}))
             print(f"submitted batch {batch_id}; waiting (Ctrl-C is safe: run again with --resume)")
-        while (batch := client.messages.batches.retrieve(batch_id)).processing_status != "ended":
-            c = batch.request_counts
-            print(f"\r{c.succeeded + c.errored} of {len(jobs)} done", end="", flush=True)
+        while client.messages.batches.retrieve(batch_id).processing_status != "ended":
             time.sleep(60)
-        print()
         for result in client.messages.batches.results(batch_id):
             answers[result.custom_id] = answer_of(result.result.message) if result.result.type == "succeeded" else None
 
-    # One label per bundle; the snapshot's lone articles (no bundle) as one label
-    # of one-article events, so every news article has a label. That they're
-    # alone rests on the bundling being loose enough to catch any relation.
-    labels, bad, taken = [], 0, {name: set() for name in snaps}
+    # Each window's events: Claude's, then its articles in no bundle, one each.
+    events: dict[str, list[dict]] = {name: [] for name in wins}
+    taken: dict[str, set] = {name: set() for name in wins}
+    failed = 0
     for key, (name, arts) in jobs.items():
+        taken[name] |= {a["url"] for a in arts}
         parsed = parse(answers.get(key) or {}, len(arts))
-        urls = [a["url"] for a in arts]
-        taken[name] |= set(urls)
         if parsed is None:
-            bad += 1
+            failed += 1
             continue
-        groups, places = parsed
-        labels.append(label(name, urls, [[urls[i] for i in g] for g in groups], places, model))
-    for name in snaps:
-        lone = [u for u in articles_of[name] if u not in taken[name]]
-        if lone and any(lb["snapshot"] == name for lb in labels):
-            labels.append(label(name, lone, [[u] for u in lone], [None] * len(lone), model))
-    used = {lb["snapshot"] for lb in labels}
-    with gzip.open(args.out, "wt", encoding="utf-8") as f:
-        json.dump({"made": datetime.now(UTC).isoformat(), "model": model, "rubric": RUBRIC,
-                   "snapshots": {n: s for n, s in snaps.items() if n in used}, "labels": labels}, f, ensure_ascii=False)
-    events = sum(len(lb["a"]["groups"]) for lb in labels)
-    print(f"wrote {args.out}: {len(labels)} labels ({events} events), {bad} answers that didn't add up")
-    if state_path.exists():
-        state_path.unlink()
+        for g, place in zip(*parsed, strict=True):
+            events[name].append({"urls": [arts[i]["url"] for i in g], "place": place})
+    for name in wins:
+        events[name] += [{"urls": [u], "place": None} for u in articles_of[name] if u not in taken[name]]
+    if failed:
+        print(f"{failed} answers didn't add up: their windows are left out")
+        bad = {jobs[k][0] for k in jobs if parse(answers.get(k) or {}, len(jobs[k][1])) is None}
+        wins = {n: w for n, w in wins.items() if n not in bad}
+    path = groundtruth.save(week, {"made": datetime.now(UTC).isoformat(), "model": model, "rubric": RUBRIC,
+                                   "windows": wins, "events": {n: events[n] for n in wins}}, args.dir)
+    print(f"wrote {path}")
+    for w in groundtruth.load(week, args.dir):
+        print(groundtruth.describe(w))
+    state_path.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     main()

@@ -5,6 +5,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import click
+import numpy as np
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -82,9 +83,7 @@ def create_app(config=None):
 
     @app.route("/label")
     def label_page():
-        from geo import _table
-        countries = sorted(([iso, c["name"]] for iso, c in _table()[0].items()), key=lambda c: c[1])
-        return render_template("label.html", countries=countries)
+        return render_template("label.html")
 
     @app.route("/api/label")
     def label_next():
@@ -105,11 +104,12 @@ def create_app(config=None):
 
     @app.cli.command("evaluate")
     @click.option("--set", "overrides", multiple=True, metavar="MODULE.NAME=VALUE",
-                  help="Try a threshold, e.g. cluster.EVENT=0.25 (repeatable).")
+                  help="Try a setting, e.g. score.ITN_BONUS=3 (repeatable).")
     @click.option("--holdout", default=None, type=int, help="Days of the newest labels to hold out.")
     @click.option("--hand", is_flag=True, help="Use the hand rules, ignoring any trained models.")
     def evaluate_command(overrides, holdout, hand):
-        """Score the grouping, ranking and placing against your labels from /label."""
+        """Score the ranking and the bar against your labels from /label.
+        (Grouping is scored against the ground truth: tools/evaluate_grouping.py.)"""
         import importlib
         from contextlib import nullcontext
 
@@ -123,80 +123,63 @@ def create_app(config=None):
             if not hasattr(mod, name):
                 raise click.BadParameter(f"{target} doesn't exist")
             setattr(mod, name, type(getattr(mod, name))(value))
-        from labels import claude_agreement
-        everything = Label.query.all()
-        labels = [lb for lb in everything if lb.source == "you"]
+        labels = Label.query.filter_by(source="you").all()
         older, held = split_holdout(labels, HOLDOUT_DAYS if holdout is None else holdout)
         with learn.using({}) if hand else nullcontext():
-            print(f"using {'the hand rules' if hand else _models_in_use()}, against your labels")
             for title, part in (("older", older), ("held out", held), ("all", labels)):
                 print(_report(title, evaluate(part)))
-        print(_agreement(claude_agreement(everything)))
 
     @app.cli.command("train")
-    @click.option("--save", is_flag=True, help="Fit on every label and use the models from now on.")
-    @click.option("--only", default="rank,place", help="Which models: rank,place.")
-    @click.option("--holdout", default=None, type=int, help="Days of the newest snapshots to hold out.")
-    def train_command(save, only, holdout):
-        """Fit the models (learn.py) on the labels, holding out the
-        newest snapshots, and compare them with the hand rules there."""
+    @click.option("--save", is_flag=True, help="Fit on everything and use the models from now on.")
+    @click.option("--only", default="rank,place", help="Which models: rank (your labels), place (the ground truth).")
+    @click.option("--groundtruth", default=None, help="The ground truth folder (default: groundtruth.directory()).")
+    def train_command(save, only, groundtruth):
+        """Fit the rank model on your rankings and the place model on the ground
+        truth's events (learn.py), and say how they do on held-out data."""
+        import groundtruth as truth
         import learn
-        from labels import HOLDOUT_DAYS, evaluate, fit_models, split_holdout
+        from labels import HOLDOUT_DAYS, evaluate, place_examples, rank_examples, split_holdout
         from models import Label
-        names = [n.strip() for n in only.split(",") if n.strip() in learn.NAMES]
-        everything = Label.query.all()
-        older, held = split_holdout(everything, HOLDOUT_DAYS if holdout is None else holdout)
-        print(f"training on {len(older)} labels, testing on the {len(held)} of the newest snapshots")
-        fitted = fit_models(older, names, say=print)
-        with learn.using({}):
-            print(_report("hand", evaluate(held)))
-        with learn.using(fitted):
-            print(_report("learned", evaluate(held)))
-        print("(on the held-out snapshots: keep a model only where it does better)")
+        names = [n.strip() for n in only.split(",")]
+        fitted = {}
+        if "rank" in names:
+            labels = Label.query.filter_by(source="you").all()
+            older, held = split_holdout(labels, HOLDOUT_DAYS)
+            model = learn.fit_rank(rank_examples(older))
+            if model is None:
+                print("rank: too few rankings to fit yet")
+            else:
+                with learn.using({}):
+                    print(_report("hand", evaluate(held)))
+                with learn.using({"rank": model}):
+                    print(_report("learned", evaluate(held)))
+                fitted["rank"] = learn.fit_rank(rank_examples(labels))
+        if "place" in names:
+            windows = truth.windows(groundtruth)
+            if len(windows) < 2:
+                print("place: needs two or more ground truth windows")
+            else:
+                model = learn.fit_place(place_examples(windows[:-1]))
+                held = place_examples(windows[-1:])
+                right = sum(int(np.argmax(x @ np.array(model["weights"]))) == t for x, t in held)
+                hand = sum(int(np.argmax(x[:, learn.PLACE_FEATURES.index("share")])) == t for x, t in held)
+                print(f"place on the newest window ({len(held)} events): hand rule {hand / len(held):.0%}, "
+                      f"learned {right / len(held):.0%}")
+                fitted["place"] = learn.fit_place(place_examples(windows))
         for name, model in fitted.items():
             print(f"{name}: {_describe(model)}")
-        if save:
-            for name, model in fit_models(everything, names, say=print).items():
-                print(f"saved {learn.save(name, model)}")
+            if save and model:
+                stamp = datetime.now(UTC).isoformat(timespec="minutes")
+                print(f"saved {learn.save(name, {**model, 'trained': stamp})}")
 
     def _describe(model):
-        if "features" in model and "weights" in model and isinstance(model["weights"], list):
+        if "features" in model and isinstance(model["weights"], list):
             return ", ".join(f"{f} {w:+.2f}" for f, w in zip(model["features"], model["weights"], strict=True))
         return ", ".join(f"{k} {v:g}" for k, v in model["weights"].items())
 
-    @app.cli.command("import-labels")
-    @click.argument("path", type=click.Path(exists=True, dir_okay=False))
-    def import_labels_command(path):
-        """Add Claude's labels from tools/claude_label.py (a .json.gz), with their snapshots."""
-        import gzip
-        import json
-
-        from labels import import_labels
-        opener = gzip.open if path.endswith(".gz") else open
-        with opener(path, "rt", encoding="utf-8") as f:
-            data = json.load(f)
-        written, added = import_labels(data)
-        print(f"{added} labels added ({len(data.get('labels', [])) - added} already here), {written} snapshots written")
-
-    def _agreement(r):
-        pct = lambda x: "—" if x is None else f"{x:.0%}"  # noqa: E731
-        return (f"Claude vs you: {r['pairs']} same-story pairs, agrees {pct(r['agreement'])} "
-                f"(precision {pct(r['precision'])}, recall {pct(r['recall'])}); "
-                f"{r['places']} places, agrees {pct(r['place_agreement'])}")
-
-    def _models_in_use():
-        import learn
-        found = [n for n in learn.NAMES if learn.load(n)]
-        return f"trained models for {', '.join(found)}" if found else "the hand rules (no trained models)"
-
     def _report(title, r):
         pct = lambda x: "—" if x is None else f"{x:.0%}"  # noqa: E731
-        return (f"{title:9} B-cubed over {r['b3_articles']:5} articles  precision {pct(r['b3_precision']):>4}  "
-                f"recall {pct(r['b3_recall']):>4}  F1 {pct(r['b3_f1']):>4}   "
-                f"same-story pairs {r['same_pairs']:5}  precision {pct(r['precision']):>4}  "
-                f"recall {pct(r['recall']):>4}  F1 {pct(r['f1']):>4}   rank pairs {r['rank_pairs']:4}  "
-                f"agreement {pct(r['rank_agreement']):>4}   "
-                f"places {r['placed']:4}  right {pct(r['place_accuracy']):>4}   "
+        return (f"{title:9} rank pairs {r['rank_pairs']:4}  agreement {pct(r['rank_agreement']):>4}   "
                 f"bar {r['bar_stories']:3}  agreement {pct(r['bar_agreement']):>4}")
 
     @app.cli.command("fetch")

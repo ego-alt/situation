@@ -4,7 +4,7 @@ The models, each small enough to read, saved as instance/models/<name>.json:
 
   meaning     off-the-shelf grouping: average linkage on the articles' meaning
               vectors, cut at {"cut": ...} (cluster.by_meaning) instead of the
-              hand rules. Not trained: the cut is chosen with tools/fast_win.py.
+              hand rules. Not trained: the cut is chosen with tools/evaluate_grouping.py.
   rank        which story matters more? The score keeps its shape, (breadth +
               lead + Wikipedia + home region) x freshness, and the weights of
               the parts are fitted to your "which matters more" answers
