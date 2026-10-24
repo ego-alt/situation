@@ -169,12 +169,15 @@ def test_claude_groupings_import_check_and_train(loaded, app, tmp_path):
     # Claude's answer, checked: every article once, places known or "none".
     arts = [items[i] for i in riots]
     assert claude_label.parse({"stories": [{"articles": [1], "place": "fr"}]}, len(arts)) is None   # some left out
-    parsed = claude_label.parse({"stories": [{"articles": list(range(1, len(arts) + 1)), "place": "fr"}]}, len(arts))
-    assert parsed == ([list(range(len(arts)))], ["FR"])
+    everything = list(range(1, len(arts) + 1))
+    parsed = claude_label.parse({"stories": [{"articles": everything, "place": "fr", "also": ["it", "XX"]}]}, len(arts))
+    assert parsed == ([list(range(len(arts)))], ["FR"], [["IT"]])
     assert "[1]" in claude_label.prompt(arts) and "Macron" in claude_label.prompt(arts)
 
     name = "2026-10-18T1200"
-    data = {"snapshots": {name: snap}, "labels": [claude_label.label(name, arts, parsed, "claude-test")]}
+    urls = [a["url"] for a in arts]
+    made = claude_label.label(name, urls, [urls], ["FR"], [["IT"]], "claude-test")
+    data = {"snapshots": {name: snap}, "labels": [made]}
     path = tmp_path / "labels.json"
     path.write_text(json.dumps(data))
     runner = app.test_cli_runner()
@@ -214,3 +217,25 @@ def test_would_you_show_it(loaded, app):
 def test_the_mix_is_mostly_what_only_you_can_answer(loaded, app):
     kinds = [labels.next_question(NOW, random.Random(k))["kind"] for k in range(40)]
     assert kinds.count("rank") + kinds.count("show") > 0.6 * len(kinds) and "story" in kinds
+
+
+def test_the_second_pass_joins_a_situation_across_bundles():
+    """Two bundles' stories and a lone article, joined as one situation: one label
+    spanning them, so the pairs across them are judged; an untouched bundle stays."""
+    import sys
+    sys.path.insert(0, "tools")
+    import claude_label
+    found = [{"urls": ["a1", "a2"], "place": "UA", "also": [], "bundle": "b1"},
+             {"urls": ["a3"], "place": "UA", "also": ["RU"], "bundle": "b1"},
+             {"urls": ["c1", "c2"], "place": "UA", "also": [], "bundle": "b2"},
+             {"urls": ["d1", "d2"], "place": "FR", "also": [], "bundle": "b3"},
+             {"urls": ["e1"], "place": None, "also": [], "bundle": None},
+             {"urls": ["f1"], "place": None, "also": [], "bundle": None}]
+    made = claude_label.merge("2026-10-18T1200", [], found, [[0, 2, 4]], "m")
+    assert len(made) == 2
+    joined = next(lb for lb in made if "c1" in lb["a"]["bundle"])
+    assert sorted(joined["a"]["bundle"]) == ["a1", "a2", "a3", "c1", "c2", "e1"]
+    assert sorted(map(sorted, joined["a"]["groups"])) == [["a1", "a2", "c1", "c2", "e1"], ["a3"]]
+    war = next(n for n, g in enumerate(joined["a"]["groups"]) if "c1" in g)
+    assert joined["b"]["places"][war] == "UA"
+    assert all("f1" not in lb["a"]["bundle"] for lb in made)        # a lone article no one took in: not judged

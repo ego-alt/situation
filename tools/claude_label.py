@@ -44,25 +44,45 @@ BUNDLE = 0.15             # word likeness that puts two articles in one bundle
 MEANING = 0.55            # ...or meaning likeness, with the embedding model
 MAX_BUNDLE = 80           # bigger bundles are cut again, a little stricter (40 split running stories)
 
-RUBRIC = """You label news articles for a personal news filter. Sort the articles you're given into stories: \
-groups a reader would want under one headline.
+RUBRIC = """You label news articles for a personal news filter that shows a handful of stories a day. Sort the \
+articles into stories: what the reader wants under one headline. The reader thinks in situations, not in \
+individual developments.
 
-- A story is one event or one running situation, with its developments and the direct reactions to it: \
-riots, the president's address about them, and the arrests after them are one story.
-- The same kind of event in different places is different stories (riots in France, riots in Italy). But one \
-outbreak, war or disaster that spreads across borders is one story (an Ebola outbreak reaching Kenya and \
-Nigeria). Two events that only share a place or a person are different stories (a fire at an Alberta army \
-base; Alberta's referendum).
-- A round-up or opinion piece goes with the story it is mostly about; if it isn't mostly about one, it stands alone.
+- A story is one situation in the news: an event, or a running situation such as a war, an election campaign, an \
+outbreak, a protest wave in one country, a trial, a diplomatic push. Everything reporting on it is one story: its \
+developments, side events, reactions and consequences, and analysis or explainers about it. The Russia-Ukraine war \
+is one story: peace talks, a prisoner freed during them, a battlefield offensive, the Pope's appeal for a ceasefire, \
+sanctions or gas deals about the war. Brazil's presidential run-off is one story: debates, polls, court rulings on \
+the campaigns, rows over foreign meddling. The Houthi-Saudi war is one story: strikes in Yemen and on Saudi \
+Arabia, and conferences postponed or votes delayed because of them.
+- Except decisive moments, which are their own story: a war or invasion beginning or ending, a ceasefire or peace \
+deal signed; an election or referendum result declared, a verdict in a major trial; a head of state or government \
+killed, ousted, resigning or dying. Everything else, however dramatic, stays with its situation.
+- Different situations are different stories even when they share people or places: a fire at an Alberta army \
+base and Alberta's referendum; Israel's election (a US endorsement of a candidate, a US minister visiting days \
+before the vote) and Russia's diplomacy with Iran. The same kind of event in different countries is different \
+stories (France's riots, Portugal's cost-of-living protests), but one outbreak, war or disaster that spreads \
+across borders is one story.
+- Features about a long-running issue that don't report a current development (daily life under it, photo essays, \
+profiles) stand on their own; analysis and explainers of a current story go with it.
+- Pages that aren't articles (scores and stats pages, topic pages, TV news bulletins) each stand alone.
 - Every article goes in exactly one story. A story can be a single article.
 
-For each story, say where it is happening: the ISO 3166-1 alpha-2 code of the country where the events take \
-place (for one spreading across borders, where it's centred), not of those commenting or acting from afar \
-("Washington warns Iran over strikes in Iraq" happens in Iraq). \
-Hong Kong is HK, Taiwan TW, the Palestinian territories PS, Kosovo XK. A summit or trial happens where it's held. \
-Use "none" when it isn't happening in any one country (world markets, a global study, a worldwide outage).
+For each story, say where it is centred: the ISO 3166-1 alpha-2 code of the country that is the situation's home \
+(a war's main theatre, an election's country, where a summit or trial is held), not of those commenting or acting \
+from afar. Hong Kong is HK, Taiwan TW, the Palestinian territories PS, Kosovo XK. Use "none" when it isn't centred \
+in any one country (world markets, a global study). Under "also", list other countries where significant action in \
+it is happening now (Saudi Arabia, where strikes land, for the Houthi war centred in Yemen); otherwise leave it empty.
 
 Answer only by calling record_stories, once, with every article in it."""
+
+# The second pass: stories split across bundles, mostly running situations
+# whose items share few words (the war's talks, its fighting, an appeal).
+SITUATIONS = """Below are the stories found in a 48-hour window of news, each with a number, where it's centred and up \
+to three of its headlines. They were found in separate batches, so some are parts of the same story under the rules \
+above: most often one running situation (a war, an election campaign) split into several. List each set of story \
+numbers that is one story. Keep decisive moments apart from their situation, and leave out stories that stand \
+alone. Answer only by calling record_situations, once."""
 
 TOOL = {
     "name": "record_stories",
@@ -75,10 +95,24 @@ TOOL = {
                 "articles": {"type": "array", "items": {"type": "integer"},
                              "description": "The numbers of the articles in this story."},
                 "place": {"type": "string", "description": "ISO 3166-1 alpha-2 code, or \"none\"."},
+                "also": {"type": "array", "items": {"type": "string"},
+                         "description": "Other countries where significant action is happening now."},
             },
             "required": ["articles", "place"],
         }}},
         "required": ["stories"],
+    },
+}
+
+
+SITUATIONS_TOOL = {
+    "name": "record_situations",
+    "description": "Record which stories are one story.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"groups": {"type": "array", "items": {"type": "array", "items": {"type": "integer"}},
+                                  "description": "Each a list of two or more story numbers that are one story."}},
+        "required": ["groups"],
     },
 }
 
@@ -169,28 +203,94 @@ def request(articles: list[dict], model: str) -> dict:
             "messages": [{"role": "user", "content": prompt(articles)}]}
 
 
-def parse(answer: dict, count: int) -> tuple[list[list[int]], list[str | None]] | None:
-    """(groups of article indexes, a place for each), or None if the answer doesn't add up."""
-    countries = _table()[0]
-    groups, places, seen = [], [], set()
+def _country(code) -> str | None:
+    code = str(code or "").strip()
+    return "none" if code.lower() == "none" else code.upper() if code.upper() in _table()[0] else None
+
+
+def parse(answer: dict, count: int) -> tuple[list[list[int]], list[str | None], list[list[str]]] | None:
+    """(groups of article indexes, where each is centred, other countries for each),
+    or None if the answer doesn't add up."""
+    groups, places, also, seen = [], [], [], set()
     for story in answer.get("stories", []):
         members = [n - 1 for n in story.get("articles", []) if isinstance(n, int) and 1 <= n <= count]
         if not members or seen & set(members):
             return None
         seen |= set(members)
         groups.append(members)
-        place = str(story.get("place", "")).strip()
-        places.append("none" if place.lower() == "none" else place.upper() if place.upper() in countries else None)
+        places.append(_country(story.get("place")))
+        also.append([c for c in map(_country, story.get("also") or []) if c and c != "none"])
     if len(seen) != count:
         return None                      # an article left out
-    return groups, places
+    return groups, places, also
 
 
-def label(name: str, articles: list[dict], parsed, model: str) -> dict:
-    groups, places = parsed
+def label(name: str, urls: list[str], groups: list[list[str]], places: list, also: list, model: str) -> dict:
     return {"kind": "grouping", "snapshot": name, "source": f"claude:{model}",
-            "a": {"bundle": [a["url"] for a in articles], "groups": [[articles[i]["url"] for i in g] for g in groups]},
-            "b": {"places": places}}
+            "a": {"bundle": urls, "groups": groups}, "b": {"places": places, "also": also}}
+
+
+def situations(client, model: str, stories: list[dict]) -> list[list[int]]:
+    """The second pass over one snapshot: sets of story indexes that are one story."""
+    lines = []
+    for n, st in enumerate(stories, 1):
+        heads = " | ".join(t[:110] for t in st["titles"][:3])
+        lines.append(f"[{n}] {st['place'] or '?'} · {heads}")
+    message = client.messages.create(
+        model=model, max_tokens=8000, system=RUBRIC.replace("Answer only by calling record_stories, once, with every "
+                                                            "article in it.", "").strip(),
+        tools=[SITUATIONS_TOOL], tool_choice={"type": "auto"},
+        messages=[{"role": "user", "content": SITUATIONS + "\n\n" + "\n".join(lines)}])
+    answer = next((b.input for b in message.content if b.type == "tool_use"), {}) or {}
+    out, seen = [], set()
+    for g in answer.get("groups", []):
+        members = sorted({n - 1 for n in g if isinstance(n, int) and 1 <= n <= len(stories)} - seen)
+        if len(members) >= 2:
+            seen |= set(members)
+            out.append(members)
+    return out
+
+
+def merge(name: str, items: list[dict], found: list[dict], links: list[list[int]], model: str) -> list[dict]:
+    """One snapshot's labels once the second pass has joined stories across
+    bundles: bundles a situation spans become one label (so the pairs across
+    them are judged too), the rest stay as they were.
+
+    found: the stories, each {"urls", "place", "also", "bundle": its bundle's index or None (a lone article)}."""
+    owner = list(range(len(found)))              # story → the story it was joined into
+    for g in links:
+        for k in g:
+            owner[k] = g[0]
+    parent: dict = {}
+
+    def find(x):
+        while parent.setdefault(x, x) != x:
+            x = parent[x]
+        return x
+    for g in links:                              # bundles (or lone articles) a situation spans become one
+        keys = [found[k]["bundle"] if found[k]["bundle"] is not None else ("lone", k) for k in g]
+        for key in keys[1:]:
+            parent[find(key)] = find(keys[0])
+    regions: dict = {}
+    for k, st in enumerate(found):
+        key = st["bundle"] if st["bundle"] is not None else ("lone", k)
+        if st["bundle"] is None and find(key) == key:
+            continue                             # a lone article no situation took in: nothing judged
+        regions.setdefault(find(key), []).append(k)
+    labels = []
+    for members in regions.values():
+        stories: dict[int, list[int]] = {}
+        for k in members:
+            stories.setdefault(owner[k], []).append(k)
+        groups, places, also, urls = [], [], [], []
+        for parts in stories.values():
+            parts.sort(key=lambda k: -len(found[k]["urls"]))
+            groups.append([u for k in parts for u in found[k]["urls"]])
+            places.append(next((found[k]["place"] for k in parts if found[k]["place"]), None))
+            also.append(sorted({c for k in parts for c in found[k]["also"]} - {places[-1]}))
+            urls += groups[-1]
+        labels.append(label(name, urls, groups, places, also, model))
+    return labels
 
 
 def answer_of(message) -> dict | None:
@@ -211,6 +311,7 @@ def main():
     p.add_argument("--dry-run", action="store_true", help="count the work and the tokens; ask nothing")
     p.add_argument("--direct", action="store_true", help="one request at a time instead of a batch")
     p.add_argument("--resume", action="store_true", help="collect a batch this script submitted earlier")
+    p.add_argument("--no-situations", action="store_true", help="skip the second pass (joining stories across bundles)")
     args = p.parse_args()
 
     state_path = pathlib.Path(args.out + ".state.json")
@@ -268,22 +369,35 @@ def main():
         for result in client.messages.batches.results(batch_id):
             answers[result.custom_id] = answer_of(result.result.message) if result.result.type == "succeeded" else None
 
-    labels, bad = [], 0
+    # Each snapshot's stories: those Claude found in its bundles, then the lone articles.
+    found: dict[str, list[dict]] = {name: [] for name in snaps}
+    bad = 0
     for key, (name, arts) in jobs.items():
         parsed = parse(answers.get(key) or {}, len(arts))
         if parsed is None:
             bad += 1
             continue
-        labels.append(label(name, arts, parsed, model))
+        for g, place, also in zip(*parsed, strict=True):
+            found[name].append({"urls": [arts[i]["url"] for i in g], "titles": [arts[i]["title"] for i in g],
+                                "place": place, "also": also, "bundle": key})
+    labels = []
+    for name, stories in found.items():
+        if not stories:
+            continue
+        taken = {u for st in stories for u in st["urls"]}
+        stories += [{"urls": [a["url"]], "titles": [a["title"]], "place": None, "also": [], "bundle": None}
+                    for a in articles_of[name].values() if a["url"] not in taken]
+        links = [] if args.no_situations else situations(client, model, stories)
+        print(f"{name}: {len(stories)} stories, {len(links)} sets joined by the second pass")
+        labels += merge(name, list(articles_of[name].values()), stories, links, model)
     used = {lb["snapshot"] for lb in labels}
     with gzip.open(args.out, "wt", encoding="utf-8") as f:
         json.dump({"made": datetime.now(UTC).isoformat(), "model": model, "rubric": RUBRIC,
                    "snapshots": {n: s for n, s in snaps.items() if n in used}, "labels": labels}, f, ensure_ascii=False)
     stories = sum(len(lb["a"]["groups"]) for lb in labels)
-    print(f"wrote {args.out}: {len(labels)} bundles labelled ({stories} stories), {bad} answers that didn't add up")
+    print(f"wrote {args.out}: {len(labels)} labels ({stories} stories), {bad} answers that didn't add up")
     if state_path.exists():
         state_path.unlink()
-
 
 if __name__ == "__main__":
     main()
