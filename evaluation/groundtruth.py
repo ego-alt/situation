@@ -29,8 +29,8 @@ KEEP_WEEKS = 12        # evaluation uses at most the newest this many weeks
 
 
 def directory(path: str | None = None) -> pathlib.Path:
-    here = pathlib.Path(__file__).resolve().parent
-    return pathlib.Path(path or os.environ.get("GROUNDTRUTH_DIR") or here / "instance" / "groundtruth")
+    root = pathlib.Path(__file__).resolve().parent.parent
+    return pathlib.Path(path or os.environ.get("GROUNDTRUTH_DIR") or root / "instance" / "groundtruth")
 
 
 @dataclass

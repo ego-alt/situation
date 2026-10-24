@@ -64,7 +64,7 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
     items = news_only([a.as_item() for a in articles])     # opinion, explainers etc. aren't grouped or shown
     by_id = {a.id: a for a in articles}
     itn = itn if itn is not None else latest_itn()
-    groups = [[items[i] for i in g] for g in cluster(items, itn.get("ongoing"))]
+    groups = [[items[i] for i in g] for g in cluster(items)]
     matched = match_itn(groups, itn.get("items", []))
 
     first_seen = itn_first_seen()

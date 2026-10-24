@@ -136,8 +136,8 @@ def create_app(config=None):
     def train_command(save, only, groundtruth):
         """Fit the rank model on your rankings and the place model on the ground
         truth's events (learn.py), and say how they do on held-out data."""
-        import groundtruth as truth
         import learn
+        from evaluation import groundtruth as truth
         from labels import HOLDOUT_DAYS, evaluate, place_examples, rank_examples, split_holdout
         from models import Label
         names = [n.strip() for n in only.split(",")]
@@ -291,7 +291,7 @@ LATEST = timedelta(hours=6)
 def _develops(title, headline):
     """A title that moves the story on: it shares some of the headline's words (not
     another story chained in) but not most of them (not the headline reworded)."""
-    from cluster import tokens
+    from text import tokens
     a, b = set(tokens(title)), set(tokens(headline))
     return bool(a and b) and 0 < len(a & b) / min(len(a), len(b)) < 0.5
 

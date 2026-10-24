@@ -22,9 +22,9 @@ import re
 from collections import Counter
 from datetime import UTC, datetime
 
-from cluster import cosine, document, tfidf, tokens, where
 from geo import places
 from sources import BY_KEY
+from text import cosine, document, tfidf, tokens, where
 
 HOME_REGIONS = {"HK", "TW", "CN", "GB"}
 

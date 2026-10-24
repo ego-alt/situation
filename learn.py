@@ -31,11 +31,7 @@ from contextlib import contextmanager
 
 import numpy as np
 
-import embed
 from geo import mentions
-
-NAMES = ("meaning", "rank", "place")
-
 
 # Saved models ---------------------------------------------------------------
 
@@ -67,10 +63,7 @@ def load(name: str) -> dict | None:
         return None
     if name not in _cache or _cache[name][0] != mtime:
         _cache[name] = (mtime, json.loads(path.read_text()))
-    model = _cache[name][1]
-    if model.get("embed") and not embed.available():
-        return None                   # trained with meaning likeness, which isn't here
-    return model
+    return _cache[name][1]
 
 
 def save(name: str, model: dict) -> pathlib.Path:
@@ -93,33 +86,6 @@ def using(models: dict | None):
 
 
 # Fitting --------------------------------------------------------------------
-
-def fit_logistic(x: np.ndarray, y: np.ndarray) -> dict:
-    """A logistic regression on standardised features, its L2 penalty (which
-    keeps any weight from running away on few labels) chosen by 5-fold
-    cross-validation on log loss: scikit-learn's LogisticRegressionCV. For
-    training only, on the Mac; applying a model is one dot product
-    (predict_logistic), so the Pi doesn't need scikit-learn."""
-    try:
-        from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-    except ImportError as e:
-        raise RuntimeError("training needs scikit-learn: run it on the Mac (uv sync installs it)") from e
-    mean = x.mean(axis=0)
-    scale = x.std(axis=0)
-    scale[scale == 0] = 1.0
-    z = (x - mean) / scale
-    folds = min(5, int(min((y == 0).sum(), (y == 1).sum())))
-    fitted = (LogisticRegressionCV(Cs=10, cv=folds, scoring="neg_log_loss", max_iter=5000, l1_ratios=(0.0,),
-                                   use_legacy_attributes=False) if folds >= 2
-              else LogisticRegression(max_iter=5000)).fit(z, y)
-    return {"mean": mean.tolist(), "scale": scale.tolist(), "weights": fitted.coef_[0].tolist(),
-            "bias": float(fitted.intercept_[0])}
-
-
-def predict_logistic(model: dict, x: np.ndarray) -> np.ndarray:
-    z = (x - np.array(model["mean"])) / np.array(model["scale"])
-    return 1 / (1 + np.exp(-(z @ np.array(model["weights"]) + model["bias"])))
-
 
 # Rank: which story matters more? ------------------------------------------------
 

@@ -1,5 +1,5 @@
-"""The ground truth for grouping (groundtruth.py), how groupings are scored
-against it (metrics.py), and the tools that build and use it."""
+"""The ground truth for grouping (evaluation/groundtruth.py), how groupings are scored
+against it (evaluation/metrics.py), and the tools that build and use it."""
 import json
 import sqlite3
 import sys
@@ -7,8 +7,7 @@ import sys
 import pytest
 
 import cluster
-import groundtruth
-import metrics
+from evaluation import groundtruth, metrics
 from tests.conftest import NOW, SNAPSHOT, SNAPSHOT_2, snapshot_items
 
 sys.path.insert(0, "tools")

@@ -1,4 +1,4 @@
-"""Compare grouping methods on the event ground truth (groundtruth.py). Run on the Mac.
+"""Compare grouping methods on the event ground truth (evaluation/groundtruth.py). Run on the Mac.
 
     uv run python -I tools/evaluate_grouping.py                      # every method in METHODS
     uv run python -I tools/evaluate_grouping.py --methods rules,meaning --dir path/to/groundtruth
@@ -6,7 +6,7 @@
 Protocol: the newest week is the test; each method's dial (if it has one) is
 tuned on the older weeks, on headline-size B-cubed F1. While there's only one
 week, each window takes a turn as the test. Reported per method, against the
-deployed hand rules: B-cubed (metrics.py) over all articles and over
+deployed hand rules: B-cubed (evaluation/metrics.py) over all articles and over
 headline-size events, and the difference with a 95% bootstrap interval. Then
 the test windows' reviews (groundtruth.describe).
 
@@ -20,8 +20,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import cluster  # noqa: E402
-import groundtruth  # noqa: E402
-import metrics  # noqa: E402
+from evaluation import groundtruth, metrics  # noqa: E402
 
 BASELINE = "rules"
 METHODS = {

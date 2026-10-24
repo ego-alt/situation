@@ -2,7 +2,6 @@
 off-the-shelf grouping, and the map's local times and country cards."""
 import random
 
-import numpy as np
 import pytest
 
 import embed
@@ -10,15 +9,6 @@ import labels
 import learn
 from models import Label
 from tests.conftest import NOW
-
-
-def test_logistic_regression_learns_a_line():
-    rng = np.random.default_rng(0)
-    x = rng.normal(size=(400, 2))
-    y = (x[:, 0] - 0.5 * x[:, 1] > 0).astype(float)
-    model = learn.fit_logistic(x, y)
-    assert ((learn.predict_logistic(model, x) > 0.5) == y).mean() > 0.95
-    assert model["weights"][0] > 0 > model["weights"][1]
 
 
 def test_ranking_weights_come_back_from_answers():

@@ -9,7 +9,7 @@ Every article goes through four decisions, in order. Each has its own ground tru
 | Stage | Question | Objective or taste | Ground truth | Metric | Method today |
 |---|---|---|---|---|---|
 | **1. News** | Is this a report of something happening? | objective | Claude | precision and recall of what's dropped (dropping real news costs more than letting cruft through) | headline rule + `/opinion/` URLs (`score.is_news`) |
-| **2. Event** | Do these articles report one thing that happened? | objective | Claude, weekly (`groundtruth.py`) | B-cubed, over all articles and headline-size events (`metrics.py`) | hand rules (`cluster.by_rules`) |
+| **2. Event** | Do these articles report one thing that happened? | objective | Claude, weekly (`evaluation/groundtruth.py`) | B-cubed, over all articles and headline-size events (`evaluation/metrics.py`) | hand rules (`cluster.by_rules`) |
 | **3. Situation** | Are these events part of one running story? | mixed: wars are objective, how wide is taste | Claude with your rubric, plus your checks | is each headline event under the right situation | Wikipedia's "Ongoing" list, matched by country, display only |
 | **4. Tier** | Flash, priority or below, and in what order? | taste | you, on `/label` (rankings, "would you show it?") | ranking and bar agreement; is the top 10 right | hand-set score and thresholds (`score.assess`) |
 
@@ -29,8 +29,10 @@ Errors flow downstream: a non-news piece that gets through can join an event, a 
 
 ## The apparatus
 
-- **`metrics.py`**: B-cubed, headline-size, F1, bootstrap intervals. Pure functions.
-- **`groundtruth.py`**: the event ground truth, one file per ISO week in `instance/groundtruth/` (not in git, backed up on the Pi). Each file records its rubric and model, its windows (a weekday and a weekend, news only) and Claude's events, plus a review of each window.
+Live code is flat at the top (`fetch`, `pipeline`, `cluster`, `score`, `geo`, `text`, `embed`, `learn`, `labels`, `app`); measuring lives in `evaluation/` and scripts in `tools/`.
+
+- **`evaluation/metrics.py`**: B-cubed, headline-size, F1, bootstrap intervals. Pure functions.
+- **`evaluation/groundtruth.py`**: the event ground truth, one file per ISO week in `instance/groundtruth/` (not in git, backed up on the Pi). Each file records its rubric and model, its windows (a weekday and a weekend, news only) and Claude's events, plus a review of each window.
 - **`tools/label_week.py`**: labels a week from a database copy through the Batch API (about $1–2). The database keeps 30 days, so any recent week can be labelled after the fact.
 - **`tools/evaluate_grouping.py`**: compares event methods against the deployed one on the newest week, with intervals. A new method is one line in its table.
 - **`labels.py` and `/label`**: your rankings and bar answers, and their scoring (`flask evaluate`, `flask train`).

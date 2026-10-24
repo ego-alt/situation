@@ -12,7 +12,7 @@ newest HOLDOUT_DAYS days of labels are held out: tune on the older ones, and
 believe a change only if the held-out numbers agree.
 
 (Which articles are one event isn't a matter of taste: Claude labels it, in
-groundtruth.py.)
+evaluation/groundtruth.py.)
 """
 import gzip
 import json
@@ -99,7 +99,7 @@ def assessed(items: list[dict], itn: dict, now: datetime) -> list[tuple[list[dic
     from pipeline import SHOWN
     from score import assess, match_itn, news_only
     items = news_only(items)                 # as the pipeline groups them
-    groups = [[items[i] for i in g] for g in clustering.cluster(items, itn.get("ongoing"))]
+    groups = [[items[i] for i in g] for g in clustering.cluster(items)]
     matched = match_itn(groups, itn.get("items", []))
     active = len({i["outlet"] for i in items if i["published"] and i["published"] >= now - SHOWN})
     return [(g, assess(g, locate(g), matched.get(k), now, active=active)) for k, g in enumerate(groups)]
@@ -278,7 +278,7 @@ def rank_examples(labels: list[Label]) -> list[tuple[list[float], list[float], b
 
 
 def place_examples(windows) -> list:
-    """The ground truth's events with a place (groundtruth.py) as examples for
+    """The ground truth's events with a place (evaluation/groundtruth.py) as examples for
     learn.fit_place: each event's candidate countries and the one it's in."""
     import learn
     out = []

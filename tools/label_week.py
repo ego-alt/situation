@@ -1,4 +1,4 @@
-"""Label one week of news into events with Claude, for the ground truth (groundtruth.py).
+"""Label one week of news into events with Claude, for the ground truth (evaluation/groundtruth.py).
 
     sqlite3 ~/Projects/situation/instance/situation.db ".backup /tmp/situation.db"   # on the Pi
     scp pi:/tmp/situation.db /tmp/situation.db
@@ -29,9 +29,9 @@ from datetime import UTC, date, datetime, timedelta
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-import cluster  # noqa: E402
 import embed  # noqa: E402
-import groundtruth  # noqa: E402
+import text  # noqa: E402
+from evaluation import groundtruth  # noqa: E402
 from geo import _table  # noqa: E402
 from labels import _name, read_snapshot  # noqa: E402
 from score import news_only  # noqa: E402
@@ -114,7 +114,7 @@ def windows(db_path: str, week: str) -> dict[str, dict]:
 
 def bundles(items: list[dict], threshold: float = BUNDLE) -> list[list[int]]:
     """Indexes of articles loosely alike, so that a story never spans two bundles."""
-    vectors = cluster.tfidf([cluster.document(a) for a in items])
+    vectors = text.tfidf([text.document(a) for a in items])
     meaning = embed.encode([embed.text(a) for a in items]) if embed.available() else None
     parent = list(range(len(items)))
 
@@ -129,7 +129,7 @@ def bundles(items: list[dict], threshold: float = BUNDLE) -> list[list[int]]:
             index.setdefault(t, []).append(i)
     for i, v in enumerate(vectors):
         for j in {j for t in v for j in index[t] if j > i}:
-            if cluster.cosine(v, vectors[j]) >= threshold:
+            if text.cosine(v, vectors[j]) >= threshold:
                 parent[find(i)] = find(j)
     if meaning is not None:
         import numpy as np

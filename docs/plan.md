@@ -56,7 +56,7 @@ Every fetch (every 15 minutes):
 Rules tuned by eye only go so far, so decisions are measured, and where it helps learned, against labels (the four-stage design, its history and next steps: [`phases.md`](phases.md)):
 
 - **`/label`** collects what only you can say: which story matters more, and whether one belongs on the page.
-- **Claude labels events in bulk**, a week at a time (`tools/label_week.py`): which news articles report one thing that happened, and where. That's the ground truth for grouping (`groundtruth.py`), scored per article (B-cubed), on headline-size events, with bootstrap intervals (`metrics.py`, `tools/evaluate_grouping.py`).
+- **Claude labels events in bulk**, a week at a time (`tools/label_week.py`): which news articles report one thing that happened, and where. That's the ground truth for grouping (`evaluation/groundtruth.py`), scored per article (B-cubed), on headline-size events, with bootstrap intervals (`evaluation/metrics.py`, `tools/evaluate_grouping.py`).
 - **Grouping** is the hand rules (`cluster.py`), or an off-the-shelf alternative (average linkage on meaning vectors) when it measures better. Non-news (opinion, explainers, look-backs) is filtered out first.
 - **Ranking and placing** have small learned models (`learn.py`), used once `flask train --save` writes them.
 

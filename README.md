@@ -46,7 +46,7 @@ Tests and lint: `uv run pytest` and `uvx ruff check .` The tests run on real sna
 
 `/label` (linked at the foot of the page) asks what only you can answer: which of two stories matters more, and whether you'd want a story on your page at all.
 
-Which news articles report one event is labelled by Claude, a week at a time, into the ground truth for grouping (`groundtruth.py`, one file per week in `instance/groundtruth/`):
+Which news articles report one event is labelled by Claude, a week at a time, into the ground truth for grouping (`evaluation/groundtruth.py`, one file per week in `instance/groundtruth/`):
 
 ```sh
 uv run --with anthropic python -I tools/label_week.py /tmp/situation.db     # label last week (steps in its docstring)
@@ -55,7 +55,7 @@ uv run flask --app app:create_app evaluate                                   # t
 uv run flask --app app:create_app train --save                               # fit the rank and place models, and use them
 ```
 
-Grouping is scored per article (B-cubed, `metrics.py`), over all articles and over headline-size events, with bootstrap intervals; the newest week is the test. The off-the-shelf grouping is switched on by `instance/models/meaning.json` (`{"cut": 0.5}`) and off by deleting it. What's been tried and what's next: [`docs/phases.md`](docs/phases.md).
+Grouping is scored per article (B-cubed, `evaluation/metrics.py`), over all articles and over headline-size events, with bootstrap intervals; the newest week is the test. The off-the-shelf grouping is switched on by `instance/models/meaning.json` (`{"cut": 0.5}`) and off by deleting it. What's been tried and what's next: [`docs/phases.md`](docs/phases.md).
 
 On the home stack it's added from the dashboard's Deploy tab, which reads `homestack.toml`.
 
