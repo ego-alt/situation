@@ -53,7 +53,7 @@ Every fetch (every 15 minutes):
 
 ## Learning from your labels
 
-Rules tuned by eye only go so far, so decisions are measured, and where it helps learned, against labels (history and lessons: [`phases.md`](phases.md)):
+Rules tuned by eye only go so far, so decisions are measured, and where it helps learned, against labels (the four-stage design, its history and next steps: [`phases.md`](phases.md)):
 
 - **`/label`** collects what only you can say: which story matters more, and whether one belongs on the page.
 - **Claude labels events in bulk**, a week at a time (`tools/label_week.py`): which news articles report one thing that happened, and where. That's the ground truth for grouping (`groundtruth.py`), scored per article (B-cubed), on headline-size events, with bootstrap intervals (`metrics.py`, `tools/evaluate_grouping.py`).
@@ -96,7 +96,7 @@ Data older than 30 days is pruned; story headlines are kept for the weekly view.
    - Still open from the audit: once `day_tallies` holds a week or two, set the Headline bar and the ten-story cap from the real daily counts rather than two days' snapshots.
 3. **Delivery:** morning brief and Major alerts through ntfy, with quiet hours.
 4. **Claude:** neutral headlines, "why it matters", and the significance check.
-5. **Learning:** see [`phases.md`](phases.md) for what's built, what's parked and what's next.
+5. **Learning:** the four-stage pipeline (news, event, situation, tier), what's built and what's next: [`phases.md`](phases.md).
 6. **Later:** a weekly recap, the MCP tool, "mark as seen", per-region bars you can tune, timelines for each ongoing situation.
 
 ## Decisions for you
