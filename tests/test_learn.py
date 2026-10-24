@@ -151,3 +151,66 @@ def test_country_card(loaded, app):
     assert [card[k] for k in ("name", "capital", "leader", "zone")] == ["France", "Paris", "Macron", "Europe/Paris"]
     assert card["stories_30d"] >= 1 and card["last"]["headline"]
     assert client.get("/api/country/XX").status_code == 404
+
+
+def test_claude_groupings_import_check_and_train(loaded, app, tmp_path):
+    import json
+    import sys
+    sys.path.insert(0, "tools")
+    import claude_label
+
+    from tests.conftest import SNAPSHOT
+    snap = json.loads(SNAPSHOT.read_text())
+    snap = {"taken": NOW.isoformat(), "items": snap["items"], "itn": snap["itn"]}
+    items, _, _ = labels.read_snapshot(snap)
+    found = claude_label.bundles(items)
+    assert found and all(2 <= len(b) <= claude_label.MAX_BUNDLE for b in found)
+    riots = next(b for b in found if sum("macron" in items[i]["title"].lower() for i in b) >= 3)
+    # Claude's answer, checked: every article once, places known or "none".
+    arts = [items[i] for i in riots]
+    assert claude_label.parse({"stories": [{"articles": [1], "place": "fr"}]}, len(arts)) is None   # some left out
+    parsed = claude_label.parse({"stories": [{"articles": list(range(1, len(arts) + 1)), "place": "fr"}]}, len(arts))
+    assert parsed == ([list(range(len(arts)))], ["FR"])
+    assert "[1]" in claude_label.prompt(arts) and "Macron" in claude_label.prompt(arts)
+
+    name = "2026-10-18T1200"
+    data = {"snapshots": {name: snap}, "labels": [claude_label.label(name, arts, parsed, "claude-test")]}
+    path = tmp_path / "labels.json"
+    path.write_text(json.dumps(data))
+    runner = app.test_cli_runner()
+    assert "1 labels added" in runner.invoke(args=["import-labels", str(path)]).output
+    assert "0 labels added" in runner.invoke(args=["import-labels", str(path)]).output        # twice: nothing more
+    grouping = Label.query.filter_by(kind="grouping").one()
+    assert grouping.source == "claude:claude-test"
+    assert len(labels.judged_pairs(grouping)) == len(arts) * (len(arts) - 1) // 2
+    assert labels.counts(NOW)["total"] == 0                      # Claude's labels aren't yours
+
+    # A check of Claude's story, answered by you, agrees with it.
+    q = labels.check_question(random.Random(1))
+    assert q["by"] == "claude" and q["snapshot"] == name and q["place"]["guess"] == "FR"
+    labels.record(_story_answer(q))
+    agree = labels.claude_agreement(Label.query.all())
+    assert agree["agreement"] == 1 and agree["place_agreement"] == 1
+    assert labels.check_question(random.Random(1)) is None           # its only story is checked
+
+    out = runner.invoke(args=["train", "--holdout", "0", "--only", "pairs,place"]).output
+    assert "1 of Claude's" in out
+    assert "Claude vs you" in runner.invoke(args=["evaluate"]).output
+
+
+def test_would_you_show_it(loaded, app):
+    client = app.test_client()
+    q = labels.show_question(labels.current_snapshot(NOW), random.Random(4))
+    assert q["kind"] == "show" and q["story"]["headline"]
+    assert client.post("/api/label", json={**q, "answer": "maybe"}).status_code == 400
+    assert client.post("/api/label", json={**q, "answer": "yes"}).status_code == 200
+    r = labels.evaluate(Label.query.all())
+    assert r["bar_stories"] == 1 and r["bar_agreement"] in (0, 1)
+    name = labels.current_snapshot(NOW)
+    asked = {labels.show_question(name, random.Random(k))["story"]["headline"] for k in range(6)}
+    assert q["story"]["headline"] not in asked
+
+
+def test_the_mix_is_mostly_what_only_you_can_answer(loaded, app):
+    kinds = [labels.next_question(NOW, random.Random(k))["kind"] for k in range(40)]
+    assert kinds.count("rank") + kinds.count("show") > 0.6 * len(kinds) and "story" in kinds

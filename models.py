@@ -94,24 +94,28 @@ class Label(db.Model):
     """One of your judgements on /label (see labels.py)."""
     __tablename__ = "labels"
     id = db.Column(db.Integer, primary_key=True)
-    kind = db.Column(db.String, nullable=False, index=True)     # same | rank
+    kind = db.Column(db.String, nullable=False, index=True)     # story | rank | show | grouping | same
     snapshot = db.Column(db.String, nullable=False, index=True) # instance/snapshots/<name>.json.gz
     a = db.Column(db.JSON, nullable=False)                      # same: an article; rank: a story's headline and urls
     b = db.Column(db.JSON, nullable=False)
-    answer = db.Column(db.String, nullable=False)               # same|different|unsure, or a|b|equal
+    answer = db.Column(db.String, nullable=False)               # e.g. checked, a|b|equal, yes|no|borderline
     at = db.Column(db.DateTime, default=utcnow, index=True)
+    source = db.Column(db.String, nullable=False, default="you", index=True)   # you, or claude:<model>
 
 
 def migrate():
     """Add columns that create_all() can't add to an existing table."""
     def columns(table):
         return {row[1] for row in db.session.execute(db.text(f"PRAGMA table_info({table})"))}
-    stories, articles = columns("stories"), columns("articles")
+    stories, articles, labels = columns("stories"), columns("articles"), columns("labels")
     if stories and "closed" not in stories:
         db.session.execute(db.text("ALTER TABLE stories ADD COLUMN closed BOOLEAN NOT NULL DEFAULT 0"))
         db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_closed ON stories (closed)"))
     if articles and "spots" not in articles:
         db.session.execute(db.text("ALTER TABLE articles ADD COLUMN spots JSON"))   # filled in by the next fetch
+    if labels and "source" not in labels:
+        db.session.execute(db.text("ALTER TABLE labels ADD COLUMN source VARCHAR NOT NULL DEFAULT 'you'"))
+        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_labels_source ON labels (source)"))
     if articles and "updated" not in articles:
         db.session.execute(db.text("ALTER TABLE articles ADD COLUMN updated DATETIME"))
     db.session.commit()

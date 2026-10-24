@@ -198,6 +198,7 @@ body {
 .label-intro { color: var(--muted); font: 12px/1.5 var(--mono); margin: 0 0 16px; }
 .label-ask { font: 600 17px/1.3 var(--sans); margin: 0 0 12px; }
 .label-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.label-single { grid-template-columns: 1fr; }
 .label-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
 .label-side { color: var(--phosphor); font: 600 11px var(--mono); letter-spacing: 0.12em; margin-bottom: 6px; }
 .label-meta { color: var(--muted); font: 11px/1.4 var(--mono); margin: 4px 0; }

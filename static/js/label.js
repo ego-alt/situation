@@ -10,6 +10,8 @@
     const NEARBY_KEYS = 'qwert';
 
     const RANK = [['a', 'A matters more', '1'], ['b', 'B matters more', '2'], ['equal', 'About equal', '3']];
+    const SHOW = [['yes', 'Yes, show it', '1'], ['no', 'No', '2'], ['borderline', 'Borderline', '3']];
+    const CHOICES = { rank: RANK, show: SHOW };
     let current = null;
     let busy = false;
     // A story question's answers so far: articles taken out, near misses put in, the place.
@@ -44,7 +46,8 @@
         const chip = (value, text) => `<button type="button" class="label-chip" data-where="${esc(value)}" aria-pressed="${where === value}">${esc(text)}</button>`;
         const elsewhere = where && where !== NOWHERE && !listed.has(where);
         const all = (window.COUNTRIES || []).map(([iso, name]) => `<option value="${esc(iso)}"${where === iso ? ' selected' : ''}>${esc(name)}</option>`).join('');
-        return `${options.map(([iso, name]) => chip(iso, iso === q.place.guess ? `${name} (its pin)` : name)).join('')}
+        const mark = q.by === 'claude' ? 'Claude’s pick' : 'its pin';
+        return `${options.map(([iso, name]) => chip(iso, iso === q.place.guess ? `${name} (${mark})` : name)).join('')}
             ${chip(NOWHERE, 'Nowhere in particular')}
             <label class="label-chip label-select${elsewhere ? ' on' : ''}"><span>${elsewhere ? esc((window.COUNTRIES || []).find(([iso]) => iso === where)?.[1] || where) : 'Somewhere else'}</span>
                 <select id="elsewhere" aria-label="Somewhere else"><option value="">…</option>${all}</select></label>
@@ -56,7 +59,8 @@
         const nearby = q.nearby.map((a, i) => row(a, 'nearby', NEARBY_KEYS[i])).join('');
         $('question').innerHTML = `
             <h2 class="label-ask">${esc(q.headline)}</h2>
-            <p class="label-hint">Would you want these under one headline? Tap any that don’t belong.</p>
+            <p class="label-hint">${q.by === 'claude' ? 'Claude put these under one headline. Would you? Tap any that don’t belong.'
+                : 'Would you want these under one headline? Tap any that don’t belong.'}</p>
             <ul class="label-rows">${members}</ul>
             ${nearby ? `<p class="label-hint">Left out. Tap any that belong under it too.</p><ul class="label-rows">${nearby}</ul>` : ''}
             <p class="label-hint">Where is it happening?</p>
@@ -82,7 +86,7 @@
     // ---------- two stories: which matters more ----------
 
     function story(side, s) {
-        return `<div class="label-card"><div class="label-side">${side}</div>
+        return `<div class="label-card">${side ? `<div class="label-side">${side}</div>` : ''}
             <div class="label-title">${esc(s.headline)}</div>
             <div class="label-meta">${s.outlets.length} outlets: ${esc(s.outlets.join(', '))}</div>
             <ul class="label-titles">${s.titles.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
@@ -96,6 +100,14 @@
                 <button type="button" data-skip><span class="k">S</span> Skip</button></div>`;
     }
 
+    function renderShow(q) {
+        $('question').innerHTML = `<h2 class="label-ask">Would you want this on your page today?</h2>
+            <div class="label-pair label-single">${story('', q.story)}</div>
+            <div class="label-choices">${SHOW.map(([value, text, key]) =>
+                `<button type="button" data-answer="${value}"><span class="k">${key}</span> ${text}</button>`).join('')}
+                <button type="button" data-skip><span class="k">S</span> Skip</button></div>`;
+    }
+
     function render(q) {
         current = q;
         out = new Set();
@@ -105,7 +117,7 @@
             $('question').innerHTML = '<div class="empty">Nothing left to ask about these articles. New ones come with the next snapshot, every 6 hours.</div>';
             return;
         }
-        (q.kind === 'story' ? renderStory : renderRank)(q);
+        ({ story: renderStory, rank: renderRank, show: renderShow })[q.kind](q);
         window.scrollTo({ top: 0 });
     }
 
@@ -163,8 +175,8 @@
         if (!current || e.metaKey || e.ctrlKey || e.altKey || e.target.tagName === 'SELECT') return;
         const key = e.key.toLowerCase();
         if (key === 's') return next();
-        if (current.kind === 'rank') {
-            const hit = RANK.find(([, , k]) => k === key);
+        if (CHOICES[current.kind]) {
+            const hit = CHOICES[current.kind].find(([, , k]) => k === key);
             if (hit) send({ answer: hit[0] });
             return;
         }

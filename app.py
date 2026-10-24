@@ -123,27 +123,35 @@ def create_app(config=None):
             if not hasattr(mod, name):
                 raise click.BadParameter(f"{target} doesn't exist")
             setattr(mod, name, type(getattr(mod, name))(value))
-        labels = Label.query.all()
+        from labels import claude_agreement
+        everything = Label.query.all()
+        labels = [lb for lb in everything if lb.source == "you"]
         older, held = split_holdout(labels, HOLDOUT_DAYS if holdout is None else holdout)
         with learn.using({}) if hand else nullcontext():
-            print(f"using {'the hand rules' if hand else _models_in_use()}")
+            print(f"using {'the hand rules' if hand else _models_in_use()}, against your labels")
             for title, part in (("older", older), ("held out", held), ("all", labels)):
                 print(_report(title, evaluate(part)))
+        print(_agreement(claude_agreement(everything)))
 
     @app.cli.command("train")
     @click.option("--save", is_flag=True, help="Fit on every label and use the models from now on.")
     @click.option("--only", default=",".join(("pairs", "rank", "place")), help="Which models: pairs,rank,place.")
     @click.option("--holdout", default=None, type=int, help="Days of the newest labels to hold out.")
-    def train_command(save, only, holdout):
-        """Fit the models in learn.py on your labels, and compare them with the hand rules."""
+    @click.option("--yours-only", is_flag=True, help="Train on your labels alone, not Claude's.")
+    def train_command(save, only, holdout, yours_only):
+        """Fit the models in learn.py on Claude's labels and your older ones, and
+        compare them with the hand rules on your newest (held out)."""
         import learn
         from labels import HOLDOUT_DAYS, evaluate, split_holdout, training_data
         from models import Label
         names = [n.strip() for n in only.split(",") if n.strip() in learn.NAMES]
-        labels = Label.query.all()
-        older, held = split_holdout(labels, HOLDOUT_DAYS if holdout is None else holdout)
-        data = training_data(older)
-        print(f"examples from the older labels: {len(data['pairs'])} same-story pairs, {len(data['rank'])} rankings, "
+        everything = Label.query.all()
+        yours = [lb for lb in everything if lb.source == "you"]
+        claude = [] if yours_only else [lb for lb in everything if lb.source != "you"]
+        older, held = split_holdout(yours, HOLDOUT_DAYS if holdout is None else holdout)
+        print(f"training on {len(older)} of your labels and {len(claude)} of Claude's; testing on {len(held)} of yours")
+        data = training_data(older + claude)
+        print(f"examples: {len(data['pairs'])} same-story pairs, {len(data['rank'])} rankings, "
               f"{len(data['place'])} places; meaning likeness {'on' if data['meaning'] else 'off (no model here)'}")
         fitted = _fit(data, names)
         with learn.using({}):
@@ -154,7 +162,7 @@ def create_app(config=None):
         for name, model in fitted.items():
             print(f"{name}: {_describe(model)}")
         if save:
-            for name, model in _fit(training_data(labels), names).items():
+            for name, model in _fit(training_data(yours + claude), names).items():
                 print(f"saved {learn.save(name, model)}")
 
     def _fit(data, names):
@@ -175,6 +183,26 @@ def create_app(config=None):
             return ", ".join(f"{f} {w:+.2f}" for f, w in zip(model["features"], model["weights"], strict=True))
         return ", ".join(f"{k} {v:g}" for k, v in model["weights"].items())
 
+    @app.cli.command("import-labels")
+    @click.argument("path", type=click.Path(exists=True, dir_okay=False))
+    def import_labels_command(path):
+        """Add Claude's labels from tools/claude_label.py (a .json.gz), with their snapshots."""
+        import gzip
+        import json
+
+        from labels import import_labels
+        opener = gzip.open if path.endswith(".gz") else open
+        with opener(path, "rt", encoding="utf-8") as f:
+            data = json.load(f)
+        written, added = import_labels(data)
+        print(f"{added} labels added ({len(data.get('labels', [])) - added} already here), {written} snapshots written")
+
+    def _agreement(r):
+        pct = lambda x: "—" if x is None else f"{x:.0%}"  # noqa: E731
+        return (f"Claude vs you: {r['pairs']} same-story pairs, agrees {pct(r['agreement'])} "
+                f"(precision {pct(r['precision'])}, recall {pct(r['recall'])}); "
+                f"{r['places']} places, agrees {pct(r['place_agreement'])}")
+
     def _models_in_use():
         import learn
         found = [n for n in learn.NAMES if learn.load(n)]
@@ -185,7 +213,8 @@ def create_app(config=None):
         return (f"{title:9} same-story pairs {r['same_pairs']:5}  precision {pct(r['precision']):>4}  "
                 f"recall {pct(r['recall']):>4}  F1 {pct(r['f1']):>4}   rank pairs {r['rank_pairs']:4}  "
                 f"agreement {pct(r['rank_agreement']):>4}   "
-                f"places {r['placed']:4}  right {pct(r['place_accuracy']):>4}")
+                f"places {r['placed']:4}  right {pct(r['place_accuracy']):>4}   "
+                f"bar {r['bar_stories']:3}  agreement {pct(r['bar_agreement']):>4}")
 
     @app.cli.command("fetch")
     def fetch_command():

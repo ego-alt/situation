@@ -55,7 +55,8 @@ Every fetch (every 15 minutes):
 
 Hand-set thresholds and keyword lists only go so far, and each tweak is a guess. So `/label` collects judgements in a form a model can learn from, and the decisions become small models trained on them (`learn.py`):
 
-- **Labelling.** Each question is a whole story as the app grouped it: tap the articles that don't belong, tap the near misses that do, and confirm or fix where it's happening. One screen gives a dozen or more "same story?" pairs and a place. Stories are picked where the grouping is least sure (active learning), so each answer teaches the most. One question in four is a ranking.
+- **Who labels what.** Grouping and placing have answers a careful reader would agree on, so Claude labels them in bulk (`tools/claude_label.py`: whole snapshots sorted into stories through the Batch API, with a written rubric); your labelling goes to what only you can say, which stories matter (pairs) and whether one belongs on the page at all (the bar). Your occasional story checks measure Claude, and your labels are the test set for every model.
+- **Story questions.** Each is a whole story as Claude (or the app) grouped it: tap the articles that don't belong, tap the near misses that do, and confirm or fix where it's happening. One screen gives a dozen or more "same story?" pairs and a place. Stories are picked where the grouping is least sure (active learning), so each answer teaches the most. One question in four is a ranking.
 - **Grouping:** a logistic regression on a few signals per pair of articles: word likeness (all words, the headline's, and only the words that say what happened), meaning likeness from a 30 MB static embedding model (`embed.py`, potion-base-8M: a lookup and an average, so cheap on the Pi), same or other country, hours apart, same outlet, wire. Groups then form by average linkage on its probabilities. It replaces the hand-tuned thresholds in `cluster.py` once trained.
 - **Ranking:** Bradley–Terry on the score's parts (breadth, lead, Wikipedia, home region, each times freshness), so their weights come from your "which matters more" answers.
 - **Placing:** a choice among the countries a story names (conditional logit), from how each is named: in headlines or summaries, as a place, an actor ("Washington says") or a leader.
@@ -63,7 +64,7 @@ Hand-set thresholds and keyword lists only go so far, and each tweak is a guess.
 
 These are the right size for a few hundred labels: a handful of readable weights can't memorise your answers. What comes next, as labels grow:
 
-1. **Claude as a labeller** (the way past slow labelling). Give Claude the same story screens with a written rubric, have it label a few thousand, and check its agreement with your own labels on the same questions. If it agrees about as often as you agree with yourself, train on its labels and keep yours as the test set. That's distillation: the Pi never calls Claude to group.
+1. **Claude as a labeller** (built, see above; the way past slow labelling). Give Claude the same story screens with a written rubric, have it label a few thousand, and check its agreement with your own labels on the same questions. If it agrees about as often as you agree with yourself, train on its labels and keep yours as the test set. That's distillation: the Pi never calls Claude to group.
 2. **A non-linear model** on the same features (gradient-boosted trees) once there are a couple of thousand pairs, to learn interactions such as "same country matters only when the event words differ".
 3. **Fine-tuning the embedding** on your pairs: contrastive training of a small sentence model on the Mac (sentence-transformers), then distilled back into a static model like the one shipped. Worth it at several thousand pairs, and the way to bring in Chinese-language sources, using a multilingual base model.
 4. **Retraining on a schedule**, keeping a model only when it wins on the held-out labels.
@@ -104,7 +105,7 @@ Data older than 30 days is pruned; story headlines are kept for the weekly view.
    - Still open from the audit: once `day_tallies` holds a week or two, set the Headline bar and the ten-story cap from the real daily counts rather than two days' snapshots.
 3. **Delivery:** morning brief and Major alerts through ntfy, with quiet hours.
 4. **Claude:** neutral headlines, "why it matters", and the significance check.
-5. **Learning (built):** story labels, trained models for grouping, ranking and placing, `flask train`. Next: Claude as a labeller, then fine-tuning (see above).
+5. **Learning (built):** story labels, trained models for grouping, ranking and placing, `flask train`, Claude labelling grouping and places in bulk. Next: learning the bar from "would you show it?", then fine-tuning (see above).
 6. **Later:** a weekly recap, the MCP tool, "mark as seen", per-region bars you can tune, timelines for each ongoing situation.
 
 ## Decisions for you

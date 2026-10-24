@@ -44,7 +44,9 @@ Tests and lint: `uv run pytest` and `uvx ruff check .` The tests run on real sna
 
 ### Measuring and training it
 
-`/label` (linked at the foot of the page) shows one story at a time as the app grouped it: tap the articles that don't belong, tap the near misses that do, and say where it's happening. One question in four asks which of two stories matters more. Each is asked about a saved snapshot of the articles, so any version of the code can be scored, and the models trained, on exactly what you judged:
+`/label` (linked at the foot of the page) asks mostly what only you can answer: which of two stories matters more, and whether you'd want a story on your page at all. Now and then it shows one of Claude's stories to check: tap the articles that don't belong, the near misses that do, and say where it's happening.
+
+Which articles are one story, and where it happens, Claude labels in bulk with a one-off script, run on the Mac from a copy of the database (`tools/claude_label.py`; its docstring has the steps, and `--dry-run` counts the tokens first). Import the result on the Pi with `docker exec situation flask import-labels instance/labels.json.gz`. The models train on Claude's labels and your older ones, and are tested on your newest; `evaluate` also prints how often Claude agrees with you. Each is asked about a saved snapshot of the articles, so any version of the code can be scored, and the models trained, on exactly what you judged:
 
 ```sh
 uv run flask --app app:create_app evaluate                                  # the code as it is
