@@ -1,6 +1,6 @@
 """Stage 2 of grouping: which stories (stage 1's tight groups) are one situation.
 
-Stage 1 (learn.group, or the hand rules in cluster.py) groups articles that
+Stage 1 (events.py, or the hand rules in cluster.py) groups articles that
 report the same event. A situation is wider: the Russia-Ukraine war takes in
 peace talks, an offensive and the Pope's appeal for a ceasefire, whose
 headlines share few words. One headline against another can't see that; one
@@ -18,10 +18,11 @@ story against another can, from much more evidence:
                     a ceasefire signed, a leader ousted), which stays apart
   time, size        hours between them; how big each is
 
-A logistic regression (learn.fit_logistic) turns those into the chance two
-stories are one situation, trained on Claude's labels (see examples); stories
-then join by average linkage, as articles do in stage 1. It works on a few
-hundred stories, not thousands of articles, so it costs little.
+It's a grouping.Layer like stage 1, over stories instead of articles: a
+logistic regression turns those features into the chance two stories are one
+situation, trained on Claude's labels (Stories.examples), and stories join by
+average linkage. A few hundred stories, not thousands of articles, so it costs
+little.
 """
 import math
 import re
@@ -29,14 +30,13 @@ from collections import Counter
 
 import numpy as np
 
-import learn
+import grouping
 from cluster import cosine, tfidf, tokens, where
 from geo import places
 
 FEATURES = ["meaning", "words", "names_share", "shared_names", "same_country", "country_overlap",
             "same_ongoing", "other_ongoing", "decisive", "hours_apart", "smaller", "larger"]
 NEIGHBOURS = 25        # candidate stories per story: the most alike in meaning or words
-MERGE = 0.5            # average probability at which two stories are one situation
 
 # Headlines that read as a decisive moment: their own story under the rubric.
 DECISIVE = re.compile(
@@ -49,7 +49,7 @@ DECISIVE = re.compile(
 class Story:
     """What stage 2 knows about one stage-1 group."""
 
-    def __init__(self, members: list[int], ctx: "learn.Pairs", topics: list[tuple[set, set, dict]]):
+    def __init__(self, members: list[int], ctx, topics: list[tuple[set, set, dict]]):
         arts = [ctx.articles[i] for i in members]
         self.members = members
         self.size = len(members)
@@ -152,51 +152,58 @@ def candidates(stories: list[Story]) -> set[tuple[int, int]]:
     return out
 
 
-def stories_of(groups: list[list[int]], ctx: "learn.Pairs", ongoing: list[str]) -> list[Story]:
-    topics = topics_of(ongoing)
-    return [Story(g, ctx, topics) for g in groups]
+class Stories(grouping.Layer):
+    """Stage 1's groups as the units of a layer."""
+
+    FEATURES = FEATURES
+
+    def __init__(self, groups: list[list[int]], ctx, ongoing: list[str]):
+        super().__init__(len(groups))
+        topics = topics_of(ongoing)
+        self.ctx = ctx
+        self.stories = [Story(g, ctx, topics) for g in groups]
+        self._candidates = None
+
+    def candidates(self) -> list[tuple[int, int]]:
+        if self._candidates is None:
+            self._candidates = sorted(candidates(self.stories))
+        return self._candidates
+
+    def pair_rows(self, i: np.ndarray, j: np.ndarray) -> np.ndarray:
+        return np.array([features(self.stories[a], self.stories[b])
+                         for a, b in zip(i.tolist(), j.tolist(), strict=True)])
+
+    def ordered(self, group: list[int], near) -> list[int]:
+        """Biggest story first: its most typical article names the situation."""
+        return sorted(group, key=lambda k: -self.stories[k].size)
+
+    def articles(self, groups: list[list[int]]) -> list[list[int]]:
+        """Groups of stories as groups of articles, biggest first."""
+        out = [[i for k in g for i in self.stories[k].members] for g in groups]
+        return sorted(out, key=len, reverse=True)
+
+    def examples(self, judged: dict[frozenset, bool]) -> list[tuple[list[float], bool]]:
+        """Training pairs: candidate pairs of stories with what the labels say
+        about them, the majority of the judged pairs of their articles (pairs of
+        stories with none judged are left out)."""
+        url = [a["url"] for a in self.ctx.articles]
+        pairs, answers = [], []
+        for i, j in self.candidates():
+            votes = [judged[k] for a in self.stories[i].members for b in self.stories[j].members
+                     if (k := frozenset((url[a], url[b]))) in judged]
+            if votes:
+                pairs.append((i, j))
+                answers.append(sum(votes) * 2 > len(votes))
+        return list(zip(self.rows(pairs).tolist(), answers, strict=True))
 
 
-def join(groups: list[list[int]], model: dict, ctx: "learn.Pairs", ongoing: list[str]) -> list[list[int]]:
+def join(groups: list[list[int]], model: dict, ctx, ongoing: list[str]) -> list[list[int]]:
     """Stage 1's groups joined into situations: biggest first, each led by its
-    biggest story's most typical article (it names the situation)."""
-    stories = stories_of(groups, ctx, ongoing)
-    pairs = sorted(candidates(stories))
-    if not pairs:
-        return groups
-    x = np.array([features(stories[i], stories[j]) for i, j in pairs])
-    p = learn.predict_logistic(model, x[:, [FEATURES.index(f) for f in model["features"]]])
-    near: dict[int, dict[int, float]] = {i: {} for i in range(len(stories))}
-    for (i, j), q in zip(pairs, p.tolist(), strict=True):
-        near[i][j] = near[j][i] = q
-    joined = learn._agglomerate(list(range(len(stories))), near, lambda q: q, lambda total, n: total / n, MERGE)
-    out = []
-    for parts in joined:
-        parts.sort(key=lambda k: -stories[k].size)
-        out.append([i for k in parts for i in stories[k].members])
-    return sorted(out, key=len, reverse=True)
-
-
-def examples(groups: list[list[int]], ctx: "learn.Pairs", ongoing: list[str],
-             judged: dict[frozenset, bool]) -> list[tuple[list[float], bool]]:
-    """Training pairs: candidate pairs of stories with what the labels say about
-    them, the majority of the judged pairs of their articles (pairs of stories
-    with none judged are left out)."""
-    stories = stories_of(groups, ctx, ongoing)
-    url = [a["url"] for a in ctx.articles]
-    out = []
-    for i, j in candidates(stories):
-        votes = [judged[k] for a in stories[i].members for b in stories[j].members
-                 if (k := frozenset((url[a], url[b]))) in judged]
-        if votes:
-            out.append((features(stories[i], stories[j]), sum(votes) * 2 > len(votes)))
-    return out
+    biggest story's most typical article."""
+    stories = Stories(groups, ctx, ongoing)
+    return stories.articles(stories.group(model))
 
 
 def fit(examples: list[tuple[list[float], bool]]) -> dict | None:
-    if len({y for _, y in examples}) < 2:
-        return None
     import embed
-    x = np.array([f for f, _ in examples])
-    y = np.array([float(s) for _, s in examples])
-    return {"features": FEATURES, "embed": embed.available(), **learn.fit_logistic(x, y)}
+    return grouping.fit(Stories, examples, embed=embed.available())

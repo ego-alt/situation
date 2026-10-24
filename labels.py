@@ -141,6 +141,7 @@ def _prepared(name: str) -> dict:
     """A snapshot's articles, their vectors, its stories and the pair model's
     view of them (cached: one snapshot at a time)."""
     if name not in _cache:
+        import events
         import learn
         items, itn, taken = load_snapshot(name)
         everything = assessed(items, itn, taken)
@@ -152,7 +153,7 @@ def _prepared(name: str) -> dict:
         _cache[name] = {"items": items, "vectors": clustering.tfidf([clustering.document(a) for a in items]),
                         "groups": groups, "assessments": [a for _, a in everything], "stories": stories[:RANK_POOL],
                         "taken": taken, "model": model,
-                        "pairs": learn.Pairs(items, meaning=bool(model.get("embed"))) if model else None}
+                        "pairs": events.Articles(items, meaning=bool(model.get("embed"))) if model else None}
     return _cache[name]
 
 
@@ -575,6 +576,7 @@ def training_data(labels: list[Label], first: dict | None = None) -> dict:
     place candidates with the one you chose. Stories are grouped by the hand
     rules here, so the examples don't depend on a model already trained."""
     import embed
+    import events
     import learn
     from score import rank_features
     meaning = embed.available()
@@ -583,7 +585,7 @@ def training_data(labels: list[Label], first: dict | None = None) -> dict:
         for items, itn, taken, group_labels in _by_snapshot(labels):
             index = {a["url"]: n for n, a in enumerate(items)}
             kinds = {lb.kind for lb in group_labels}
-            ctx = learn.Pairs(items, meaning=meaning) if kinds & {"same", "story", "grouping"} else None
+            ctx = events.Articles(items, meaning=meaning) if kinds & {"same", "story", "grouping"} else None
             stories = assessed(items, itn, taken) if "rank" in kinds else []
             where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
             for label in group_labels:
@@ -608,6 +610,7 @@ def situation_data(labels: list[Label], pairs_model: dict | None) -> list[tuple[
     1 (this pair model, or the hand rules without one), and every candidate pair
     of its stories with what the labels say about their articles."""
     import embed
+    import events
     import learn
     import situations
     out = []
@@ -616,9 +619,9 @@ def situation_data(labels: list[Label], pairs_model: dict | None) -> list[tuple[
             judged = {frozenset((u, v)): same for lb in group_labels for u, v, same in judged_pairs(lb)}
             if not judged:
                 continue
-            ctx = learn.Pairs(items, meaning=embed.available())
-            groups = learn.group(items, pairs_model, ctx) if pairs_model else clustering.events(items)
-            out += situations.examples(groups, ctx, itn.get("ongoing", []), judged)
+            ctx = events.Articles(items, meaning=embed.available())
+            groups = ctx.group(pairs_model) if pairs_model else clustering.by_rules(items)
+            out += situations.Stories(groups, ctx, itn.get("ongoing", [])).examples(judged)
     return out
 
 
@@ -632,6 +635,7 @@ def fit_models(labels: list[Label], names: list[str], say=lambda *_: None) -> di
     Models with too few labels to fit are left out."""
     from datetime import UTC, datetime
 
+    import events
     import learn
     import situations
     out = {}
@@ -639,9 +643,9 @@ def fit_models(labels: list[Label], names: list[str], say=lambda *_: None) -> di
     if data:
         say(f"examples: {len(data['pairs'])} same-story pairs, {len(data['rank'])} rankings, {len(data['place'])} "
             f"places; meaning likeness {'on' if data['meaning'] else 'off (no model here)'}")
-    if "pairs" in names and (first := learn.fit_pairs(data["pairs"], data["meaning"])):
+    if "pairs" in names and (first := events.fit(data["pairs"], data["meaning"])):
         second = training_data(labels, first=first)
-        out["pairs"] = learn.fit_pairs(second["pairs"], data["meaning"], first=first, clustering="correlation")
+        out["pairs"] = events.fit(second["pairs"], data["meaning"], first=first, clustering="correlation")
     if "situations" in names:
         pairs = out.get("pairs") or learn.load("pairs")
         examples = situation_data(labels, pairs)

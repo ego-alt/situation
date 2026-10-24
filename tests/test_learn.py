@@ -49,7 +49,8 @@ def test_answers_that_agree_score_perfectly_and_train(loaded, app):
     assert found["precision"] == 1 and found["recall"] == 1 and found["place_accuracy"] == 1
     data = labels.training_data(Label.query.all())
     assert data["pairs"] and data["place"]
-    model = learn.fit_pairs(data["pairs"], data["meaning"])
+    import events
+    model = events.fit(data["pairs"], data["meaning"])
     assert model and len(model["weights"]) == len(model["features"])
     assert learn.fit_place(data["place"])
 
@@ -260,14 +261,18 @@ def test_stage_two_joins_one_situations_stories(loaded, app):
     import situations
     from tests.conftest import snapshot_items
     items, _ = snapshot_items()
-    events = cluster.events(items)
-    ctx = learn.Pairs(items, meaning=False)
-    french = lambda groups: [g for g in groups if learn._main(sum((cluster.where(items[i]) for i in g),  # noqa: E731
-                                                                  __import__("collections").Counter())) == "FR"]
+    from collections import Counter
+
+    import events
+    stage1 = cluster.by_rules(items)
+    ctx = events.Articles(items, meaning=False)
+
+    def french(groups):
+        return [g for g in groups if events.main_country(sum((cluster.where(items[i]) for i in g), Counter())) == "FR"]
     model = {"features": situations.FEATURES, "embed": False, "mean": [0.0] * len(situations.FEATURES),
              "scale": [1.0] * len(situations.FEATURES), "bias": -2.0,
              "weights": [0, 2, 1, 0.5, 2, 1, 3, -3, -2, -0.2, 0, 0]}
-    joined = situations.join(events, model, ctx, ["2026 French unrest"])
-    assert len(french(joined)) < len(french(events))
+    joined = situations.join(stage1, model, ctx, ["2026 French unrest"])
+    assert len(french(joined)) < len(french(stage1))
     assert sorted(i for g in joined for i in g) == list(range(len(items)))
     assert all(len(g) >= len(h) for g, h in zip(joined, joined[1:], strict=False))

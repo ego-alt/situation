@@ -180,26 +180,27 @@ def split(members: list[int], vectors: list[dict], named: set[str],
 
 def cluster(articles: list[dict], ongoing: list[str] | None = None) -> list[list[int]]:
     """Indexes of `articles` grouped into stories, biggest first, each group's
-    most typical article first. Two stages, each a model learned from labels
-    when one is saved (learn.py), else as below:
-      1. events: the pair model (learn.group), or these hand rules (events);
-      2. situations: stories that are one situation joined (situations.py,
-         which uses Wikipedia's "Ongoing" items); without a model, none are."""
+    most typical article first. Two layers (grouping.py), each a model learned
+    from labels when one is saved (learn.py), else as below:
+      1. events: events.Articles with the pairs model, or these hand rules (by_rules);
+      2. situations: situations.Stories joins stories that are one situation
+         (it uses Wikipedia's "Ongoing" items); without a model, none are."""
     import embed
     import learn
     pairs, joined = learn.load("pairs"), learn.load("situations")
     if not (pairs or joined):
-        return events(articles)
+        return by_rules(articles)
+    import events
     meaning = embed.available() and bool((pairs or {}).get("embed") or (joined or {}).get("embed"))
-    ctx = learn.Pairs(articles, meaning=meaning)
-    groups = learn.group(articles, pairs, ctx) if pairs else events(articles)
+    layer = events.Articles(articles, meaning=meaning)
+    groups = layer.group(pairs) if pairs else by_rules(articles)
     if joined:
         import situations
-        groups = situations.join(groups, joined, ctx, ongoing or [])
+        groups = situations.join(groups, joined, layer, ongoing or [])
     return groups
 
 
-def events(articles: list[dict]) -> list[list[int]]:
+def by_rules(articles: list[dict]) -> list[list[int]]:
     """The hand rules for stage 1. Two articles from the same outlet are never
     joined directly (an outlet's own follow-ups would otherwise chain unrelated
     stories together); they can still meet through another outlet's article."""
