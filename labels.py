@@ -129,7 +129,7 @@ def assessed(items: list[dict], itn: dict, now: datetime) -> list[tuple[list[dic
     from geo import locate
     from pipeline import SHOWN
     from score import assess, match_itn
-    groups = [[items[i] for i in g] for g in clustering.cluster(items)]
+    groups = [[items[i] for i in g] for g in clustering.cluster(items, itn.get("ongoing"))]
     matched = match_itn(groups, itn.get("items", []))
     active = len({i["outlet"] for i in items if i["published"] and i["published"] >= now - SHOWN})
     return [(g, assess(g, locate(g), matched.get(k), now, active=active)) for k, g in enumerate(groups)]
@@ -424,8 +424,34 @@ def _by_snapshot(labels: list[Label]):
             continue
 
 
+def bcubed(label: Label, where: dict[str, int]) -> tuple[float, float, int]:
+    """B-cubed over one of Claude's groupings: for each article, precision is the
+    share of the articles grouped with it that truly belong with it, recall the
+    share of those truly belonging with it that were grouped with it. Every
+    article counts once, however big its story (pair counts let one 146-article
+    story outweigh a hundred small ones). Only the articles Claude saw side by
+    side (its bundle) count. Returns (sum of precisions, sum of recalls, articles)."""
+    truth = {u: n for n, g in enumerate(label.a["groups"]) for u in g}
+    bundle = [u for u in label.a["bundle"] if u in truth and u in where]
+    found: dict[int, list[str]] = {}
+    for u in bundle:
+        found.setdefault(where[u], []).append(u)
+    sizes = {n: sum(1 for u in bundle if truth[u] == n) for n in set(truth.values())}
+    p = r = 0.0
+    for members in found.values():
+        counts: dict[int, int] = {}
+        for u in members:
+            counts[truth[u]] = counts.get(truth[u], 0) + 1
+        for u in members:
+            both = counts[truth[u]]
+            p += both / len(members)
+            r += both / sizes[truth[u]]
+    return p, r, len(bundle)
+
+
 def evaluate(labels: list[Label]) -> dict:
-    """Grouping: precision and recall on "same story" (unsure left out).
+    """Grouping: B-cubed on Claude's groupings (per article; see bcubed), and
+    precision and recall on every "same story" pair (unsure left out).
     Ranking: how often the higher score is the one you picked ("equal" left out).
     Placing: how often the story you checked is put where you said."""
     from geo import locate
@@ -434,11 +460,14 @@ def evaluate(labels: list[Label]) -> dict:
     rank = {"agree": 0, "disagree": 0}
     place = {"right": 0, "wrong": 0}
     bar = {"agree": 0, "disagree": 0}
+    b3 = [0.0, 0.0, 0]
     for items, itn, taken, group_labels in _by_snapshot(labels):
         stories = assessed(items, itn, taken)
         where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
         by_url = {a["url"]: a for a in items}
         for label in group_labels:
+            if label.kind == "grouping":
+                b3 = [x + y for x, y in zip(b3, bcubed(label, where), strict=True)]
             for u, v, truth in judged_pairs(label):
                 together = where.get(u) is not None and where.get(u) == where.get(v)
                 same[("t" if together == truth else "f") + ("p" if together else "n")] += 1
@@ -464,7 +493,10 @@ def evaluate(labels: list[Label]) -> dict:
     recall = tp / (tp + fn) if tp + fn else None
     f1 = 2 * precision * recall / (precision + recall) if precision and recall else None
     judged, placed, barred = rank["agree"] + rank["disagree"], place["right"] + place["wrong"], sum(bar.values())
-    return {"same_pairs": sum(same.values()), "precision": precision, "recall": recall, "f1": f1,
+    bp, br = (b3[0] / b3[2], b3[1] / b3[2]) if b3[2] else (None, None)
+    return {"b3_articles": b3[2], "b3_precision": bp, "b3_recall": br,
+            "b3_f1": 2 * bp * br / (bp + br) if bp and br else None,
+            "same_pairs": sum(same.values()), "precision": precision, "recall": recall, "f1": f1,
             "rank_pairs": judged, "rank_agreement": rank["agree"] / judged if judged else None,
             "placed": placed, "place_accuracy": place["right"] / placed if placed else None,
             "bar_stories": barred, "bar_agreement": bar["agree"] / barred if barred else None}
@@ -569,6 +601,62 @@ def training_data(labels: list[Label], first: dict | None = None) -> dict:
                         data["rank"].append((rank_features(stories[ga][1]["parts"]),
                                              rank_features(stories[gb][1]["parts"]), label.answer == "a"))
     return data
+
+
+def situation_data(labels: list[Label], pairs_model: dict | None) -> list[tuple[list[float], bool]]:
+    """Training pairs for stage 2 (situations.py): each snapshot grouped by stage
+    1 (this pair model, or the hand rules without one), and every candidate pair
+    of its stories with what the labels say about their articles."""
+    import embed
+    import learn
+    import situations
+    out = []
+    with learn.using({}):
+        for items, itn, _, group_labels in _by_snapshot(labels):
+            judged = {frozenset((u, v)): same for lb in group_labels for u, v, same in judged_pairs(lb)}
+            if not judged:
+                continue
+            ctx = learn.Pairs(items, meaning=embed.available())
+            groups = learn.group(items, pairs_model, ctx) if pairs_model else clustering.events(items)
+            out += situations.examples(groups, ctx, itn.get("ongoing", []), judged)
+    return out
+
+
+def fit_models(labels: list[Label], names: list[str], say=lambda *_: None) -> dict:
+    """The models named (learn.NAMES), fitted on these labels:
+      pairs       stage 1: the pair model, in two passes (the second sees each
+                  pair's neighbourhood), grouping by correlation clustering
+      situations  stage 2 on top of stage 1 (this pairs model, else the saved
+                  one, else the hand rules)
+      rank, place as in learn.py
+    Models with too few labels to fit are left out."""
+    from datetime import UTC, datetime
+
+    import learn
+    import situations
+    out = {}
+    data = training_data(labels) if names else None
+    if data:
+        say(f"examples: {len(data['pairs'])} same-story pairs, {len(data['rank'])} rankings, {len(data['place'])} "
+            f"places; meaning likeness {'on' if data['meaning'] else 'off (no model here)'}")
+    if "pairs" in names and (first := learn.fit_pairs(data["pairs"], data["meaning"])):
+        second = training_data(labels, first=first)
+        out["pairs"] = learn.fit_pairs(second["pairs"], data["meaning"], first=first, clustering="correlation")
+    if "situations" in names:
+        pairs = out.get("pairs") or learn.load("pairs")
+        examples = situation_data(labels, pairs)
+        say(f"stage 2: {len(examples)} pairs of stories ({sum(y for _, y in examples)} one situation)")
+        if (model := situations.fit(examples)):
+            out["situations"] = model
+    if "rank" in names and (model := learn.fit_rank(data["rank"])):
+        out["rank"] = model
+    if "place" in names and (model := learn.fit_place(data["place"])):
+        out["place"] = model
+    for name in names:
+        if name not in out:
+            say(f"{name}: too few labels to fit yet")
+    stamp = datetime.now(UTC).isoformat(timespec="minutes")
+    return {name: {**model, "trained": stamp} for name, model in out.items()}
 
 
 def split_holdout(labels: list[Label], days: int = HOLDOUT_DAYS) -> tuple[list[Label], list[Label]]:

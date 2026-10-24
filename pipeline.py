@@ -63,8 +63,8 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
             a.spots = article_spots(a)
     items = [a.as_item() for a in articles]
     by_id = {a.id: a for a in articles}
-    groups = [[items[i] for i in g] for g in cluster(items)]
     itn = itn if itn is not None else latest_itn()
+    groups = [[items[i] for i in g] for g in cluster(items, itn.get("ongoing"))]
     matched = match_itn(groups, itn.get("items", []))
 
     first_seen = itn_first_seen()

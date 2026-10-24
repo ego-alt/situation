@@ -178,17 +178,31 @@ def split(members: list[int], vectors: list[dict], named: set[str],
     return out
 
 
-def cluster(articles: list[dict]) -> list[list[int]]:
-    """Indexes of `articles`, grouped by event, each group's most typical
-    article first. With a model learned from your labels (learn.py), that
-    model groups them; otherwise these hand rules do. Two articles from the same
-    outlet are never joined directly (an outlet's own follow-ups would
-    otherwise chain unrelated stories together); they can still meet through
-    another outlet's article."""
+def cluster(articles: list[dict], ongoing: list[str] | None = None) -> list[list[int]]:
+    """Indexes of `articles` grouped into stories, biggest first, each group's
+    most typical article first. Two stages, each a model learned from labels
+    when one is saved (learn.py), else as below:
+      1. events: the pair model (learn.group), or these hand rules (events);
+      2. situations: stories that are one situation joined (situations.py,
+         which uses Wikipedia's "Ongoing" items); without a model, none are."""
+    import embed
     import learn
-    model = learn.load("pairs")
-    if model:
-        return learn.group(articles, model)
+    pairs, joined = learn.load("pairs"), learn.load("situations")
+    if not (pairs or joined):
+        return events(articles)
+    meaning = embed.available() and bool((pairs or {}).get("embed") or (joined or {}).get("embed"))
+    ctx = learn.Pairs(articles, meaning=meaning)
+    groups = learn.group(articles, pairs, ctx) if pairs else events(articles)
+    if joined:
+        import situations
+        groups = situations.join(groups, joined, ctx, ongoing or [])
+    return groups
+
+
+def events(articles: list[dict]) -> list[list[int]]:
+    """The hand rules for stage 1. Two articles from the same outlet are never
+    joined directly (an outlet's own follow-ups would otherwise chain unrelated
+    stories together); they can still meet through another outlet's article."""
     vectors = tfidf([document(a) for a in articles])
     parent = list(range(len(articles)))
 

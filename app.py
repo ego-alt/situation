@@ -135,50 +135,34 @@ def create_app(config=None):
 
     @app.cli.command("train")
     @click.option("--save", is_flag=True, help="Fit on every label and use the models from now on.")
-    @click.option("--only", default=",".join(("pairs", "rank", "place")), help="Which models: pairs,rank,place.")
-    @click.option("--holdout", default=None, type=int, help="Days of the newest labels to hold out.")
-    @click.option("--yours-only", is_flag=True, help="Train on your labels alone, not Claude's.")
-    def train_command(save, only, holdout, yours_only):
-        """Fit the models in learn.py on Claude's labels and your older ones, and
-        compare them with the hand rules on your newest (held out)."""
+    @click.option("--only", default="pairs,situations,place", help="Which models: pairs,situations,rank,place.")
+    @click.option("--holdout", default=None, type=int, help="Days of the newest snapshots to hold out.")
+    def train_command(save, only, holdout):
+        """Fit the models (learn.py, situations.py) on the labels, holding out the
+        newest snapshots, and compare them with the hand rules there."""
         import learn
-        from labels import HOLDOUT_DAYS, evaluate, split_holdout, training_data
+        from labels import HOLDOUT_DAYS, evaluate, fit_models, split_holdout
         from models import Label
         names = [n.strip() for n in only.split(",") if n.strip() in learn.NAMES]
         everything = Label.query.all()
-        yours = [lb for lb in everything if lb.source == "you"]
-        claude = [] if yours_only else [lb for lb in everything if lb.source != "you"]
-        older, held = split_holdout(yours, HOLDOUT_DAYS if holdout is None else holdout)
-        print(f"training on {len(older)} of your labels and {len(claude)} of Claude's; testing on {len(held)} of yours")
-        data = training_data(older + claude)
-        print(f"examples: {len(data['pairs'])} same-story pairs, {len(data['rank'])} rankings, "
-              f"{len(data['place'])} places; meaning likeness {'on' if data['meaning'] else 'off (no model here)'}")
-        fitted = _fit(data, names)
+        older, held = split_holdout(everything, HOLDOUT_DAYS if holdout is None else holdout)
+        print(f"training on {len(older)} labels, testing on the {len(held)} of the newest snapshots")
+        fitted = fit_models(older, names, say=print)
         with learn.using({}):
             print(_report("hand", evaluate(held)))
         with learn.using(fitted):
             print(_report("learned", evaluate(held)))
-        print("(on the held-out labels: keep a model only where it does better)")
+        print("(on the held-out snapshots: keep a model only where it does better)")
         for name, model in fitted.items():
             print(f"{name}: {_describe(model)}")
         if save:
-            for name, model in _fit(training_data(yours + claude), names).items():
+            for name, model in fit_models(everything, names, say=print).items():
                 print(f"saved {learn.save(name, model)}")
 
-    def _fit(data, names):
-        import learn
-        fits = {"pairs": lambda: learn.fit_pairs(data["pairs"], data["meaning"]),
-                "rank": lambda: learn.fit_rank(data["rank"]), "place": lambda: learn.fit_place(data["place"])}
-        out = {}
-        for name in names:
-            model = fits[name]()
-            if model is None:
-                print(f"{name}: too few labels to fit yet")
-            else:
-                out[name] = {**model, "trained": datetime.now(UTC).isoformat(timespec="minutes")}
-        return out
-
     def _describe(model):
+        if "first" in model:
+            return f"two passes, {model.get('clustering', 'average')} clustering: " + _describe(
+                {k: v for k, v in model.items() if k != "first"})
         if "features" in model and "weights" in model and isinstance(model["weights"], list):
             return ", ".join(f"{f} {w:+.2f}" for f, w in zip(model["features"], model["weights"], strict=True))
         return ", ".join(f"{k} {v:g}" for k, v in model["weights"].items())
@@ -210,7 +194,9 @@ def create_app(config=None):
 
     def _report(title, r):
         pct = lambda x: "—" if x is None else f"{x:.0%}"  # noqa: E731
-        return (f"{title:9} same-story pairs {r['same_pairs']:5}  precision {pct(r['precision']):>4}  "
+        return (f"{title:9} B-cubed over {r['b3_articles']:5} articles  precision {pct(r['b3_precision']):>4}  "
+                f"recall {pct(r['b3_recall']):>4}  F1 {pct(r['b3_f1']):>4}   "
+                f"same-story pairs {r['same_pairs']:5}  precision {pct(r['precision']):>4}  "
                 f"recall {pct(r['recall']):>4}  F1 {pct(r['f1']):>4}   rank pairs {r['rank_pairs']:4}  "
                 f"agreement {pct(r['rank_agreement']):>4}   "
                 f"places {r['placed']:4}  right {pct(r['place_accuracy']):>4}   "

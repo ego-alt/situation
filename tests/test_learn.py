@@ -196,8 +196,8 @@ def test_claude_groupings_import_check_and_train(loaded, app, tmp_path):
     assert agree["agreement"] == 1 and agree["place_agreement"] == 1
     assert labels.check_question(random.Random(1)) is None           # its only story is checked
 
-    out = runner.invoke(args=["train", "--holdout", "0", "--only", "pairs,place"]).output
-    assert "1 of Claude's" in out
+    out = runner.invoke(args=["train", "--holdout", "0", "--only", "pairs,situations,place"]).output
+    assert "training on 2 labels" in out and "stage 2:" in out and "B-cubed" in out
     assert "Claude vs you" in runner.invoke(args=["evaluate"]).output
 
 
@@ -239,3 +239,35 @@ def test_the_second_pass_joins_a_situation_across_bundles():
     war = next(n for n, g in enumerate(joined["a"]["groups"]) if "c1" in g)
     assert joined["b"]["places"][war] == "UA"
     assert all("f1" not in lb["a"]["bundle"] for lb in made)        # a lone article no one took in: not judged
+
+
+def test_bcubed_counts_every_article_once():
+    """Truth: {a b c d} and {e}. Found: {a b} {c d e}. a, b: precision 1, recall
+    2/4; c, d: precision 2/3, recall 2/4; e: precision 1/3, recall 1."""
+    from types import SimpleNamespace
+    label = SimpleNamespace(a={"bundle": list("abcde"), "groups": [list("abcd"), ["e"]]})
+    p, r, n = labels.bcubed(label, {"a": 0, "b": 0, "c": 1, "d": 1, "e": 1})
+    assert n == 5
+    assert round(p / n, 4) == round((1 + 1 + 2 / 3 + 2 / 3 + 1 / 3) / 5, 4)
+    assert round(r / n, 4) == round((0.5 + 0.5 + 0.5 + 0.5 + 1) / 5, 4)
+
+
+def test_stage_two_joins_one_situations_stories(loaded, app):
+    """A made-up stage-2 model that trusts the same country and the same
+    "Ongoing" item: France's riot stories, split into several events by the
+    hand rules, come together; every article stays in exactly one story."""
+    import cluster
+    import situations
+    from tests.conftest import snapshot_items
+    items, _ = snapshot_items()
+    events = cluster.events(items)
+    ctx = learn.Pairs(items, meaning=False)
+    french = lambda groups: [g for g in groups if learn._main(sum((cluster.where(items[i]) for i in g),  # noqa: E731
+                                                                  __import__("collections").Counter())) == "FR"]
+    model = {"features": situations.FEATURES, "embed": False, "mean": [0.0] * len(situations.FEATURES),
+             "scale": [1.0] * len(situations.FEATURES), "bias": -2.0,
+             "weights": [0, 2, 1, 0.5, 2, 1, 3, -3, -2, -0.2, 0, 0]}
+    joined = situations.join(events, model, ctx, ["2026 French unrest"])
+    assert len(french(joined)) < len(french(events))
+    assert sorted(i for g in joined for i in g) == list(range(len(items)))
+    assert all(len(g) >= len(h) for g, h in zip(joined, joined[1:], strict=False))

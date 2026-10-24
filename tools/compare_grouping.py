@@ -5,12 +5,11 @@
 Puts everything in a scratch database (the copy and the Pi are untouched),
 then for each of Claude's bigger snapshots in turn trains on Claude's other
 snapshots and tests on that one (so no model is scored on articles it learned
-from), and finally trains on all of Claude's and tests on your own labels.
+from).
 
-Variants: the hand rules; the pair model with average linkage; with
-correlation clustering; and each again with the neighbourhood (second pass).
-Prints pair precision, recall and F1 (Claude's or your "same story?" answers),
-and how well the probabilities are calibrated (said 70%, right 70% of the time?).
+Variants: the hand rules; stage 1 (the pair model, two passes, correlation
+clustering); stage 2 (situations) on the hand rules; and both stages. Prints
+B-cubed (per article) and pair precision, recall and F1 against Claude's labels.
 """
 import gzip
 import json
@@ -33,11 +32,10 @@ def main():
     app = create_app({"TESTING": True, "FETCH_LOOP": False, "SQLALCHEMY_DATABASE_URI": f"sqlite:///{scratch / 'x.db'}",
                       "SNAPSHOTS_DIR": str(scratch / "snapshots"), "MODELS_DIR": str(scratch / "models")})
     with app.app_context():
-        import numpy as np
 
         import embed
         import learn
-        from labels import evaluate, import_labels, judged_pairs, training_data
+        from labels import evaluate, import_labels, judged_pairs
         from models import Label, db
         with gzip.open(claude_file, "rt", encoding="utf-8") as f:
             import_labels(json.load(f))
@@ -58,55 +56,39 @@ def main():
               f"{'on' if meaning else 'OFF (set EMBED_MODEL_DIR)'}\n")
 
         def variants(train):
-            data = training_data(train)
-            avg = learn.fit_pairs(data["pairs"], meaning)
-            plain = learn.fit_pairs(data["pairs"], False)
-            second = training_data(train, first=avg)
-            nb = learn.fit_pairs(second["pairs"], meaning, first=avg)
-            return {"hand rules": None,
-                    "pairs, average": avg,
-                    "pairs, average, no meaning": plain,
-                    "pairs, correlation": {**avg, "clustering": "correlation"},
-                    "pairs + neighbours, average": nb,
-                    "pairs + neighbours, correlation": {**nb, "clustering": "correlation"}}
+            import situations
+            from labels import fit_models, situation_data
+            stage1 = fit_models(train, ["pairs"])
+            both = fit_models(train, ["pairs", "situations"])
+            hand_then = situations.fit(situation_data(train, None))
+            return {"hand rules": {},
+                    "stage 1 (pairs, two passes)": {"pairs": stage1["pairs"]},
+                    "hand rules + stage 2": {"situations": hand_then} if hand_then else {},
+                    "stage 1 + stage 2": both}
 
         def scores(models, test):
             out = {}
-            for name, model in models.items():
-                with learn.using({"pairs": model} if model else {}):
+            for name, chosen in models.items():
+                with learn.using(chosen):
                     out[name] = evaluate(test)
             return out
 
-        from learn import _columns, predict_logistic
+        def line(name, r):
+            return (f"    {name:28} B-cubed P {_pct(r['b3_precision'])} R {_pct(r['b3_recall'])} "
+                    f"F1 {_pct(r['b3_f1'])}   pairs P {_pct(r['precision'])} R {_pct(r['recall'])} F1 {_pct(r['f1'])}")
+
         runs: dict[str, list] = {}
-        calibration = []
         for held in folds:
             train = [lb for lb in claude if lb.snapshot != held]
-            models = variants(train)
             print(f"held out {held}:")
-            for name, r in scores(models, by_snap[held]).items():
+            for name, r in scores(variants(train), by_snap[held]).items():
                 runs.setdefault(name, []).append(r)
-                print(f"    {name:34} precision {_pct(r['precision'])}  recall {_pct(r['recall'])}  "
-                      f"F1 {_pct(r['f1'])}  ({r['same_pairs']} pairs)")
-            test = training_data(by_snap[held])["pairs"]
-            model = models["pairs, average"]
-            p = predict_logistic(model, np.array([f for f, _ in test])[:, _columns(model)])
-            calibration += list(zip(p.tolist(), [y for _, y in test], strict=True))
+                print(line(name, r))
         print("\naveraged over the held-out snapshots:")
         for name, rs in runs.items():
-            mean = {k: sum(x[k] or 0 for x in rs) / len(rs) for k in ("precision", "recall", "f1")}
-            print(f"    {name:34} precision {_pct(mean['precision'])}  recall {_pct(mean['recall'])}  "
-                  f"F1 {_pct(mean['f1'])}")
-        print("\ncalibration of the pair model on held-out pairs (said → was):")
-        for lo in np.arange(0, 1, 0.2):
-            hit = [y for q, y in calibration if lo <= q < lo + 0.2]
-            if hit:
-                print(f"    {lo:.1f}–{lo + 0.2:.1f}: {len(hit):5} pairs, {sum(hit) / len(hit):.0%} same story")
-        if yours:
-            print("\ntrained on all of Claude's, tested on your labels (some of their articles are in Claude's too):")
-            for name, r in scores(variants(claude), yours).items():
-                print(f"    {name:34} precision {_pct(r['precision'])}  recall {_pct(r['recall'])}  "
-                      f"F1 {_pct(r['f1'])}  ({r['same_pairs']} pairs)   rank agreement {_pct(r['rank_agreement'])}")
+            mean = {k: sum(x[k] or 0 for x in rs) / len(rs)
+                    for k in ("b3_precision", "b3_recall", "b3_f1", "precision", "recall", "f1")}
+            print(line(name, mean))
 
 
 def _pct(x):

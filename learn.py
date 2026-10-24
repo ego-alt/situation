@@ -40,7 +40,7 @@ import embed
 from cluster import cosine, document, names, tfidf, tokens, where
 from geo import mentions
 
-NAMES = ("pairs", "rank", "place")
+NAMES = ("pairs", "situations", "rank", "place")
 
 
 # Saved models ---------------------------------------------------------------
@@ -164,7 +164,7 @@ class Pairs:
         self.articles = articles
         self.vectors = tfidf([document(a) for a in articles])
         self.headlines = tfidf([tokens(a["title"]) for a in articles])
-        named = names(articles)
+        named = self.named = names(articles)
         self.events = [_unit({t: x for t, x in v.items() if t not in named and not t.isdigit()})
                        for v in self.vectors]
         self.country = [_main(where(a)) for a in articles]
@@ -248,10 +248,10 @@ def _columns(model: dict) -> list[int]:
     return [ALL_FEATURES.index(f) for f in model["features"]]
 
 
-def group(articles: list[dict], model: dict) -> list[list[int]]:
+def group(articles: list[dict], model: dict, ctx: "Pairs | None" = None) -> list[list[int]]:
     """Indexes of `articles` grouped by the pair model, as cluster.cluster returns
     them: biggest first, each group's most typical article first."""
-    ctx = Pairs(articles, meaning=bool(model.get("embed")))
+    ctx = ctx or Pairs(articles, meaning=bool(model.get("embed")))
     p = ctx.probabilities(model, ctx.candidates())
     near: dict[int, dict[int, float]] = {i: {} for i in range(len(articles))}
     parent = list(range(len(articles)))
