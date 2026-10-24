@@ -42,22 +42,27 @@ MODEL = "claude-sonnet-5-5"
 WINDOW = timedelta(hours=48)
 BUNDLE = 0.15             # word likeness that puts two articles in one bundle
 MEANING = 0.55            # ...or meaning likeness, with the embedding model
-MAX_BUNDLE = 40           # bigger bundles are cut again, a little stricter
+MAX_BUNDLE = 80           # bigger bundles are cut again, a little stricter (40 split running stories)
 
 RUBRIC = """You label news articles for a personal news filter. Sort the articles you're given into stories: \
 groups a reader would want under one headline.
 
 - A story is one event or one running situation, with its developments and the direct reactions to it: \
 riots, the president's address about them, and the arrests after them are one story.
-- The same kind of event in different places is different stories (riots in France, riots in Italy). Two events \
-that only share a place or a person are different stories (a fire at an Alberta army base; Alberta's referendum).
+- The same kind of event in different places is different stories (riots in France, riots in Italy). But one \
+outbreak, war or disaster that spreads across borders is one story (an Ebola outbreak reaching Kenya and \
+Nigeria). Two events that only share a place or a person are different stories (a fire at an Alberta army \
+base; Alberta's referendum).
 - A round-up or opinion piece goes with the story it is mostly about; if it isn't mostly about one, it stands alone.
 - Every article goes in exactly one story. A story can be a single article.
 
 For each story, say where it is happening: the ISO 3166-1 alpha-2 code of the country where the events take \
-place, not of those commenting or acting from afar ("Washington warns Iran over strikes in Iraq" happens in Iraq). \
+place (for one spreading across borders, where it's centred), not of those commenting or acting from afar \
+("Washington warns Iran over strikes in Iraq" happens in Iraq). \
 Hong Kong is HK, Taiwan TW, the Palestinian territories PS, Kosovo XK. A summit or trial happens where it's held. \
-Use "none" when it isn't happening in any one country (world markets, a global study, a worldwide outage)."""
+Use "none" when it isn't happening in any one country (world markets, a global study, a worldwide outage).
+
+Answer only by calling record_stories, once, with every article in it."""
 
 TOOL = {
     "name": "record_stories",
@@ -160,7 +165,7 @@ def prompt(articles: list[dict]) -> str:
 
 def request(articles: list[dict], model: str) -> dict:
     return {"model": model, "max_tokens": 2000, "system": RUBRIC, "tools": [TOOL],
-            "tool_choice": {"type": "tool", "name": "record_stories"},
+            "tool_choice": {"type": "auto"},          # newer models don't take a forced tool; the rubric asks for it
             "messages": [{"role": "user", "content": prompt(articles)}]}
 
 
@@ -202,6 +207,7 @@ def main():
     p.add_argument("--model", default=MODEL)
     p.add_argument("--snapshots", type=int, default=None, help="at most this many snapshots, newest first")
     p.add_argument("--limit", type=int, default=None, help="at most this many bundles")
+    p.add_argument("--skip", type=int, default=0, help="leave out the first this many bundles")
     p.add_argument("--dry-run", action="store_true", help="count the work and the tokens; ask nothing")
     p.add_argument("--direct", action="store_true", help="one request at a time instead of a batch")
     p.add_argument("--resume", action="store_true", help="collect a batch this script submitted earlier")
@@ -219,14 +225,16 @@ def main():
             items, _, _ = read_snapshot(snap)
             for k, b in enumerate(bundles(items)):
                 work.append({"id": f"{name}-{k}", "snapshot": name, "urls": [items[i]["url"] for i in b]})
-        work = work[:args.limit] if args.limit else work
+        work = work[args.skip:args.skip + args.limit] if args.limit else work[args.skip:]
     articles_of = {}
     for name, snap in snaps.items():
         items, _, _ = read_snapshot(snap)
         articles_of[name] = {a["url"]: a for a in items}
     jobs = {w["id"]: (w["snapshot"], [articles_of[w["snapshot"]][u] for u in w["urls"]]) for w in work}
 
+    # Measured on a sample: tool use adds a system prompt of its own, about 500 tokens a call.
     tokens_in = sum(len(RUBRIC) + len(json.dumps(TOOL)) + len(prompt(arts)) for _, arts in jobs.values()) / 3.5
+    tokens_in += 500 * len(jobs)
     print(f"{len(snaps)} snapshots, {len(jobs)} bundles, {sum(len(a) for _, a in jobs.values())} articles; "
           f"about {tokens_in / 1e6:.2f}M input tokens and {len(jobs) * 150 / 1e6:.2f}M output, with {model}")
     if args.dry_run:
@@ -236,10 +244,13 @@ def main():
     client = anthropic.Anthropic()
     answers: dict[str, dict | None] = {}
     if args.direct:
+        used_in = used_out = 0
         for n, (key, (_, arts)) in enumerate(jobs.items(), 1):
-            answers[key] = answer_of(client.messages.create(**request(arts, model)))
+            message = client.messages.create(**request(arts, model))
+            answers[key] = answer_of(message)
+            used_in, used_out = used_in + message.usage.input_tokens, used_out + message.usage.output_tokens
             print(f"\r{n}/{len(jobs)}", end="", flush=True)
-        print()
+        print(f"\ntokens used: {used_in} in, {used_out} out")
     else:
         if args.resume:
             batch_id = state["batch"]

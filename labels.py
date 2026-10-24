@@ -472,8 +472,8 @@ def evaluate(labels: list[Label]) -> dict:
 
 def claude_agreement(labels: list[Label]) -> dict:
     """How often Claude's groupings and places agree with yours, on the articles
-    both of you judged (matched by url, whatever the snapshot). Articles in two
-    of Claude's bundles count as two stories."""
+    both of you judged (matched by url, whatever the snapshot). Only pairs Claude
+    saw side by side count: a story can span two of its bundles."""
     group, place = {}, {}
     for label in labels:
         if label.kind == "grouping":
@@ -487,7 +487,7 @@ def claude_agreement(labels: list[Label]) -> dict:
         if label.source != "you":
             continue
         for u, v, truth in judged_pairs(label):
-            if u in group and v in group:
+            if u in group and v in group and group[u][0] == group[v][0]:
                 together = group[u] == group[v]
                 pairs[("t" if together == truth else "f") + ("p" if together else "n")] += 1
         for urls, truth in judged_places(label):
