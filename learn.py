@@ -128,8 +128,21 @@ PAIR_FEATURES = ["likeness", "headline_likeness", "event_likeness", "meaning_lik
 WIRES = {"ap", "reuters"}
 CANDIDATE = 0.05       # word likeness below which a pair isn't scored (they share next to nothing)
 MEANING_CANDIDATE = 0.5
+# Second pass: each pair also sees its neighbourhood, through the first pass's
+# probabilities. Two articles strongly linked to the same crowd are one story
+# however few words they share ("Paris police ban protests", "Macron accuses
+# foreign leaders"): a graph network's main idea, in two cheap passes.
+NEIGHBOUR_FEATURES = ["first_pass", "shared_neighbours", "neighbour_overlap"]
+ALL_FEATURES = PAIR_FEATURES + NEIGHBOUR_FEATURES
+STRONG = 0.5           # a first-pass probability that makes two articles neighbours
 LINK = 0.2             # probability that puts two articles in one bundle to be split
-MERGE = 0.5            # average probability at which two groups are one story
+# How a bundle becomes stories (the model's "clustering"):
+#   average      join two groups while their pairs average at least MERGE
+#   correlation  join two groups while the evidence of all their pairs together
+#                says "same" (log-odds summed): no threshold to set, and a big
+#                story whose parts are each only fairly alike stays whole
+MERGE = 0.5
+UNSCORED = 0.05        # correlation: the chance a pair never scored (no shared words) is one story
 
 
 def _unit(v: dict) -> dict:
@@ -197,12 +210,42 @@ class Pairs:
         pairs = list(pairs)
         if not pairs:
             return {}
+        rows = self.rows(pairs, model.get("first"))
+        return dict(zip(pairs, predict_logistic(model, rows[:, _columns(model)]).tolist(), strict=True))
+
+    def rows(self, pairs: list[tuple[int, int]], first: dict | None = None) -> np.ndarray:
+        """Every feature of each pair (ALL_FEATURES), the neighbourhood ones
+        from the first-pass model when there is one (else zeros)."""
         x = np.array([self.features(i, j) for i, j in pairs])
-        return dict(zip(pairs, predict_logistic(model, x[:, _columns(model)]).tolist(), strict=True))
+        extra = self.neighbourhood(first, pairs) if first else np.zeros((len(pairs), len(NEIGHBOUR_FEATURES)))
+        return np.hstack([x, extra])
+
+    def neighbourhood(self, first: dict, pairs: list[tuple[int, int]]) -> np.ndarray:
+        """For each pair: the first pass's log-odds that it's one story, how many
+        strong neighbours the two share, and what share of their neighbours that is."""
+        key = id(first)
+        if getattr(self, "_first", (None,))[0] != key:
+            p1 = self.probabilities(first, self.candidates())
+            strong: dict[int, set] = {}
+            for (i, j), q in p1.items():
+                if q >= STRONG:
+                    strong.setdefault(i, set()).add(j)
+                    strong.setdefault(j, set()).add(i)
+            self._first = (key, p1, strong)
+        _, p1, strong = self._first
+        missing = [(i, j) for i, j in pairs if (i, j) not in p1]
+        if missing:
+            p1 = {**p1, **self.probabilities(first, missing)}
+        out = []
+        for i, j in pairs:
+            a, b = strong.get(i, set()) - {j}, strong.get(j, set()) - {i}
+            q = min(max(p1[(i, j)], 1e-4), 1 - 1e-4)
+            out.append([math.log(q / (1 - q)), math.log1p(len(a & b)), len(a & b) / len(a | b) if a | b else 0.0])
+        return np.array(out)
 
 
 def _columns(model: dict) -> list[int]:
-    return [PAIR_FEATURES.index(f) for f in model["features"]]
+    return [ALL_FEATURES.index(f) for f in model["features"]]
 
 
 def group(articles: list[dict], model: dict) -> list[list[int]]:
@@ -226,8 +269,9 @@ def group(articles: list[dict], model: dict) -> list[list[int]]:
     for i in range(len(articles)):
         bundles.setdefault(find(i), []).append(i)
     out = []
+    join = _correlation if model.get("clustering") == "correlation" else _average_linkage
     for members in bundles.values():
-        for g in _average_linkage(members, near):
+        for g in join(members, near):
             fit = {i: sum(near[i].get(j, 0.0) for j in g) for i in g}
             out.append(sorted(g, key=lambda i: -fit[i]))
     return sorted(out, key=len, reverse=True)
@@ -235,18 +279,37 @@ def group(articles: list[dict], model: dict) -> list[list[int]]:
 
 def _average_linkage(members: list[int], near: dict[int, dict[int, float]]) -> list[list[int]]:
     """Join the two groups whose articles are most alike on average, while that
-    average is at least MERGE; pairs never scored count as 0. A heap holds the
-    candidate joins; an entry gone stale (a group since grown) is skipped."""
+    average is at least MERGE; pairs never scored count as 0."""
+    return _agglomerate(members, near, lambda q: q, lambda total, n: total / n, MERGE)
+
+
+def _correlation(members: list[int], near: dict[int, dict[int, float]]) -> list[list[int]]:
+    """Join the two groups whose pairs, all together, most favour "one story":
+    each pair adds its log-odds, a pair never scored counts as UNSCORED. Joining
+    stops when no two groups' evidence comes out in favour (a greedy take on
+    correlation clustering)."""
+    prior = math.log(UNSCORED / (1 - UNSCORED))
+
+    def odds(q):
+        q = min(max(q, 1e-4), 1 - 1e-4)
+        return math.log(q / (1 - q)) - prior        # stored relative to an unscored pair
+    return _agglomerate(members, near, odds, lambda total, n: total + n * prior, 1e-9)
+
+
+def _agglomerate(members, near, weight, value, threshold) -> list[list[int]]:
+    """Merge groups best-first while value(total weight between them, number of
+    pairs between them) >= threshold. A heap holds the candidate joins; an entry
+    gone stale (a group since grown) is skipped."""
     parts = {i: [i] for i in members}
-    link = {i: {j: q for j, q in near[i].items() if j in parts} for i in members}
-    size = lambda g: len(parts[g])  # noqa: E731
-    heap = [(-q, a, c) for a in members for c, q in link[a].items() if a < c and q >= MERGE]
+    link = {i: {j: weight(q) for j, q in near[i].items() if j in parts} for i in members}
+    pairs_between = lambda a, c: len(parts[a]) * len(parts[c])  # noqa: E731
+    heap = [(-value(t, 1), a, c) for a in members for c, t in link[a].items() if a < c and value(t, 1) >= threshold]
     heapq.heapify(heap)
     while heap:
         neg, a, c = heapq.heappop(heap)
         if a not in parts or c not in parts or c not in link[a]:
             continue
-        if abs(-neg - link[a][c] / (size(a) * size(c))) > 1e-12:
+        if abs(-neg - value(link[a][c], pairs_between(a, c))) > 1e-9:
             continue                                     # stale: the groups changed since
         parts[a] += parts.pop(c)
         for d, total in link.pop(c).items():
@@ -256,20 +319,25 @@ def _average_linkage(members: list[int], near: dict[int, dict[int, float]]) -> l
             link[a][d] = link[d][a] = link[a].get(d, 0.0) + total
         link[a].pop(c, None)
         for d, total in link[a].items():
-            avg = total / (size(a) * size(d))
-            if avg >= MERGE:
-                heapq.heappush(heap, (-avg, min(a, d), max(a, d)))
+            v = value(total, pairs_between(a, d))
+            if v >= threshold:
+                heapq.heappush(heap, (-v, min(a, d), max(a, d)))
     return list(parts.values())
 
 
-def fit_pairs(examples: list[tuple[list[float], bool]], meaning: bool) -> dict | None:
+def fit_pairs(examples: list[tuple[list[float], bool]], meaning: bool, first: dict | None = None,
+              clustering: str = "average") -> dict | None:
+    """examples: (ALL_FEATURES of a pair, same story). With `first`, a second-pass
+    model that also uses the neighbourhood (the examples must carry it)."""
     if len({y for _, y in examples}) < 2:
         return None
     features = [f for f in PAIR_FEATURES if meaning or f != "meaning_likeness"]
-    cols = [PAIR_FEATURES.index(f) for f in features]
+    features += NEIGHBOUR_FEATURES if first else []
+    cols = [ALL_FEATURES.index(f) for f in features]
     x = np.array([f for f, _ in examples])[:, cols]
     y = np.array([float(s) for _, s in examples])
-    return {"features": features, "embed": meaning, **fit_logistic(x, y)}
+    return {"features": features, "embed": meaning, "clustering": clustering,
+            **({"first": first} if first else {}), **fit_logistic(x, y)}
 
 
 # Rank: which story matters more? ------------------------------------------------

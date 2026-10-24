@@ -537,7 +537,7 @@ def import_labels(data: dict) -> tuple[int, int]:
     return written, added
 
 
-def training_data(labels: list[Label]) -> dict:
+def training_data(labels: list[Label], first: dict | None = None) -> dict:
     """The labels as examples for learn.py: pair features with same-or-not,
     the score's parts for both sides of a ranking, and each checked story's
     place candidates with the one you chose. Stories are grouped by the hand
@@ -555,9 +555,10 @@ def training_data(labels: list[Label]) -> dict:
             stories = assessed(items, itn, taken) if "rank" in kinds else []
             where = {a["url"]: n for n, (g, _) in enumerate(stories) for a in g}
             for label in group_labels:
-                for u, v, same in judged_pairs(label):
-                    if u in index and v in index:
-                        data["pairs"].append((ctx.features(index[u], index[v]), same))
+                judged = [(index[u], index[v], same) for u, v, same in judged_pairs(label) if u in index and v in index]
+                if judged:
+                    rows = ctx.rows([(min(i, j), max(i, j)) for i, j, _ in judged], first)
+                    data["pairs"] += [(row.tolist(), same) for row, (_, _, same) in zip(rows, judged, strict=True)]
                 for urls, truth in judged_places(label):
                     isos, x = learn.place_candidates([items[index[u]] for u in urls if u in index])
                     if truth in isos:
