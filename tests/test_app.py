@@ -273,7 +273,7 @@ def test_labelling_questions_answers_and_evaluation(loaded, app):
     import random
 
     import labels
-    from models import Label
+    from models import Label, db
     client = app.test_client()
     body = client.get("/api/label").get_json()
     q = body["question"]
@@ -294,8 +294,8 @@ def test_labelling_questions_answers_and_evaluation(loaded, app):
     for _ in range(5):
         a, b = rng.sample(big, 2)
         a, b, c = labels._article(a), labels._article(b), labels._article(rng.choice(other))
-        labels.record({"kind": "same", "snapshot": name, "answer": "same", "a": a, "b": b})
-        labels.record({"kind": "same", "snapshot": name, "answer": "different", "a": a, "b": c})
+        db.session.add(Label(kind="same", snapshot=name, answer="same", a=a, b=b))      # the old pair question
+        db.session.add(Label(kind="same", snapshot=name, answer="different", a=a, b=c))
     hi, lo = stories[0], stories[5]
     labels.record({"kind": "rank", "snapshot": name, "answer": "a",
                    "a": {"headline": hi[1]["headline"], "urls": [x["url"] for x in hi[0]]},

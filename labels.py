@@ -51,7 +51,6 @@ import cluster as clustering
 from models import Article, Label, db, utcnow
 from sources import BY_KEY
 
-SAME_ANSWERS = {"same", "different", "unsure"}
 RANK_ANSWERS = {"a", "b", "equal"}
 STORY_ANSWERS = {"checked"}
 SHOW_ANSWERS = {"yes", "no", "borderline"}
@@ -174,13 +173,6 @@ def _story(group: dict, assessment: dict) -> dict:
             "titles": [a["title"] for a in newest[:4]]}
 
 
-def _asked(kind: str) -> set[frozenset]:
-    rows = Label.query.filter_by(kind=kind).all()
-    if kind == "same":
-        return {frozenset((r.a["url"], r.b["url"])) for r in rows}
-    return {frozenset((r.a["headline"], r.b["headline"])) for r in rows}
-
-
 def _fits(p: dict, members: list[int]) -> tuple[dict[int, float], dict[int, float]]:
     """How well each member fits its story, and how like it the closest
     non-members are: the pair model's average probability when there is one,
@@ -250,7 +242,7 @@ def story_question(name: str, rng: random.Random) -> dict | None:
 
 def rank_question(name: str, rng: random.Random) -> dict | None:
     stories = _prepared(name)["stories"]
-    asked = _asked("rank")
+    asked = {frozenset((r.a["headline"], r.b["headline"])) for r in Label.query.filter_by(kind="rank")}
     pairs = [(s, t) for n, s in enumerate(stories) for t in stories[n + 1:]
              if s[1]["score"] <= RANK_RATIO * t[1]["score"]
              and frozenset((s[1]["headline"], t[1]["headline"])) not in asked]
@@ -328,7 +320,7 @@ def next_question(now: datetime, rng: random.Random | None = None) -> dict | Non
 def record(answer: dict) -> Label:
     """Store an answer to a question from next_question (as the page sends it back)."""
     kind, value = answer.get("kind"), answer.get("answer")
-    answers = {"same": SAME_ANSWERS, "rank": RANK_ANSWERS, "story": STORY_ANSWERS, "show": SHOW_ANSWERS}
+    answers = {"rank": RANK_ANSWERS, "story": STORY_ANSWERS, "show": SHOW_ANSWERS}
     if value not in answers.get(kind, ()):
         raise ValueError("unknown question or answer")
     load_snapshot(answer.get("snapshot"))      # it must be one of ours
@@ -340,8 +332,7 @@ def record(answer: dict) -> Label:
             raise ValueError("incomplete question")
         a, b = {k: story[k] for k in ("headline", "urls", "outlets") if k in story}, {}
     else:
-        need, keep = ((("url", "title", "outlet"), ("url", "title", "outlet", "published")) if kind == "same"
-                      else (("headline", "urls"), ("headline", "urls", "outlets")))
+        need, keep = ("headline", "urls"), ("headline", "urls", "outlets")
         a, b = answer.get("a"), answer.get("b")
         if not all(isinstance(x, dict) and all(k in x for k in need) for x in (a, b)):
             raise ValueError("incomplete question")
