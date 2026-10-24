@@ -236,12 +236,17 @@ def situations(client, model: str, stories: list[dict]) -> list[list[int]]:
     for n, st in enumerate(stories, 1):
         heads = " | ".join(t[:110] for t in st["titles"][:3])
         lines.append(f"[{n}] {st['place'] or '?'} · {heads}")
-    message = client.messages.create(
-        model=model, max_tokens=8000, system=RUBRIC.replace("Answer only by calling record_stories, once, with every "
-                                                            "article in it.", "").strip(),
+    # A big window's answer is long (8,000 tokens ran out at 1,100 stories): stream it.
+    with client.messages.stream(
+        model=model, max_tokens=32000, system=RUBRIC.replace("Answer only by calling record_stories, once, with every "
+                                                             "article in it.", "").strip(),
         tools=[SITUATIONS_TOOL], tool_choice={"type": "auto"},
-        messages=[{"role": "user", "content": SITUATIONS + "\n\n" + "\n".join(lines)}])
-    answer = next((b.input for b in message.content if b.type == "tool_use"), {}) or {}
+        messages=[{"role": "user", "content": SITUATIONS + "\n\n" + "\n".join(lines)}]) as stream:
+        message = stream.get_final_message()
+    answer = next((b.input for b in message.content if b.type == "tool_use"), None)
+    if answer is None:
+        raise RuntimeError(f"the second pass gave no answer (stopped: {message.stop_reason}); "
+                           f"{message.usage.input_tokens} tokens in, {message.usage.output_tokens} out")
     out, seen = [], set()
     for g in answer.get("groups", []):
         members = sorted({n - 1 for n in g if isinstance(n, int) and 1 <= n <= len(stories)} - seen)
