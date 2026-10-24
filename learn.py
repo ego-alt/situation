@@ -35,9 +35,10 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 
 import numpy as np
+from scipy import sparse
 
 import embed
-from cluster import cosine, document, names, tfidf, tokens, where
+from cluster import document, names, tfidf, tokens, where
 from geo import mentions
 
 NAMES = ("pairs", "situations", "rank", "place")
@@ -158,7 +159,10 @@ def _main(found: Counter) -> str | None:
 
 
 class Pairs:
-    """Everything the pair features need about a list of articles, worked out once."""
+    """Everything the pair features need about a list of articles, worked out
+    once, as matrices: each article's words a row of a sparse matrix (mostly
+    zeros), so one matrix product gives every pair's likeness at once, and the
+    features of many pairs are computed as whole columns, not pair by pair."""
 
     def __init__(self, articles: list[dict], meaning: bool | None = None):
         self.articles = articles
@@ -169,42 +173,33 @@ class Pairs:
                        for v in self.vectors]
         self.country = [_main(where(a)) for a in articles]
         self.outlet = [a.get("outlet") or a["source"] for a in articles]
-        self.wire = [a["source"] in WIRES for a in articles]
         self.time = [(a.get("published") or datetime.now(UTC)).timestamp() for a in articles]
         use = embed.available() if meaning is None else meaning
         self.meaning = embed.encode([embed.text(a) for a in articles]) if use else None
+        # As arrays, for whole-column features.
+        codes = {c: n for n, c in enumerate({c for c in self.country if c})}
+        self._country = np.array([codes.get(c, -1) for c in self.country])
+        outlets = {o: n for n, o in enumerate(set(self.outlet))}
+        self._outlet = np.array([outlets[o] for o in self.outlet])
+        self._wire = np.array([a["source"] in WIRES for a in articles])
+        self._time = np.array(self.time)
+        self._likeness = {name: _similarities(rows) for name, rows in
+                          (("words", self.vectors), ("headlines", self.headlines), ("events", self.events))}
+        self._candidates = None
+        self._first = None
 
-    def features(self, i: int, j: int) -> list[float]:
-        ci, cj = self.country[i], self.country[j]
-        hours = abs(self.time[i] - self.time[j]) / 3600
-        return [
-            cosine(self.vectors[i], self.vectors[j]),
-            cosine(self.headlines[i], self.headlines[j]),
-            cosine(self.events[i], self.events[j]),
-            float(self.meaning[i] @ self.meaning[j]) if self.meaning is not None else 0.0,
-            float(bool(ci and ci == cj)),
-            float(bool(ci and cj and ci != cj)),
-            math.log1p(hours),
-            float(self.outlet[i] == self.outlet[j]),
-            float(self.wire[i] or self.wire[j]),
-        ]
-
-    def candidates(self) -> set[tuple[int, int]]:
-        """Pairs worth scoring: they share words, or mean much the same."""
-        index: dict[str, list[int]] = {}
-        for i, v in enumerate(self.vectors):
-            for t in v:
-                index.setdefault(t, []).append(i)
-        out = set()
-        for i, v in enumerate(self.vectors):
-            for j in {j for t in v for j in index[t] if j > i}:
-                if cosine(v, self.vectors[j]) >= CANDIDATE:
-                    out.add((i, j))
-        if self.meaning is not None and len(self.articles) > 1:
-            sims = self.meaning @ self.meaning.T
-            for i, j in zip(*np.nonzero(np.triu(sims, 1) >= MEANING_CANDIDATE), strict=True):
-                out.add((int(i), int(j)))
-        return out
+    def candidates(self) -> list[tuple[int, int]]:
+        """Pairs worth scoring (i < j): they share words (likeness at least
+        CANDIDATE), or mean much the same (MEANING_CANDIDATE)."""
+        if self._candidates is None:
+            words = sparse.triu(self._likeness["words"], k=1).tocoo()
+            keep = words.data >= CANDIDATE
+            found = set(zip(words.row[keep].tolist(), words.col[keep].tolist(), strict=True))
+            if self.meaning is not None and len(self.articles) > 1:
+                i, j = np.nonzero(np.triu(self.meaning @ self.meaning.T, 1) >= MEANING_CANDIDATE)
+                found |= set(zip(i.tolist(), j.tolist(), strict=True))
+            self._candidates = sorted(found)
+        return self._candidates
 
     def probabilities(self, model: dict, pairs) -> dict[tuple[int, int], float]:
         pairs = list(pairs)
@@ -214,34 +209,72 @@ class Pairs:
         return dict(zip(pairs, predict_logistic(model, rows[:, _columns(model)]).tolist(), strict=True))
 
     def rows(self, pairs: list[tuple[int, int]], first: dict | None = None) -> np.ndarray:
-        """Every feature of each pair (ALL_FEATURES), the neighbourhood ones
-        from the first-pass model when there is one (else zeros)."""
-        x = np.array([self.features(i, j) for i, j in pairs])
-        extra = self.neighbourhood(first, pairs) if first else np.zeros((len(pairs), len(NEIGHBOUR_FEATURES)))
-        return np.hstack([x, extra])
+        """Every feature (ALL_FEATURES) of each pair, as one row; the neighbourhood
+        ones from the first-pass model when there is one (else zeros)."""
+        i, j = (np.array(x, dtype=int) for x in zip(*pairs, strict=True)) if pairs else (np.array([], int),) * 2
+        ci, cj = self._country[i], self._country[j]
+        columns = [
+            _pick(self._likeness["words"], i, j),
+            _pick(self._likeness["headlines"], i, j),
+            _pick(self._likeness["events"], i, j),
+            np.einsum("ij,ij->i", self.meaning[i], self.meaning[j]) if self.meaning is not None else np.zeros(len(i)),
+            ((ci >= 0) & (ci == cj)).astype(float),
+            ((ci >= 0) & (cj >= 0) & (ci != cj)).astype(float),
+            np.log1p(np.abs(self._time[i] - self._time[j]) / 3600),
+            (self._outlet[i] == self._outlet[j]).astype(float),
+            (self._wire[i] | self._wire[j]).astype(float),
+        ]
+        extra = self.neighbourhood(first, i, j) if first else np.zeros((len(i), len(NEIGHBOUR_FEATURES)))
+        return np.hstack([np.column_stack(columns), extra])
 
-    def neighbourhood(self, first: dict, pairs: list[tuple[int, int]]) -> np.ndarray:
+    def neighbourhood(self, first: dict, i: np.ndarray, j: np.ndarray) -> np.ndarray:
         """For each pair: the first pass's log-odds that it's one story, how many
-        strong neighbours the two share, and what share of their neighbours that is."""
-        key = id(first)
-        if getattr(self, "_first", (None,))[0] != key:
-            p1 = self.probabilities(first, self.candidates())
-            strong: dict[int, set] = {}
-            for (i, j), q in p1.items():
-                if q >= STRONG:
-                    strong.setdefault(i, set()).add(j)
-                    strong.setdefault(j, set()).add(i)
-            self._first = (key, p1, strong)
-        _, p1, strong = self._first
-        missing = [(i, j) for i, j in pairs if (i, j) not in p1]
+        strong neighbours the two share, and what share of their neighbours that
+        is. Strong links make a matrix A; the neighbours i and j share are
+        entry (i, j) of A x A."""
+        if self._first is None or self._first[0] is not first:
+            pairs = self.candidates()
+            p1 = self.probabilities(first, pairs)
+            n = len(self.articles)
+            strong = [(a, b) for (a, b), q in p1.items() if q >= STRONG]
+            rows = [a for a, b in strong] + [b for a, b in strong]
+            cols = [b for a, b in strong] + [a for a, b in strong]
+            adjacency = sparse.csr_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
+            self._first = (first, p1, adjacency, (adjacency @ adjacency).tocsr(),
+                           np.asarray(adjacency.sum(axis=1)).ravel())
+        _, p1, adjacency, shared_all, degree = self._first
+        known = [p1.get((a, b)) for a, b in zip(i.tolist(), j.tolist(), strict=True)]
+        pairs = list(zip(i.tolist(), j.tolist(), strict=True))
+        missing = [pair for pair, q in zip(pairs, known, strict=True) if q is None]
         if missing:
-            p1 = {**p1, **self.probabilities(first, missing)}
-        out = []
-        for i, j in pairs:
-            a, b = strong.get(i, set()) - {j}, strong.get(j, set()) - {i}
-            q = min(max(p1[(i, j)], 1e-4), 1 - 1e-4)
-            out.append([math.log(q / (1 - q)), math.log1p(len(a & b)), len(a & b) / len(a | b) if a | b else 0.0])
-        return np.array(out)
+            extra = self.probabilities(first, missing)
+            known = [q if q is not None else extra[pair] for pair, q in zip(pairs, known, strict=True)]
+        q = np.clip(np.array(known, dtype=float), 1e-4, 1 - 1e-4)
+        linked = _pick(adjacency, i, j)
+        shared = _pick(shared_all, i, j)
+        union = degree[i] + degree[j] - 2 * linked - shared
+        return np.column_stack([np.log(q / (1 - q)), np.log1p(shared),
+                                np.divide(shared, union, out=np.zeros_like(shared), where=union > 0)])
+
+
+def _similarities(rows: list[dict]):
+    """Every pair's cosine likeness, from unit-length sparse rows: one product."""
+    vocab: dict[str, int] = {}
+    data, col, ptr = [], [], [0]
+    for v in rows:
+        for t, x in v.items():
+            col.append(vocab.setdefault(t, len(vocab)))
+            data.append(x)
+        ptr.append(len(col))
+    m = sparse.csr_matrix((data, col, ptr), shape=(len(rows), max(len(vocab), 1)))
+    return (m @ m.T).tocsr()
+
+
+def _pick(matrix, i: np.ndarray, j: np.ndarray) -> np.ndarray:
+    """matrix[i[k], j[k]] for every k, as a flat array."""
+    if len(i) == 0:
+        return np.zeros(0)
+    return np.asarray(matrix[i, j]).ravel().astype(float)
 
 
 def _columns(model: dict) -> list[int]:
