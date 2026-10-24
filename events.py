@@ -44,7 +44,8 @@ class Articles(grouping.Layer):
         named = self.named = names(articles)
         self.events = [_unit({t: x for t, x in v.items() if t not in named and not t.isdigit()})
                        for v in self.vectors]
-        self.country = [main_country(where(a)) for a in articles]
+        self.where = [where(a) for a in articles]          # countries named (stage 2 reuses them)
+        self.country = [main_country(w) for w in self.where]
         self.outlet = [a.get("outlet") or a["source"] for a in articles]
         self.time = [(a.get("published") or datetime.now(UTC)).timestamp() for a in articles]
         use = embed.available() if meaning is None else meaning

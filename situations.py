@@ -31,7 +31,7 @@ from collections import Counter
 import numpy as np
 
 import grouping
-from cluster import cosine, tfidf, tokens, where
+from cluster import cosine, tfidf, tokens
 from geo import places
 
 FEATURES = ["meaning", "words", "names_share", "shared_names", "same_country", "country_overlap",
@@ -61,7 +61,7 @@ class Story:
         else:
             self.meaning = None
         self.names = Counter(t for i in members for t in ctx.vectors[i] if t in ctx.named)
-        countries = sum((where(a) for a in arts), Counter())
+        countries = sum((ctx.where[i] for i in members), Counter())
         total = sum(countries.values())
         self.country = countries.most_common(1)[0][0] if countries else None
         self.countries = {c for c, n in countries.items() if n >= 0.2 * total}
