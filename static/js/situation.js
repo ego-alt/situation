@@ -197,6 +197,24 @@
         return details.get(iso);
     }
 
+    /** A country's detailed outline and regions on the map, built once (null until its file loads). */
+    function detailGroup(iso) {
+        const layer = $('detail');
+        const d = details.get(iso);
+        if (!layer || !d) return null;
+        let g = layer.querySelector(`g[data-iso="${iso}"]`);
+        if (!g) {
+            g = el('g', { 'data-iso': iso }, layer);
+            el('path', { d: d.outline, class: 'land detail-land', 'data-iso': iso }, g);
+            const regions = el('g', { class: 'regions' }, g);
+            for (const r of d.regions) {
+                const p = el('path', { d: r.d, class: 'region', 'data-name': r.name }, regions);
+                el('title', {}, p).textContent = r.name;
+            }
+        }
+        return g;
+    }
+
     /** Detailed outlines and regions for the countries in view, built once each. */
     function drawDetail(v, close) {
         const layer = $('detail');
@@ -207,16 +225,7 @@
                 const d = details.get(c.iso);
                 if (!d) { loadDetail(c.iso); continue; }
                 shown.add(c.iso);
-                let g = layer.querySelector(`g[data-iso="${c.iso}"]`);
-                if (!g) {
-                    g = el('g', { 'data-iso': c.iso }, layer);
-                    el('path', { d: d.outline, class: 'land detail-land', 'data-iso': c.iso }, g);
-                    const regions = el('g', { class: 'regions' }, g);
-                    for (const r of d.regions) {
-                        const p = el('path', { d: r.d, class: 'region' }, regions);
-                        el('title', {}, p).textContent = r.name;
-                    }
-                }
+                detailGroup(c.iso);
             }
         }
         layer.querySelectorAll(':scope > g').forEach((g) => { g.style.display = shown.has(g.dataset.iso) ? '' : 'none'; });
@@ -325,18 +334,40 @@
             }
         }
         const spots = [...byPlace.values()].map((p) => ({
-            ...p, place: p.name, label: p.name, top: p.stories[0],
+            ...p, place: p.name, label: p.name, top: p.stories[0], where: p.kind,   // city or region
             kind: p.stories.some((s) => s.tier === 'major') ? 'flash' : 'priority',
         }));
         return [...spots, ...countries(unplaced)];
     }
 
-    /** Today's stories on the map; returns the room their dots and labels take. */
+    // A region the news names, as its outline on the zoomed map ({ path, box }): the
+    // outline that holds the region's point (names differ between the gazetteer and the map).
+    const areas = new Map();
+    function areaFor(m) {
+        if ((m.where || m.kind) !== 'region') return null;
+        const key = `${m.name}|${m.iso}`;
+        if (areas.has(key)) return areas.get(key);
+        const g = detailGroup(m.iso);
+        if (!g) return null;                                 // not loaded yet: ask again next time
+        const hidden = g.style.display === 'none';
+        g.style.display = '';                                // laid out, to measure
+        const point = new DOMPoint(m.x, m.y);
+        const path = [...g.querySelectorAll('.region')].find((p) => p.isPointInFill?.(point));
+        const b = path?.getBBox();
+        if (hidden) g.style.display = 'none';
+        if (!path) return null;                              // maybe not laid out yet: ask again next time
+        const found = { path, box: [b.x, b.y, b.x + b.width, b.y + b.height] };
+        areas.set(key, found);
+        return found;
+    }
+
+    /** Today's stories on the map; returns the room their dots and labels take.
+     * Close up, a region in the news is tinted as an area and a city is a dot. */
     function drawPins(upp, close) {
         const pins = $('pins');
         if (!pins || !data) return [];
         pins.innerHTML = '';
-        document.querySelectorAll('.land').forEach((p) => p.classList.remove('hot-flash', 'hot-priority'));
+        document.querySelectorAll('.land, .region').forEach((p) => p.classList.remove('hot-flash', 'hot-priority', 'selected'));
         for (const c of countries()) {
             document.querySelectorAll(`.land[data-iso="${c.iso}"]`).forEach((p) => p.classList.add(`hot-${c.kind}`));
         }
@@ -352,13 +383,17 @@
             const ids = m.stories.map((s) => s.id);
             const picked = filter && (filter.ids ? ids.some((id) => filter.ids.has(id)) : filter.isos?.has(m.iso));
             const selected = picked || ids.includes(openId) ? ' selected' : '';
+            const area = close ? areaFor(m) : null;
+            if (area) area.path.classList.add(`hot-${m.kind}`, ...(selected ? ['selected'] : []));
             const g = el('g', {
                 class: `pin ${m.kind}${selected}`, 'data-iso': m.iso, tabindex: 0, role: 'button',
                 'aria-label': `${m.place}: ${m.stories.length} ${m.stories.length > 1 ? 'stories' : 'story'}`,
             }, pins);
             el('circle', { cx: m.x, cy: m.y, r: Math.max(HIT_PX * upp, r), class: 'hit' }, g);
-            el('circle', { cx: m.x, cy: m.y, r, class: 'ring' }, g);
-            el('circle', { cx: m.x, cy: m.y, r: r * 0.55, class: 'core' }, g);
+            if (!area) {
+                el('circle', { cx: m.x, cy: m.y, r, class: 'ring' }, g);
+                el('circle', { cx: m.x, cy: m.y, r: r * 0.55, class: 'core' }, g);
+            }
             el('title', {}, g).textContent = m.stories.map((s) => s.headline).join('\n');
             const spot = spots[i];
             if (spot) {
@@ -429,6 +464,15 @@
             const [mx, my] = toMap(e.clientX, e.clientY);
             zoomAt(mx, my, 2);
         });
+        // Tapping a country (not a pin) shows its card and its stories, and goes to
+        // it unless the map is already close.
+        svg.addEventListener('click', (e) => {
+            if (dragged || e.target.closest('.pin')) return;
+            const land = e.target.closest('[data-iso]');
+            const c = land && world.countries.find((x) => x.iso === land.dataset.iso);
+            if (!c) return;
+            showPlace(c.name, [c.iso], { zoom: current().w < DETAIL_W ? null : c.iso });
+        });
         svg.addEventListener('pointerdown', (e) => {
             pointers.set(e.pointerId, [e.clientX, e.clientY]);
             dragged = false;
@@ -491,6 +535,20 @@
         return `<time datetime="${esc(iso)}" title="${esc(prefix ? `${prefix} ${full}` : full)}">${prefix ? `${prefix.toLowerCase()} ` : ''}${rel}</time>`;
     }
 
+    /** "14:02 local": when the latest report came, on the clocks where it happens;
+     * left out where the clocks read the same as yours. */
+    function localTime(iso, zone) {
+        if (!iso || !zone) return '';
+        const opts = { hour: '2-digit', minute: '2-digit', hour12: false };
+        try {
+            const there = new Date(iso).toLocaleTimeString([], { ...opts, timeZone: zone });
+            if (there === new Date(iso).toLocaleTimeString([], opts)) return '';
+            return `<span class="local" title="The latest report, in local time there (${esc(zone.replace(/_/g, ' '))})">${there} local</span>`;
+        } catch (_) {
+            return '';
+        }
+    }
+
     function itemHtml(s) {
         const kind = s.tier === 'major' ? 'flash' : 'priority';
         const sources = s.sources.map((a) => {
@@ -504,6 +562,7 @@
                 <div class="meta">
                     ${s.iso ? `<span class="place" title="${esc(s.place)}">${esc(s.iso)}</span>` : ''}
                     <span>${ago(s.newest)}</span>
+                    ${localTime(s.newest, s.zone)}
                     <span>${s.outlets} src</span>
                     ${s.itn ? '<span class="wiki" title="In Wikipedia\'s In the news">wiki itn</span>' : ''}
                 </div>
@@ -531,6 +590,36 @@
             <div class="situations">${rows}</div>`;
     }
 
+    // ---------- a country's card ----------
+
+    const cards = new Map();           // iso → the card, or a promise of it
+
+    function loadCard(iso) {
+        if (cards.has(iso)) return;
+        cards.set(iso, fetch(url(`/api/country/${iso}`), { credentials: 'same-origin' })
+            .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+            .then((card) => {
+                cards.set(iso, card);
+                if (filter?.country === iso) drawFeed();
+            }));
+    }
+
+    function cardHtml(iso) {
+        const card = cards.get(iso);
+        if (!card || card instanceof Promise) return '';
+        const now = card.zone ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: card.zone }) : '';
+        const facts = [
+            card.capital && ['Capital', esc(card.capital)],
+            card.leader && ['Leader', esc(card.leader)],
+            now && ['Local time', `${now} <span class="muted">${esc(card.zone.split('/').pop().replace(/_/g, ' '))}</span>`],
+            ['In the news', card.last
+                ? `${card.stories_30d} ${card.stories_30d === 1 ? 'story' : 'stories'} in 30 days · last ${ago(card.last.at)} ago`
+                : 'Nothing at headline level in 30 days'],
+        ].filter(Boolean);
+        return `<div class="country-card"><div class="country-name">${esc(card.name)}</div>
+            <dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>`;
+    }
+
     function drawFeed() {
         const inPlace = (s) => !filter || (filter.ids ? filter.ids.has(s.id) : filter.isos.has(s.iso));
         const stories = data.stories.filter(inPlace);
@@ -540,6 +629,7 @@
         if (filter) {
             html += `<div class="filter"><span>Showing <b>${esc(filter.label)}</b></span>
                 <button type="button" class="filter-clear">Show all</button></div>`;
+            if (filter.country) html += cardHtml(filter.country);
         }
         html += section('flash', 'Flash', flash) + section('priority', 'Priority', priority);
         if (!stories.length) {
@@ -603,19 +693,26 @@
     }
 
     /** The places a story names in its country, or else the country itself. */
-    function showOnMap(story) {
+    async function showOnMap(story) {
         const here = (story.spots || []).filter((p) => p.iso === story.iso);
+        if (here.some((p) => p.kind === 'region')) await loadDetail(story.iso);
         if (here.length) {
-            const xs = here.map((p) => p.x);
-            const ys = here.map((p) => p.y);
-            setView(fit([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], 12), true);
+            // A region's whole outline, a city's point.
+            const boxes = here.map((p) => {
+                const area = areaFor(p);
+                return area ? area.box : [p.x, p.y, p.x, p.y];
+            });
+            setView(fit([Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])),
+                Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))], 12), true);
         } else if (story.iso) {
             zoomTo([story.iso]);
         }
     }
 
     function showPlace(label, isos, { zoom = null, track = null } = {}) {
-        filter = { label, isos: new Set(isos), track };
+        const country = isos.length === 1 && !track ? isos[0] : null;
+        if (country) loadCard(country);
+        filter = { label, isos: new Set(isos), track, country };
         following = null;
         showFiltered();
         if (track?.length) {

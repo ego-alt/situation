@@ -180,10 +180,15 @@ def split(members: list[int], vectors: list[dict], named: set[str],
 
 def cluster(articles: list[dict]) -> list[list[int]]:
     """Indexes of `articles`, grouped by event, each group's most typical
-    article first. Two articles from the same
+    article first. With a model learned from your labels (learn.py), that
+    model groups them; otherwise these hand rules do. Two articles from the same
     outlet are never joined directly (an outlet's own follow-ups would
     otherwise chain unrelated stories together); they can still meet through
     another outlet's article."""
+    import learn
+    model = learn.load("pairs")
+    if model:
+        return learn.group(articles, model)
     vectors = tfidf([document(a) for a in articles])
     parent = list(range(len(articles)))
 

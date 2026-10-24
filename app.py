@@ -60,6 +60,20 @@ def create_app(config=None):
     def situation():
         return jsonify(snapshot())
 
+    @app.route("/api/country/<iso>")
+    def country_card(iso):
+        """A country's card: its capital, leader and time zone, and when it was last in the news here."""
+        from geo import country
+        from pipeline import clock
+        card = country(iso.upper())
+        if card is None:
+            return {"error": "no such country"}, 404
+        shown = Story.query.filter(Story.iso == card["iso"], Story.tier != "background")
+        last = shown.order_by(Story.newest.desc()).first()
+        month = (clock() - timedelta(days=30)).replace(tzinfo=None)
+        return jsonify({**card, "stories_30d": shown.filter(Story.newest >= month).count(),
+                        "last": {"headline": last.headline, "at": _iso(last.newest), "id": last.id} if last else None})
+
     @app.route("/api/sync", methods=["POST"])
     def sync():
         """Fetch now instead of waiting for the next round. Joins a fetch that's
@@ -68,7 +82,9 @@ def create_app(config=None):
 
     @app.route("/label")
     def label_page():
-        return render_template("label.html")
+        from geo import _table
+        countries = sorted(([iso, c["name"]] for iso, c in _table()[0].items()), key=lambda c: c[1])
+        return render_template("label.html", countries=countries)
 
     @app.route("/api/label")
     def label_next():
@@ -91,10 +107,13 @@ def create_app(config=None):
     @click.option("--set", "overrides", multiple=True, metavar="MODULE.NAME=VALUE",
                   help="Try a threshold, e.g. cluster.EVENT=0.25 (repeatable).")
     @click.option("--holdout", default=None, type=int, help="Days of the newest labels to hold out.")
-    def evaluate_command(overrides, holdout):
-        """Score the grouping and ranking against your labels from /label."""
+    @click.option("--hand", is_flag=True, help="Use the hand rules, ignoring any trained models.")
+    def evaluate_command(overrides, holdout, hand):
+        """Score the grouping, ranking and placing against your labels from /label."""
         import importlib
+        from contextlib import nullcontext
 
+        import learn
         from labels import HOLDOUT_DAYS, evaluate, split_holdout
         from models import Label
         for o in overrides:
@@ -106,12 +125,67 @@ def create_app(config=None):
             setattr(mod, name, type(getattr(mod, name))(value))
         labels = Label.query.all()
         older, held = split_holdout(labels, HOLDOUT_DAYS if holdout is None else holdout)
-        for title, part in (("older", older), ("held out", held), ("all", labels)):
-            r = evaluate(part)
-            pct = lambda x: "—" if x is None else f"{x:.0%}"  # noqa: E731
-            print(f"{title:9} same-story pairs {r['same_pairs']:4}  precision {pct(r['precision']):>4}  "
-                  f"recall {pct(r['recall']):>4}  F1 {pct(r['f1']):>4}   "
-                  f"rank pairs {r['rank_pairs']:4}  agreement {pct(r['rank_agreement']):>4}")
+        with learn.using({}) if hand else nullcontext():
+            print(f"using {'the hand rules' if hand else _models_in_use()}")
+            for title, part in (("older", older), ("held out", held), ("all", labels)):
+                print(_report(title, evaluate(part)))
+
+    @app.cli.command("train")
+    @click.option("--save", is_flag=True, help="Fit on every label and use the models from now on.")
+    @click.option("--only", default=",".join(("pairs", "rank", "place")), help="Which models: pairs,rank,place.")
+    @click.option("--holdout", default=None, type=int, help="Days of the newest labels to hold out.")
+    def train_command(save, only, holdout):
+        """Fit the models in learn.py on your labels, and compare them with the hand rules."""
+        import learn
+        from labels import HOLDOUT_DAYS, evaluate, split_holdout, training_data
+        from models import Label
+        names = [n.strip() for n in only.split(",") if n.strip() in learn.NAMES]
+        labels = Label.query.all()
+        older, held = split_holdout(labels, HOLDOUT_DAYS if holdout is None else holdout)
+        data = training_data(older)
+        print(f"examples from the older labels: {len(data['pairs'])} same-story pairs, {len(data['rank'])} rankings, "
+              f"{len(data['place'])} places; meaning likeness {'on' if data['meaning'] else 'off (no model here)'}")
+        fitted = _fit(data, names)
+        with learn.using({}):
+            print(_report("hand", evaluate(held)))
+        with learn.using(fitted):
+            print(_report("learned", evaluate(held)))
+        print("(on the held-out labels: keep a model only where it does better)")
+        for name, model in fitted.items():
+            print(f"{name}: {_describe(model)}")
+        if save:
+            for name, model in _fit(training_data(labels), names).items():
+                print(f"saved {learn.save(name, model)}")
+
+    def _fit(data, names):
+        import learn
+        fits = {"pairs": lambda: learn.fit_pairs(data["pairs"], data["meaning"]),
+                "rank": lambda: learn.fit_rank(data["rank"]), "place": lambda: learn.fit_place(data["place"])}
+        out = {}
+        for name in names:
+            model = fits[name]()
+            if model is None:
+                print(f"{name}: too few labels to fit yet")
+            else:
+                out[name] = {**model, "trained": datetime.now(UTC).isoformat(timespec="minutes")}
+        return out
+
+    def _describe(model):
+        if "features" in model and "weights" in model and isinstance(model["weights"], list):
+            return ", ".join(f"{f} {w:+.2f}" for f, w in zip(model["features"], model["weights"], strict=True))
+        return ", ".join(f"{k} {v:g}" for k, v in model["weights"].items())
+
+    def _models_in_use():
+        import learn
+        found = [n for n in learn.NAMES if learn.load(n)]
+        return f"trained models for {', '.join(found)}" if found else "the hand rules (no trained models)"
+
+    def _report(title, r):
+        pct = lambda x: "—" if x is None else f"{x:.0%}"  # noqa: E731
+        return (f"{title:9} same-story pairs {r['same_pairs']:5}  precision {pct(r['precision']):>4}  "
+                f"recall {pct(r['recall']):>4}  F1 {pct(r['f1']):>4}   rank pairs {r['rank_pairs']:4}  "
+                f"agreement {pct(r['rank_agreement']):>4}   "
+                f"places {r['placed']:4}  right {pct(r['place_accuracy']):>4}")
 
     @app.cli.command("fetch")
     def fetch_command():
@@ -202,10 +276,18 @@ def _story(s: Story) -> dict:
         sources.append({"outlet": src.name.split(" Hong Kong")[0] if src else a.outlet,
                         "title": clean_title(a.title), "url": a.url,
                         "published": _iso(a.published or a.fetched), "updated": _iso(revised)})
+    spots = _story_spots(s)
     return {"id": s.id, "headline": s.headline, "tier": s.tier, "score": s.score, "outlets": s.outlets,
             "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, "x": s.x, "y": s.y,
             "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources,
-            "spots": _story_spots(s), "latest": _latest(s, sources)}
+            "spots": spots, "zone": _zone(s, spots), "latest": _latest(s, sources)}
+
+
+def _zone(s: Story, spots: list[dict]) -> str | None:
+    """The time zone where it's happening: its first place in its own country, else the country's."""
+    from geo import timezone
+    here = next((p for p in spots if p["iso"] == s.iso), None)
+    return timezone(s.iso, here["lat"], here["lon"]) if here else timezone(s.iso)
 
 
 LATEST = timedelta(hours=6)
@@ -234,7 +316,8 @@ def _latest(s: Story, sources: list[dict]) -> dict | None:
 
 def _spot(s: dict, **extra) -> dict:
     x, y = project(s["lon"], s["lat"])
-    return {"name": s["name"], "iso": s["iso"], "kind": s["kind"], "x": x, "y": y, **extra}
+    return {"name": s["name"], "iso": s["iso"], "kind": s["kind"], "x": x, "y": y,
+            "lat": s["lat"], "lon": s["lon"], **extra}
 
 
 def _story_spots(s: Story, limit: int = 8) -> list[dict]:

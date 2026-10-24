@@ -51,6 +51,23 @@ Every fetch (every 15 minutes):
 
 **With Claude (optional, `ANTHROPIC_API_KEY`):** for each Headline-or-higher story, one call writes a neutral headline of 12 words or fewer plus a "why it matters" line, and rates significance from 1 to 5 against a written rubric. The rating can move a story up or down one tier, never more. Without a key, the most-shared outlet title is used as is.
 
+## Learning from your labels
+
+Hand-set thresholds and keyword lists only go so far, and each tweak is a guess. So `/label` collects judgements in a form a model can learn from, and the decisions become small models trained on them (`learn.py`):
+
+- **Labelling.** Each question is a whole story as the app grouped it: tap the articles that don't belong, tap the near misses that do, and confirm or fix where it's happening. One screen gives a dozen or more "same story?" pairs and a place. Stories are picked where the grouping is least sure (active learning), so each answer teaches the most. One question in four is a ranking.
+- **Grouping:** a logistic regression on a few signals per pair of articles: word likeness (all words, the headline's, and only the words that say what happened), meaning likeness from a 30 MB static embedding model (`embed.py`, potion-base-8M: a lookup and an average, so cheap on the Pi), same or other country, hours apart, same outlet, wire. Groups then form by average linkage on its probabilities. It replaces the hand-tuned thresholds in `cluster.py` once trained.
+- **Ranking:** Bradley–Terry on the score's parts (breadth, lead, Wikipedia, home region, each times freshness), so their weights come from your "which matters more" answers.
+- **Placing:** a choice among the countries a story names (conditional logit), from how each is named: in headlines or summaries, as a place, an actor ("Washington says") or a leader.
+- **The loop:** `flask train` fits on older labels and compares with the hand rules on the held-out ones; `flask train --save` writes `instance/models/`, which the app uses from then on. Delete a file, or set `LEARNED=0`, and the hand rules return.
+
+These are the right size for a few hundred labels: a handful of readable weights can't memorise your answers. What comes next, as labels grow:
+
+1. **Claude as a labeller** (the way past slow labelling). Give Claude the same story screens with a written rubric, have it label a few thousand, and check its agreement with your own labels on the same questions. If it agrees about as often as you agree with yourself, train on its labels and keep yours as the test set. That's distillation: the Pi never calls Claude to group.
+2. **A non-linear model** on the same features (gradient-boosted trees) once there are a couple of thousand pairs, to learn interactions such as "same country matters only when the event words differ".
+3. **Fine-tuning the embedding** on your pairs: contrastive training of a small sentence model on the Mac (sentence-transformers), then distilled back into a static model like the one shipped. Worth it at several thousand pairs, and the way to bring in Chinese-language sources, using a multilingual base model.
+4. **Retraining on a schedule**, keeping a model only when it wins on the held-out labels.
+
 ## The look
 
 An operations-room wall: open-source intelligence, not a newspaper.
@@ -87,7 +104,8 @@ Data older than 30 days is pruned; story headlines are kept for the weekly view.
    - Still open from the audit: once `day_tallies` holds a week or two, set the Headline bar and the ten-story cap from the real daily counts rather than two days' snapshots.
 3. **Delivery:** morning brief and Major alerts through ntfy, with quiet hours.
 4. **Claude:** neutral headlines, "why it matters", and the significance check.
-5. **Later:** a weekly recap, the MCP tool, "mark as seen", per-region bars you can tune.
+5. **Learning (built):** story labels, trained models for grouping, ranking and placing, `flask train`. Next: Claude as a labeller, then fine-tuning (see above).
+6. **Later:** a weekly recap, the MCP tool, "mark as seen", per-region bars you can tune, timelines for each ongoing situation.
 
 ## Decisions for you
 

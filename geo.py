@@ -5,6 +5,7 @@ The place mentioned most, weighted toward the headline, wins; ties go to the
 first one mentioned. Places that are named mostly as actors ("Washington
 says…", "Beijing warns…") count less than places where things happen."""
 import json
+import math
 import pathlib
 import re
 from collections import Counter
@@ -129,42 +130,64 @@ def _table():
     countries = {c["iso"]: c for c in json.loads(_DATA.read_text())}
     patterns = []
     split = lambda text: [n.strip() for n in (text or "").split(",") if n.strip()]  # noqa: E731
+    tables = (("demonym", DEMONYMS), ("alias", ALIASES), ("capital", CAPITALS), ("city", CITIES), ("leader", LEADERS))
     for iso, c in countries.items():
-        names = (DEMONYMS, ALIASES, CAPITALS, CITIES, LEADERS)
-        for n in {*c["names"], *(x for table in names for x in split(table.get(iso)))}:
-            if len(n) >= 2:
-                patterns.append((n, iso))
+        found = {n: "name" for n in c["names"]}
+        for kind, table in tables:
+            for n in split(table.get(iso)):
+                found.setdefault(n, kind)
+        patterns += [(n, iso, kind) for n, kind in found.items() if len(n) >= 2]
     for iso, (name, lat, lon, more) in EXTRA.items():
         countries.setdefault(iso, {"iso": iso, "name": name, "lat": lat, "lon": lon})
-        for n in [name, *split(more), *split(ALIASES.get(iso)), *split(LEADERS.get(iso))]:
-            patterns.append((n, iso))
+        patterns += [(n, iso, "name") for n in [name, *split(more)]]
+        patterns += [(n, iso, "alias") for n in split(ALIASES.get(iso))]
+        patterns += [(n, iso, "leader") for n in split(LEADERS.get(iso))]
     # Longest first, so "South Sudan" wins over "Sudan" and "Hong Kong" over "Kong".
     patterns.sort(key=lambda p: -len(p[0]))
     regex = re.compile(r"\b(" + "|".join(re.escape(p[0]) for p in patterns) + r")\b")
     lookup = {p[0]: p[1] for p in reversed(patterns)}
-    return countries, regex, lookup
+    kinds = {p[0]: p[2] for p in reversed(patterns)}
+    return countries, regex, lookup, kinds
+
+
+def mentions(text: str) -> list[tuple[str, str]]:
+    """Each country the text names, in order, with how it's named: (iso, kind),
+    kind one of name, demonym, alias, capital, city, leader, actor (a capital
+    or institution named as the one acting: "Washington says") or ambiguous
+    (a country name that's often something else: Georgia, Jordan)."""
+    _, regex, lookup, kinds = _table()
+    out = []
+    for m in regex.finditer(text or ""):
+        word = m.group(1)
+        if word in lookup:
+            kind = "actor" if word in ACTOR_WORDS else "ambiguous" if word in AMBIGUOUS else kinds[word]
+            out.append((lookup[word], kind))
+    return out
 
 
 def places(text: str) -> Counter:
-    countries, regex, lookup = _table()
     found = Counter()
-    for m in regex.finditer(text or ""):
-        iso = lookup.get(m.group(1))
-        if iso:
-            word = m.group(1)
-            found[iso] += 0.4 if word in ACTOR_WORDS else 0.3 if word in AMBIGUOUS else 1.0
+    for iso, kind in mentions(text):
+        found[iso] += 0.4 if kind == "actor" else 0.3 if kind == "ambiguous" else 1.0
     return found
 
 
 def locate(articles: list[dict]) -> dict | None:
-    """The main place of a group of articles: {"iso", "name", "lat", "lon", "x", "y"}."""
-    total = Counter()
-    for a in articles:
-        total.update({k: v * 3 for k, v in places(a["title"]).items()})
-        total.update(places(a.get("summary") or ""))
-    if not total:
+    """The main place of a group of articles: {"iso", "name", "lat", "lon", "x", "y"}.
+    With a model learned from your labels (learn.py) it chooses; otherwise the
+    country named most, headlines counting three times."""
+    import learn
+    model = learn.load("place")
+    if model:
+        iso = learn.choose_place(model, articles)
+    else:
+        total = Counter()
+        for a in articles:
+            total.update({k: v * 3 for k, v in places(a["title"]).items()})
+            total.update(places(a.get("summary") or ""))
+        iso = total.most_common(1)[0][0] if total else None
+    if iso is None:
         return None
-    iso, _ = total.most_common(1)[0]
     c = _table()[0][iso]
     x, y = project(c["lon"], c["lat"])
     return {"iso": iso, "name": c["name"], "lat": c["lat"], "lon": c["lon"], "x": x, "y": y}
@@ -221,7 +244,7 @@ def spots(text: str) -> list[dict]:
     the text also names ("Pokrovsk ... Ukraine"), or for a city of a million
     or more. Countries, and capitals named as actors ("Moscow says"), aren't
     spots: they're already the country pin."""
-    countries, _, lookup = _table()
+    countries, _, lookup, _ = _table()
     named = set(places(text))
     names = _gazetteer()
     found, seen = [], set()
@@ -249,3 +272,69 @@ def spots(text: str) -> list[dict]:
 def _capitals() -> set[str]:
     return {n.strip() for v in CAPITALS.values() for n in v.split(",")} | {
         n.strip() for v in CITIES.values() for n in v.split(",")}
+
+
+# ---------- local time and country facts ----------
+
+def _dms(text: str, degrees: int) -> float:
+    """"+4851" or "+0221" (±DDMM[SS] or ±DDDMM[SS]) as decimal degrees."""
+    sign = -1 if text[0] == "-" else 1
+    digits = text[1:]
+    whole, rest = digits[:degrees], digits[degrees:]
+    minutes, seconds = rest[:2], rest[2:4] or "0"
+    return sign * (int(whole) + int(minutes) / 60 + int(seconds) / 3600)
+
+
+@lru_cache(maxsize=1)
+def _zones() -> dict[str, list[tuple[float, float, str]]]:
+    """{country code: [(lat, lon, zone)]}, from the time zone database's zone1970.tab."""
+    from importlib.resources import files
+    zones: dict[str, list] = {}
+    for line in files("tzdata.zoneinfo").joinpath("zone1970.tab").read_text().splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        codes, coords, zone = line.split("\t")[:3]
+        m = re.match(r"([+-]\d+)([+-]\d+)", coords)
+        lat, lon = _dms(m.group(1), 2), _dms(m.group(2), 3)
+        for code in codes.split(","):
+            zones.setdefault(code, []).append((lat, lon, zone))
+    return zones
+
+
+# Capitals the nearest zone's main city gets wrong (Brasília is nearer Cuiabá than São Paulo).
+CAPITAL_ZONES = {"BR": "America/Sao_Paulo", "KZ": "Asia/Almaty"}
+
+
+def timezone(iso: str | None, lat: float | None = None, lon: float | None = None) -> str | None:
+    """The time zone where something happens: the country's own, or in a country
+    with several (the US, Russia, Brazil) the one whose main city is nearest."""
+    options = _zones().get(iso or "", [])
+    if not options:
+        return None
+    if len(options) == 1:
+        return options[0][2]
+    if lat is None or lon is None:
+        if iso in CAPITAL_ZONES:
+            return CAPITAL_ZONES[iso]
+        lat, lon = _capital_at(iso)
+    return min(options, key=lambda z: (z[0] - lat) ** 2 + ((z[1] - lon) * math.cos(math.radians(lat))) ** 2)[2]
+
+
+def _capital_at(iso: str) -> tuple[float, float]:
+    """Where a country's capital is (its middle when the gazetteer doesn't know it)."""
+    for capital in (CAPITALS.get(iso) or "").split(","):
+        for c_iso, lat, lon, _, kind in _gazetteer().get(capital.strip(), []):
+            if c_iso == iso and kind == "city":
+                return lat, lon
+    c = _table()[0][iso]
+    return c["lat"], c["lon"]
+
+
+def country(iso: str) -> dict | None:
+    """What a country card says: its name, capital, leader and time zone."""
+    c = _table()[0].get(iso)
+    if c is None:
+        return None
+    first = lambda table: (table.get(iso) or "").split(",")[0].strip() or None  # noqa: E731
+    return {"iso": iso, "name": c["name"], "capital": first(CAPITALS), "leader": first(LEADERS),
+            "zone": timezone(iso)}

@@ -22,6 +22,9 @@ An open-source intelligence wall for the home stack: the world map with today's 
 - **Active situations.** Wikipedia's "Ongoing" list (wars, offensives, outbreaks), each with its latest development that more than one outlet carries.
 - **Earlier this week.** The past seven days' stories, under today's.
 - **Honest about itself.** If the news on screen is old, the server can't be reached or you've been signed out, the page says so; a feed that has gone quiet shows in the status bar.
+- **Regions as areas.** Close up, a region in the news (Alberta, the Donetsk region) is tinted as its outline; cities stay dots.
+- **Country cards.** Tap a country for its capital, leader, local time and when it was last in the news.
+- **Local time.** Each story shows when its latest report came on the clocks where it's happening, when they differ from yours.
 - **Sources a tap away.** Open a story to see every outlet's own headline and link; the map goes to the places it names, and back when you close it.
 - **Phone-first.** The map on top, the list under it.
 
@@ -39,16 +42,19 @@ The server also fetches every 15 minutes on its own (`FETCH_LOOP=0` turns that o
 
 Tests and lint: `uv run pytest` and `uvx ruff check .` The tests run on real snapshots from 18–20 October 2026.
 
-### Measuring it
+### Measuring and training it
 
-`/label` (linked at the foot of the page) asks two kinds of question: are these two articles the same story, and which of two stories matters more. The questions are the close calls, and each is asked about a saved snapshot of the articles, so any version of the code can be scored on exactly what you judged:
+`/label` (linked at the foot of the page) shows one story at a time as the app grouped it: tap the articles that don't belong, tap the near misses that do, and say where it's happening. One question in four asks which of two stories matters more. Each is asked about a saved snapshot of the articles, so any version of the code can be scored, and the models trained, on exactly what you judged:
 
 ```sh
 uv run flask --app app:create_app evaluate                                  # the code as it is
+uv run flask --app app:create_app evaluate --hand                           # ignoring trained models
 uv run flask --app app:create_app evaluate --set cluster.EVENT=0.25         # a variant
+uv run flask --app app:create_app train                                     # fit, compare on held-out labels
+uv run flask --app app:create_app train --save --only pairs,place           # and use them
 ```
 
-It prints grouping precision and recall and how often the ranking agrees with you, with the last two days of labels held out: tune on the older ones, and keep a change only if the held-out numbers agree. `labels.py` has the details.
+`evaluate` prints grouping precision and recall, how often the ranking agrees with you and how often stories are placed where you said, with the last two days of labels held out. `train` fits the small models in `learn.py` on the older labels and prints both on the held-out ones: save a model only where it does better. On the Pi: `docker exec situation flask train`. How the models work, and what comes next: [`docs/plan.md`](docs/plan.md#learning-from-your-labels).
 
 On the home stack it's added from the dashboard's Deploy tab, which reads `homestack.toml`.
 
@@ -58,12 +64,17 @@ On the home stack it's added from the dashboard's Deploy tab, which reads `homes
 |---|---|
 | `FETCH_EVERY_MINUTES` | How often to fetch (default 15) |
 | `FETCH_LOOP` | Set to `0` to fetch only by command |
+| `LEARNED` | Set to `0` to ignore trained models and use the hand rules |
+| `EMBED` | Set to `0` to turn off meaning likeness (the embedding model) |
+| `EMBED_MODEL_DIR` | Where the embedding model is (the image has it in `models/`) |
 
 Outlets, their weights and regions are in `sources.py`.
 
 ## Data
 
 - `instance/situation.db`: articles from the last 30 days, the stories they form, Wikipedia snapshots, and your labels.
+- `instance/models/`: the models `flask train --save` fitted on your labels.
+- `models/potion-base-8M/`: the embedding model (MIT licence, minishlab), downloaded into the image at build time.
 - `instance/snapshots/`: the articles as they were when you labelled (one every 6 hours while you do; ones without labels go after 30 days).
 - The map is built from Natural Earth's 1:110m countries (public domain) with `python -I tools/build_map.py <countries.geojson>`; it writes `static/map/world.json` and `data/countries.json`.
 - The zoomed-in map and the place names come from Natural Earth's 1:10m countries and states/provinces, and GeoNames' towns of over 15,000 people (CC BY 4.0, [geonames.org](https://www.geonames.org/)). `tools/build_regions.py` writes `static/map/regions/<country>.json` (loaded as you zoom) and `data/gazetteer.json`; its docstring says how to run it.

@@ -185,7 +185,8 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     silence = 1.0 if quiet <= 12 else max(0.3, 1.0 - (quiet - 12) / 50)
     freshness = min(fade, silence)
 
-    score = (breadth + 0.5 * len(leads) + (ITN_BONUS if itn_item else 0.0) + (1.0 if home else 0.0)) * freshness
+    parts = {"breadth": breadth, "leads": len(leads), "itn": bool(itn_item), "home": home, "freshness": freshness}
+    score = sum(w * x for w, x in zip(weights().values(), rank_features(parts), strict=True))
 
     if is_soft(articles):
         tier = BACKGROUND
@@ -201,5 +202,19 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
         "headline": pick_headline(recent_articles or articles, _main_country(articles)),
         "outlets": outlets, "breadth": breadth,
         "leads": len(leads), "home": home, "itn": itn_item, "score": round(score, 2), "tier": tier,
-        "newest": newest,
+        "newest": newest, "parts": parts,
     }
+
+
+def weights() -> dict:
+    """What each part of the score is worth: learned from your "which matters
+    more" answers when there's a model (learn.py), else set by hand."""
+    import learn
+    model = learn.load("rank")
+    return model["weights"] if model else {"breadth": 1.0, "lead": 0.5, "itn": ITN_BONUS, "home": 1.0}
+
+
+def rank_features(parts: dict) -> list[float]:
+    """The score's parts, breadth, lead, Wikipedia and home region, each times freshness."""
+    f = parts["freshness"]
+    return [parts["breadth"] * f, parts["leads"] * f, float(parts["itn"]) * f, float(parts["home"]) * f]
