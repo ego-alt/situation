@@ -25,6 +25,7 @@ writes instance/models/<name>.json, which the app then uses. Delete the file
 these are the right size: a model with a handful of weights can't memorise
 your answers, and you can read what it learned.
 """
+import heapq
 import json
 import math
 import os
@@ -234,25 +235,31 @@ def group(articles: list[dict], model: dict) -> list[list[int]]:
 
 def _average_linkage(members: list[int], near: dict[int, dict[int, float]]) -> list[list[int]]:
     """Join the two groups whose articles are most alike on average, while that
-    average is at least MERGE; pairs never scored count as 0."""
+    average is at least MERGE; pairs never scored count as 0. A heap holds the
+    candidate joins; an entry gone stale (a group since grown) is skipped."""
     parts = {i: [i] for i in members}
     link = {i: {j: q for j, q in near[i].items() if j in parts} for i in members}
-    while True:
-        best, pair = MERGE, None
-        for a, row in link.items():
-            for c, total in row.items():
-                if a < c and total / (len(parts[a]) * len(parts[c])) >= best:
-                    best, pair = total / (len(parts[a]) * len(parts[c])), (a, c)
-        if pair is None:
-            return list(parts.values())
-        a, b = pair
-        parts[a] += parts.pop(b)
-        for c, total in link.pop(b).items():
-            if c == a:
+    size = lambda g: len(parts[g])  # noqa: E731
+    heap = [(-q, a, c) for a in members for c, q in link[a].items() if a < c and q >= MERGE]
+    heapq.heapify(heap)
+    while heap:
+        neg, a, c = heapq.heappop(heap)
+        if a not in parts or c not in parts or c not in link[a]:
+            continue
+        if abs(-neg - link[a][c] / (size(a) * size(c))) > 1e-12:
+            continue                                     # stale: the groups changed since
+        parts[a] += parts.pop(c)
+        for d, total in link.pop(c).items():
+            if d == a:
                 continue
-            del link[c][b]
-            link[a][c] = link[c][a] = link[a].get(c, 0.0) + total
-        link[a].pop(b, None)
+            del link[d][c]
+            link[a][d] = link[d][a] = link[a].get(d, 0.0) + total
+        link[a].pop(c, None)
+        for d, total in link[a].items():
+            avg = total / (size(a) * size(d))
+            if avg >= MERGE:
+                heapq.heappush(heap, (-avg, min(a, d), max(a, d)))
+    return list(parts.values())
 
 
 def fit_pairs(examples: list[tuple[list[float], bool]], meaning: bool) -> dict | None:
