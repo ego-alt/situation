@@ -2,11 +2,18 @@
 from fetch import fetch_source
 from sources import Source
 
-GOOGLE_FEED = b"""<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>
-<item><title>Africa News Reports | Latest News in Africa - AP News</title><link>https://news.google.com/a</link><source url="https://apnews.com">AP News</source></item>
-<item><title>Saudi Arabia - AP News</title><link>https://news.google.com/b</link><source url="https://apnews.com">AP News</source></item>
-<item><title>Lula wins a fourth term as Brazil's president - AP News</title><link>https://news.google.com/c</link><source url="https://apnews.com">AP News</source></item>
-</channel></rss>"""
+
+def _item(title: bytes, link: bytes) -> bytes:
+    """One Google News item, its headline ending in the outlet's name as Google writes it."""
+    return (b"<item><title>" + title + b" - AP News</title><link>https://news.google.com/" + link + b"</link>"
+            b'<source url="https://apnews.com">AP News</source></item>')
+
+
+GOOGLE_FEED = (b'<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'
+               + _item(b"Africa News Reports | Latest News in Africa", b"a")
+               + _item(b"Saudi Arabia", b"b")
+               + _item(b"Lula wins a fourth term as Brazil's president", b"c")
+               + b"</channel></rss>")
 
 
 class _Response:
