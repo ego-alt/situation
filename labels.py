@@ -96,8 +96,9 @@ def assessed(items: list[dict], itn: dict, now: datetime) -> list[tuple[list[dic
     the history of when an "In the news" item first appeared, every match
     counts as fresh."""
     from geo import locate
+    from news import news_only
     from pipeline import SHOWN
-    from score import assess, match_itn, news_only
+    from score import assess, match_itn
     items = news_only(items)                 # as the pipeline groups them
     groups = [[items[i] for i in g] for g in clustering.cluster(items)]
     matched = match_itn(groups, itn.get("items", []))

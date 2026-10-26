@@ -32,9 +32,12 @@ def web_link(url: str | None) -> str | None:
     return url if re.match(r"https?://", url, re.I) else None
 
 
-# A site's section page in Google's feed ("Africa News Reports | Latest News in
-# Africa"): grouped with real stories that share a word, it once made one.
-SECTION_PAGE = re.compile(r"\|.*\b(latest|top|breaking) news\b", re.I)
+def topic_page(title: str) -> bool:
+    """A topic or section page in Google's feed, not an article: a name
+    ("Saudi Arabia") or a site's page title ("College football | Latest News &
+    Updates"); the wire services' headlines never carry a "|". Grouped with real
+    stories that share a word, one once made a story of its own."""
+    return len(title.split()) < 4 or " | " in title
 
 
 def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
@@ -55,8 +58,8 @@ def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
             name = (entry.get("source") or {}).get("title")
             if name and title.endswith(f" - {name}"):
                 title = title[: -len(name) - 3].rstrip()
-            if len(title.split()) < 4 or SECTION_PAGE.search(title):
-                continue   # a topic or section page ("Saudi Arabia", "… | Latest News in Africa"), not an article
+            if topic_page(title):
+                continue
         items.append({
             "source": source.key, "outlet": source.outlet, "title": title, "url": url,
             "summary": summary,

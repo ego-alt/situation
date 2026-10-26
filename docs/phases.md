@@ -55,7 +55,7 @@ Live code is flat at the top (`fetch`, `pipeline`, `cluster`, `score`, `geo`, `t
 3. **Train on what you score:** pairs from inside one label alone made the models over-merge (precision went from 63% to 88% once fixed).
 4. **Partition rules are a hypothesis.** Under the situation rules, five stories held a quarter of the articles, and sport and markets got pulled into wars.
 5. **Off the shelf came close to learned,** at half the time.
-6. **Headlines can't tell features from news.** About a quarter of articles aren't live news; the rule catches a fifth of those, and an embedding classifier did no better.
+6. **The feed can tell features from news, the page adds nothing.** About 29% of articles aren't news. The rules (headline and url) catch half at 96% precision; a learned model on the feed alone (rules, format signals, the embedding, outlet and url tokens: 548 features) catches 81% at 89%. The article page's schema.org type and section scored the same as without it, and half the outlets refuse the fetch.
 7. **Small, correlated data can't separate methods,** so gaps of a few points sit within noise.
 
 ## Roadmap
@@ -68,8 +68,10 @@ Ordered by what matters most now.
 - [ ] Train the rank model when the rankings are enough; keep it only if it beats the hand score on held-out labels.
 
 **Stage 1, news** (measure before fixing)
-- [ ] Measure how much non-news reaches headline-size events. If little, stop here.
-- [ ] If it matters: keep feeds' category tags and add per-outlet URL sections (cheap). Then, if needed, use the schema.org article type from the page.
+- [x] Learned model on feed evidence (`tools/evaluate_news.py`): 88.7% precision, 81.1% recall, against 96.5 / 51.6 for the rules. Opus and Sonnet agree on 94% of labels, so the ceiling is near 89 / 89.
+- [ ] Clean the labels: Opus judges where model and label disagree, and as many agreements drawn at random, so the check doesn't favour the model.
+- [ ] Final test on a week the model has never seen (W44), once, after the features are settled.
+- [ ] Ship: train on every label, keep the model in `instance/`, and have `news_only` use it at a threshold set for precision (dropping real news costs most).
 
 **Stage 2, event** (good enough for now)
 - [ ] Run `tools/label_week.py` weekly (or monthly for the last four weeks). Read each window's review.

@@ -46,7 +46,8 @@ def frozen_clock(monkeypatch):
 def app(tmp_path):
     app = create_app({"TESTING": True, "FETCH_LOOP": False,
                       "SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'test.db'}",
-                      "SNAPSHOTS_DIR": str(tmp_path / "snapshots")})
+                      "SNAPSHOTS_DIR": str(tmp_path / "snapshots"),
+                      "MODELS_DIR": str(tmp_path / "models")})   # the hand rules, not models saved on this machine
     with app.app_context():
         yield app
         db.session.remove()

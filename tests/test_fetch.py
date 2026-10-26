@@ -12,6 +12,7 @@ def _item(title: bytes, link: bytes) -> bytes:
 GOOGLE_FEED = (b'<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'
                + _item(b"Africa News Reports | Latest News in Africa", b"a")
                + _item(b"Saudi Arabia", b"b")
+               + _item(b"March Madness Bracket | 2026 NCAA Tournament", b"d")
                + _item(b"Lula wins a fourth term as Brazil's president", b"c")
                + b"</channel></rss>")
 

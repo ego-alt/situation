@@ -9,7 +9,8 @@ from datetime import UTC, datetime, timedelta
 from cluster import cluster
 from geo import locate, places, spots
 from models import Article, DayTally, ItnSnapshot, SourceStatus, Story, db, story_articles
-from score import BACKGROUND, MAJOR, assess, match_itn, news_only
+from news import news_only
+from score import BACKGROUND, MAJOR, assess, match_itn
 
 WINDOW = timedelta(hours=48)
 ITN_FRESH = timedelta(hours=24)     # how long an "In the news" match makes a story FLASH

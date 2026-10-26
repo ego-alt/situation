@@ -41,11 +41,13 @@ def test_headline_size_and_the_bootstrap():
 
 def _week(tmp_path, grouping):
     """A ground truth week made from two real snapshots, its events as `grouping` puts them."""
+    from news import video_page
     windows, events = {}, {}
     for k, path in enumerate((SNAPSHOT, SNAPSHOT_2)):
         data = json.loads(path.read_text())
         name = f"2026-10-1{8 + k}T0300"
         items, _ = snapshot_items(path)
+        items = [a for a in items if not video_page(a)]          # video pages aren't news, so not in the truth
         windows[name] = {"taken": NOW.isoformat(), "items": data["items"], "itn": data["itn"]}
         events[name] = [{"urls": [items[i]["url"] for i in g], "place": None} for g in grouping(items)]
     return groundtruth.save("2026-W42", {"made": NOW.isoformat(), "model": "test", "rubric": "test",
@@ -88,6 +90,11 @@ def test_labelling_a_week_cuts_its_windows_from_the_database(loaded, app):
     assert label_week.parse({"stories": [{"articles": [1, 2], "place": "fr"}, {"articles": [3], "place": "none"}]}, 3) \
         == ([[0, 1], [2]], ["FR", "none"])
     assert label_week.parse({"stories": [{"articles": [1], "place": "fr"}]}, 2) is None
+    assert label_week.parse_news({"news": [1, 3], "not_news": [2]}, 3) == [True, False, True]
+    assert label_week.parse_news({"news": [1], "not_news": [1]}, 1) is None        # in both lists
+    assert label_week.parse_news({"news": [1], "not_news": []}, 2) is None          # one left out
+    assert "/opinion/2026" in label_week.news_prompt([{"url": "https://x.com/opinion/2026/a", "title": "T",
+                                                        "source": "bbc", "outlet": "bbc", "summary": ""}])
 
 
 @pytest.mark.parametrize("title, news", [
@@ -99,6 +106,24 @@ def test_labelling_a_week_cuts_its_windows_from_the_database(loaded, app):
     ("Live: Paris bans protests after violent unrest", True),
 ])
 def test_what_counts_as_news(title, news):
-    from score import is_news
+    from news import is_news
     assert is_news({"title": title, "url": "https://example.com/world/1"}) is news
     assert not is_news({"title": title, "url": "https://example.com/opinion/1"})
+
+
+NEWS_URL = "https://example.com/news/1"
+
+
+@pytest.mark.parametrize("title, url, summary, signals", [
+    ("Kenya convicts cult leader", "https://www.aljazeera.com/video/newsfeed/2026/10/19/kenya", "", {"video"}),
+    ("Israel says it thwarted an attack, and other Middle East developments", NEWS_URL, "", {"roundup"}),
+    ("How China's party plenum works", NEWS_URL, "", {"explainer"}),
+    ("France's government under pressure", NEWS_URL, "Political tension grips France, Katya Adler writes.", {"voice"}),
+    ("The human cost of strikes in Somalia", NEWS_URL, "Before July, a man I will call R had already left.",
+     {"headline_the", "lede_scene", "lede_person"}),
+    ("Macron bans protests", NEWS_URL, "France banned protests on Thursday, police said.", {"lede_when", "lede_said"}),
+])
+def test_formats(title, url, summary, signals):
+    from news import formats
+    found = {k for k, v in formats({"title": title, "url": url, "summary": summary}).items() if v}
+    assert found - {"no_summary"} == signals
