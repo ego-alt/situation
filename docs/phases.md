@@ -37,6 +37,18 @@ Live code is flat at the top (`fetch`, `pipeline`, `cluster`, `score`, `geo`, `t
 - **`tools/evaluate_grouping.py`**: compares event methods against the deployed one on the newest week, with intervals. A new method is one line in its table.
 - **`labels.py` and `/label`**: your rankings and bar answers, and their scoring (`flask evaluate`, `flask train`).
 
+### The labelled data
+
+Three files in `instance/groundtruth/`, each with one job. A piece (`groundtruth.piece`: the same headline under any url) is only ever on one side of a train/test split.
+
+| File | What | Labelled by | Used for |
+|---|---|---|---|
+| `<week>.json.gz` | Two 48-hour windows of a week, every article: news or not, and the events | Sonnet (`tools/label_week.py`) | **Test**: stage 1 is scored on it (cross-validated), stage 2 too. The newest week no model has seen is the final test. |
+| `news-train.json.gz` | Other articles from the database, never the test weeks' pieces: news or not | Sonnet (`tools/label_news.py`) | **Training only**, adds to the folds. Top it up monthly so it spans more than one news cycle. |
+| `news-check.json.gz` | A second opinion on the same articles, not more data | Opus (`tools/check_news_labels.py`) | Marks disputed labels: left out of training, and scored separately. |
+
+The shipped model trains on the first two together (disputed labels left out), so its honest score is on a week labelled after it was trained.
+
 ## Phase 1: learning to group (October 2026)
 
 **Aim.** Make grouping improve from labelled data instead of hand-tuned rules.

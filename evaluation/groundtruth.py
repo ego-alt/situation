@@ -23,10 +23,18 @@ import gzip
 import json
 import os
 import pathlib
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
 KEEP_WEEKS = 12        # evaluation uses at most the newest this many weeks
+
+
+def piece(article: dict) -> str:
+    """The same piece under any url (two feeds of one outlet, a re-filed
+    story): its headline, lowercased, without punctuation. What may never be on
+    both sides of a train/test split."""
+    return " ".join(re.sub(r"[^\w\s]", " ", article["title"].lower()).split())
 
 
 def directory(path: str | None = None) -> pathlib.Path:

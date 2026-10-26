@@ -92,19 +92,25 @@ def learned(articles: list[dict], truth: list[bool], splits, extra: list[dict] =
     """Each article's chance of not being news, from a model that never saw it:
     for each (train, test) split of the articles, a model trained on the train
     part (only its trusted labels, when given) plus the extra (training-only)
-    articles scores the test part. Returns the chances and the feature count."""
+    articles scores the test part. Nothing trains that is the same piece as
+    something scored (groundtruth.piece: one story in two feeds), so no copy
+    is on both sides. Returns the chances and the feature count."""
     p, width = np.zeros(len(articles)), 0
     for train, test in splits:
-        train = [i for i in train if trusted is None or trusted[i]]
-        labels = [truth[i] for i in train] + [not a["news"] for a in extra]
-        model = fit([articles[i] for i in train] + list(extra), labels)
+        scored = {groundtruth.piece(articles[i]) for i in test}
+        train = [i for i in train if (trusted is None or trusted[i]) and groundtruth.piece(articles[i]) not in scored]
+        more = [a for a in extra if groundtruth.piece(a) not in scored]
+        labels = [truth[i] for i in train] + [not a["news"] for a in more]
+        model = fit([articles[i] for i in train] + more, labels)
         p[test], width = news.chances([articles[i] for i in test], model), model["width"]
     return p, width
 
 
-def folds(truth: list[bool], k: int = 5):
-    from sklearn.model_selection import StratifiedKFold
-    return list(StratifiedKFold(k, shuffle=True, random_state=0).split(np.zeros(len(truth)), truth))
+def folds(articles: list[dict], truth: list[bool], k: int = 5):
+    """k splits, balanced for news and not, with every copy of a piece in the same one."""
+    from sklearn.model_selection import StratifiedGroupKFold
+    pieces = [groundtruth.piece(a) for a in articles]
+    return list(StratifiedGroupKFold(k, shuffle=True, random_state=0).split(np.zeros(len(truth)), truth, pieces))
 
 
 def by_window(names: list[str]):
@@ -165,7 +171,7 @@ def main():
     trusted = [check.get(a["url"], not t) is not t for a, t in zip(articles, truth, strict=True)]
     extra = [a for a in label_news.load()["articles"].values() if check.get(a["url"], a["news"]) == a["news"]]
     names = [w.name for w, _ in kept]
-    variants = {"learned": learned(articles, truth, folds(truth), extra, trusted),
+    variants = {"learned": learned(articles, truth, folds(articles, truth), extra, trusted),
                 "learned, by window": learned(articles, truth, by_window(names), extra, trusted)}
     notes = [f"learned: {len(extra)} training-only articles besides the folds; by window: trained on one window, "
              "tested on the other"]

@@ -5,8 +5,9 @@ ANTHROPIC_API_KEY.
     uv run --with anthropic python -I tools/label_news.py /tmp/situation.db [--dry-run]
 
 Same rubric and requests as tools/label_week.py's news labels, but these are
-for training only: articles in a ground truth week's windows are left out, so
-the test set stays unseen. Labels go to news-train.json.gz in the ground truth
+for training only: articles in a ground truth week's windows, and the same
+pieces under other urls (groundtruth.piece), are left out, so the test set
+stays unseen. Labels go to news-train.json.gz in the ground truth
 folder, and accumulate run by run; if the rubric changes, they start over.
 About $0.50 per 3,000 articles with Sonnet.
 """
@@ -54,12 +55,13 @@ def main():
     if store["rubric"] != NEWS_RUBRIC:
         print("the rubric changed: starting over")
         store = {"rubric": NEWS_RUBRIC, "model": args.model, "articles": {}}
-    held_out = {a["url"] for w in groundtruth.windows(args.dir) for a in w.articles}
+    test = [a for w in groundtruth.windows(args.dir) for a in w.articles]
+    held_out = {a["url"] for a in test} | {groundtruth.piece(a) for a in test}
     con = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     rows = [dict(r) for r in con.execute("SELECT source, title, url, summary FROM articles")]
     con.close()
-    todo = [a for a in rows if a["url"] not in held_out and a["url"] not in store["articles"]]
+    todo = [a for a in rows if not {a["url"], groundtruth.piece(a)} & held_out and a["url"] not in store["articles"]]
     chunks = [todo[k:k + NEWS_CHUNK] for k in range(0, len(todo), NEWS_CHUNK)]
     print(f"{len(rows)} articles: {len(held_out & {a['url'] for a in rows})} in test windows, "
           f"{len(store['articles'])} labelled already, {len(todo)} to label in {len(chunks)} requests")

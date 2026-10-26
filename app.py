@@ -189,6 +189,26 @@ def create_app(config=None):
         with _fetch_lock:
             print(fetch_once())
 
+    @app.cli.command("dropped")
+    @click.option("--hours", default=24, help="How far back to look.")
+    def dropped_command(hours):
+        """List what the news model leaves out (news.py), surest first, to skim for mistakes."""
+        import learn
+        import news
+        from models import Article
+        model = learn.load("news")
+        items = [a.as_item() for a in Article.query.filter(Article.fetched >= datetime.now(UTC).replace(tzinfo=None)
+                                                            - timedelta(hours=hours))]
+        p = news.chances(items, model) if model and items else None
+        if p is None:
+            print("no news model in use: the rules decide (news.is_news)")
+            return
+        out = sorted(((c, a) for a, c in zip(items, p, strict=True) if c >= model["threshold"]), key=lambda x: -x[0])
+        print(f"{len(out)} of {len(items)} articles in the last {hours} hours left out "
+              f"(threshold {model['threshold']:.2f})")
+        for chance, a in out:
+            print(f"  {chance:.2f}  {a['source']:11} {a['title'][:100]}")
+
     @app.cli.command("brief")
     def brief_command():
         """Print the morning brief: today's top headlines (pushing it comes later)."""
