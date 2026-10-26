@@ -293,3 +293,16 @@ def test_labelling_questions_answers_and_evaluation(loaded, app):
                    "b": {"headline": lo[1]["headline"], "urls": [x["url"] for x in lo[0]]}})
     r = labels.evaluate(Label.query.all())
     assert (r["rank_pairs"], r["rank_agreement"]) == (1, 1)
+
+
+def test_only_the_server_runs_the_fetch_loop(monkeypatch):
+    """`flask fetch` fetching alongside its own background loop stored the same articles twice."""
+    import app as app_module
+    monkeypatch.delenv("WERKZEUG_RUN_MAIN", raising=False)
+    monkeypatch.delenv("FLASK_RUN_FROM_CLI", raising=False)
+    assert app_module._serving()                                   # gunicorn
+    monkeypatch.setenv("FLASK_RUN_FROM_CLI", "true")
+    monkeypatch.setattr("sys.argv", ["flask", "--app", "app:create_app", "fetch"])
+    assert not app_module._serving()                               # a one-off command
+    monkeypatch.setattr("sys.argv", ["flask", "--app", "app:create_app", "run", "--port", "8000"])
+    assert app_module._serving()                                   # the dev server

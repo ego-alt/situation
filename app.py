@@ -1,5 +1,6 @@
 import os
 import pathlib
+import sys
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -185,16 +186,29 @@ def create_app(config=None):
     @app.cli.command("fetch")
     def fetch_command():
         """Fetch every source once and re-score."""
-        print(fetch_once())
+        with _fetch_lock:
+            print(fetch_once())
 
     @app.cli.command("brief")
     def brief_command():
         """Print the morning brief: today's top headlines (pushing it comes later)."""
         print(brief_text(snapshot()))
 
-    if app.config["FETCH_LOOP"] and not app.config.get("TESTING") and os.environ.get("WERKZEUG_RUN_MAIN") != "false":
+    if app.config["FETCH_LOOP"] and not app.config.get("TESTING") and _serving():
         start_loop(app)
     return app
+
+
+def _serving() -> bool:
+    """Whether this process is the web server (gunicorn, or `flask run` without
+    the reloader's watcher process), not a one-off command like `flask fetch`:
+    only the server runs the background fetch loop, or a command would fetch
+    alongside it and both would store the same new articles."""
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "false":
+        return False
+    if os.environ.get("FLASK_RUN_FROM_CLI") != "true":
+        return True   # a WSGI server imported the app
+    return "run" in sys.argv[1:]
 
 
 # One fetch at a time: the background loop and the Sync button share it.
