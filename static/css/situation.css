@@ -229,10 +229,15 @@ body {
     .theatre { height: 54vw; min-height: 200px; border-right: 0; border-bottom: 1px solid var(--line); }
     .legend { display: none; }
     .zoom { top: auto; bottom: 8px; right: 8px; flex-direction: row; }
-    .zoom button { min-width: 30px; height: 30px; }
+    .zoom button { min-width: 44px; height: 44px; }
     .intel { overflow: visible; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
     .section-head { top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
     .map .pin.flash .ring { animation: none; opacity: 0.6; }
+}
+/* Touch: Sync keeps its look in the bar, with a finger-sized target. */
+@media (hover: none) {
+    .sync-button { position: relative; }
+    .sync-button::after { content: ""; position: absolute; inset: -11px 0; }
 }

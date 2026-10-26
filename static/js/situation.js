@@ -831,6 +831,27 @@
         }
     }
 
+    // Back (the phone's gesture, or the browser's) closes an open headline,
+    // then the place or situation the list is showing, before leaving the page.
+    // History keeps one entry per open layer, put back in line after every tap.
+    const layers = [   // topmost first: [is it open?, close it]
+        [() => openId != null, () => toggle(openId)],
+        [() => filter != null, () => clearFilter()],
+    ];
+    let historyDepth = 0, ignoredPops = 0;
+    function syncHistory() {
+        const open = layers.filter(([isOpen]) => isOpen()).length;
+        while (historyDepth < open) history.pushState({ layer: ++historyDepth }, '');
+        if (historyDepth > open) { ignoredPops++; history.go(open - historyDepth); historyDepth = open; }
+    }
+    window.addEventListener('popstate', () => {
+        if (ignoredPops) { ignoredPops--; return; }
+        historyDepth = Math.max(0, historyDepth - 1);
+        layers.find(([isOpen]) => isOpen())?.[1]();
+        setTimeout(syncHistory, 0);
+    });
+    ['click', 'keydown', 'touchend'].forEach((ev) => document.addEventListener(ev, () => setTimeout(syncHistory, 0), true));
+
     function start() {
         $('syncButton').addEventListener('click', syncNow);
         tick();
