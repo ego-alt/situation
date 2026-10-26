@@ -47,7 +47,7 @@ Three files in `instance/groundtruth/`, each with one job. A piece (`groundtruth
 | `news-train.json.gz` | Other articles from the database, never the test weeks' pieces: news or not | Sonnet (`tools/label_news.py`) | **Training only**, adds to the folds. Top it up monthly so it spans more than one news cycle. |
 | `news-check.json.gz` | A second opinion on the same articles, not more data | Opus (`tools/check_news_labels.py`) | Marks disputed labels: left out of training, and scored separately. |
 
-The shipped model trains on the first two together (disputed labels left out), so its honest score is on a week labelled after it was trained.
+The shipped model trains on the first two together (disputed labels left out), so its honest score is on a week labelled after it was trained. Hand corrections live in the file they correct, under `corrections` (url, from, to, why), so a relabel can see them.
 
 ## Phase 1: learning to group (October 2026)
 
@@ -82,7 +82,8 @@ Ordered by what matters most now.
 **Stage 1, news** (measure before fixing)
 - [x] Learned model on feed evidence (`tools/evaluate_news.py`): 88.7% precision, 81.1% recall, against 96.5 / 51.6 for the rules. Opus and Sonnet agree on 94% of labels, so the ceiling is near 89 / 89.
 - [x] Ship (26 Oct): trained on all 5,395 labels, saved as `instance/models/news.json`, and `news_only` drops what it scores at or above the threshold that gave 90% precision (cross-validated: 90.3% precision, 78.4% recall, against 96.5 / 51.6 for the rules).
-- [ ] Second labeller: Opus labels every article (`tools/check_news_labels.py`, about $5); score on the agreed labels and train only on them.
+- [x] Second labeller (26 Oct): Opus agrees with Sonnet on 95.1% (4,605 checked before credit ran out; rerun to finish). Disputed labels are left out of training.
+- [x] Label review (26 Oct): the 125 labels the model confidently disputed, read against the rubric: 31 were wrong (newsletters and galleries labelled news, statements and released reports labelled not news). 100 random agreements had 1 error. Scored on corrected labels: 90.1% precision, 81.2% recall (78.7% on the old labels: most of the gain is measuring it right). Model types compared on the same features: logistic regression ties or beats random forest, gradient-boosted trees and XGBoost, so it stays.
 - [ ] Final test on a week the model has never seen (W44), once.
 - [ ] Check what it changes on screen: the same windows grouped with the rules and with the model, headline-size stories compared.
 - [ ] Later: fine-tune the embedding on the labels (on the Mac), then distil it back to a static model so the Pi still only looks up and averages.
