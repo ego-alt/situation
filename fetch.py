@@ -32,6 +32,11 @@ def web_link(url: str | None) -> str | None:
     return url if re.match(r"https?://", url, re.I) else None
 
 
+# A site's section page in Google's feed ("Africa News Reports | Latest News in
+# Africa"): grouped with real stories that share a word, it once made one.
+SECTION_PAGE = re.compile(r"\|.*\b(latest|top|breaking) news\b", re.I)
+
+
 def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
     """A feed's items, in the feed's own order. Raises when the feed can't be read."""
     resp = requests.get(source.url, headers={"User-Agent": USER_AGENT}, timeout=timeout)
@@ -50,8 +55,8 @@ def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
             name = (entry.get("source") or {}).get("title")
             if name and title.endswith(f" - {name}"):
                 title = title[: -len(name) - 3].rstrip()
-            if len(title.split()) < 4:
-                continue   # a topic page ("Saudi Arabia"), not an article
+            if len(title.split()) < 4 or SECTION_PAGE.search(title):
+                continue   # a topic or section page ("Saudi Arabia", "… | Latest News in Africa"), not an article
         items.append({
             "source": source.key, "outlet": source.outlet, "title": title, "url": url,
             "summary": summary,
