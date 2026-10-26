@@ -42,7 +42,7 @@ Live code is flat at the top (`fetch`, `pipeline`, `cluster`, `score`, `geo`, `t
 **Aim.** Make grouping improve from labelled data instead of hand-tuned rules.
 
 **Outcome**
-- The non-news filter is in.
+- The non-news filter is in: hand rules, then a learned model (stage 1 below).
 - Stage 2 has a weekly ground truth and an evaluation pipeline.
 - The hand rules measure decently: 83% on headline-size events, 88% on all articles. The off-the-shelf grouping ties them, so they stay.
 - Also from this phase: regions drawn as areas on the map, country cards, and local times.
@@ -69,9 +69,11 @@ Ordered by what matters most now.
 
 **Stage 1, news** (measure before fixing)
 - [x] Learned model on feed evidence (`tools/evaluate_news.py`): 88.7% precision, 81.1% recall, against 96.5 / 51.6 for the rules. Opus and Sonnet agree on 94% of labels, so the ceiling is near 89 / 89.
-- [ ] Clean the labels: Opus judges where model and label disagree, and as many agreements drawn at random, so the check doesn't favour the model.
-- [ ] Final test on a week the model has never seen (W44), once, after the features are settled.
-- [ ] Ship: train on every label, keep the model in `instance/`, and have `news_only` use it at a threshold set for precision (dropping real news costs most).
+- [x] Ship (26 Oct): trained on all 5,395 labels, saved as `instance/models/news.json`, and `news_only` drops what it scores at or above the threshold that gave 90% precision (cross-validated: 90.3% precision, 78.4% recall, against 96.5 / 51.6 for the rules).
+- [ ] Second labeller: Opus labels every article (`tools/check_news_labels.py`, about $5); score on the agreed labels and train only on them.
+- [ ] Final test on a week the model has never seen (W44), once.
+- [ ] Check what it changes on screen: the same windows grouped with the rules and with the model, headline-size stories compared.
+- [ ] Later: fine-tune the embedding on the labels (on the Mac), then distil it back to a static model so the Pi still only looks up and averages.
 
 **Stage 2, event** (good enough for now)
 - [ ] Run `tools/label_week.py` weekly (or monthly for the last four weeks). Read each window's review.
