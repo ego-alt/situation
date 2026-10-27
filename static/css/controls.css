@@ -1,0 +1,36 @@
+/* Situation's one definition of a button (dashboard/docs/ui-spec.md, rule 4).
+ * Components may place or size a button, nothing more.
+ *   .btn        a bordered mono chip, quiet until hovered (Show all, Try again)
+ *   .btn-float  the same, on glass over the map (zoom)
+ *   .btn-lg     a big choice to tap (the labelling page)
+ *   .btn-ghost  bare words that act (Sync in the bar) */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: var(--text-xs) var(--font-mono);
+    cursor: pointer;
+}
+.btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-text-muted); }
+.btn:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.btn-float { background: var(--color-bg-overlay); font-size: var(--text-sm); }
+
+.btn-lg {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-inset);
+    color: var(--color-text-primary);
+    font: var(--text-sm) var(--font-sans);
+}
+.btn-lg:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-accent); }
+
+.btn-ghost { border-color: transparent; color: inherit; font: inherit; letter-spacing: inherit; }
+.btn-ghost:hover:not(:disabled) { border-color: var(--color-border); }

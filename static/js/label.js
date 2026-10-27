@@ -37,8 +37,8 @@
             : `<div class="label-pair label-single">${story('', q.story)}</div>`;
         $('question').innerHTML = `<h2 class="label-ask">${ASK[q.kind]}</h2>${cards}
             <div class="label-choices">${CHOICES[q.kind].map(([value, text, key]) =>
-                `<button type="button" data-answer="${value}"><span class="k">${key}</span> ${text}</button>`).join('')}
-                <button type="button" data-skip><span class="k">S</span> Skip</button></div>`;
+                `<button type="button" class="btn btn-lg" data-answer="${value}"><span class="k">${key}</span> ${text}</button>`).join('')}
+                <button type="button" class="btn btn-lg" data-skip><span class="k">S</span> Skip</button></div>`;
         window.scrollTo({ top: 0 });
     }
 
@@ -50,7 +50,7 @@
             showCounts(body.counts);
             render(body.question);
         } catch (e) {
-            $('question').innerHTML = '<div class="empty">Couldn’t load a question. <button type="button" class="retry" id="retry">Try again</button></div>';
+            $('question').innerHTML = '<div class="empty">Couldn’t load a question. <button type="button" class="btn retry" id="retry">Try again</button></div>';
         }
     }
 

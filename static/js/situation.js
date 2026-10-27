@@ -628,7 +628,7 @@
         let html = '';
         if (filter) {
             html += `<div class="filter"><span>Showing <b>${esc(filter.label)}</b></span>
-                <button type="button" class="filter-clear">Show all</button></div>`;
+                <button type="button" class="btn filter-clear">Show all</button></div>`;
             if (filter.country) html += cardHtml(filter.country);
         }
         html += section('flash', 'Flash', flash) + section('priority', 'Priority', priority);
@@ -797,7 +797,7 @@
         }
         if (!data && failure) {
             $('feed').innerHTML = `<div class="empty">${failure === 'signed-out' ? 'Signed out.' : 'Can’t reach the server.'}
-                <button type="button" class="retry">Try again</button></div>`;
+                <button type="button" class="btn retry">Try again</button></div>`;
         }
         drawStatus();
     }

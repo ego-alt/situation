@@ -1,0 +1,73 @@
+/* Situation's tokens: every size and colour it uses. An operations-room wall:
+ * near-black glass, a phosphor-green map, amber for FLASH, cyan for PRIORITY.
+ * Role names follow dashboard/docs/ui-spec.md (tests/test_style_tokens.py checks
+ * that no stylesheet sets a raw font size). */
+:root {
+    /* Type: facts in Plex Mono, headlines in Inter. Four sizes, two pixels apart. */
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --text-xs: 11px;      /* labels, tags, meta, counts */
+    --text-sm: 13px;      /* summaries, sources, notes, the bar */
+    --text-base: 15px;    /* headlines */
+    --text-lg: 17px;      /* titles: a country, a question */
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+
+    --radius-sm: 2px;     /* chips, buttons, tags */
+    --radius-md: 4px;     /* cards */
+    --radius-lg: 8px;     /* the labelling page's cards and choices */
+
+    /* Surfaces */
+    --color-bg-base: #070a0b;
+    --color-bg-elevated: #0b1012;
+    --color-bg-inset: #0f1619;
+    --color-bg-overlay: rgba(7, 10, 11, 0.85);
+    --color-bg-chrome-top: #0a0f11;          /* the status bar's gradient */
+    --color-bg-chrome-bottom: #080c0d;
+
+    /* Borders */
+    --color-border: #22333b;
+    --color-border-soft: #18242a;
+
+    /* Text */
+    --color-text-primary: #d3dedb;
+    --color-text-secondary: #9fb2ad;
+    --color-text-muted: #5d716c;
+
+    /* Accent: the phosphor green */
+    --color-accent: #5fd3a6;
+    --color-accent-haze: rgba(95, 211, 166, 0.05);   /* the glow behind the map */
+
+    /* Tiers */
+    --color-flash: #ffb020;
+    --color-flash-glow: rgba(255, 176, 32, 0.35);
+    --color-flash-dim: #5a431a;                     /* a FLASH tag's border, the notice's edge */
+    --color-flash-wash: #1a140a;                    /* the "not current" notice */
+    --color-priority: #45c8e8;
+    --color-priority-glow: rgba(69, 200, 232, 0.28);
+    --color-selected: #fff;
+
+    /* The map */
+    --color-sea: #081012;
+    --color-grid: #10201f;
+    --color-land: #0f1a1c;
+    --color-land-edge: #1d3036;
+    --color-land-lit: #173236;
+    --color-land-flash: #2a2112;
+    --color-land-flash-edge: #6b4f1c;
+    --color-land-priority: #10282d;
+    --color-land-priority-edge: #23515a;
+    --color-region: #1a2a2f;
+    --color-region-flash: rgba(255, 176, 32, 0.16);
+    --color-region-flash-edge: #9a7024;
+    --color-region-priority: rgba(69, 200, 232, 0.16);
+    --color-region-priority-edge: #2f7f91;
+    --color-scanline: rgba(255, 255, 255, 0.012);
+
+    color-scheme: dark;
+}

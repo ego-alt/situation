@@ -8,6 +8,8 @@
     <title>Situation</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
     <script>window.APP_ROOT = {{ request.script_root|tojson }};</script>
 </head>
@@ -17,7 +19,7 @@
         <div class="readouts">
             <span class="readout clock"><span class="k">UTC</span> <span id="clockUtc">--:--</span></span>
             <span class="readout clock"><span class="k" id="localZone">LOCAL</span> <span id="clockLocal">--:--</span></span>
-            <button type="button" class="readout sync-button" id="syncButton" title="Fetch the news now">
+            <button type="button" class="readout btn btn-ghost sync-button" id="syncButton" title="Fetch the news now">
                 <span class="k">SYNC</span> <span id="sync">—</span> <span class="sync-icon" aria-hidden="true">↻</span>
             </button>
             <span class="readout" id="sourcesReadout"><span class="k">SRC</span> <span id="sources">—</span></span>
@@ -30,9 +32,9 @@
         <section class="theatre" aria-label="World map">
             <svg id="map" class="map" role="img" aria-label="Where today's stories are"></svg>
             <div class="zoom" role="group" aria-label="Map zoom">
-                <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
-                <button type="button" data-zoom="out" aria-label="Zoom out">−</button>
-                <button type="button" data-zoom="world" class="zoom-world">World</button>
+                <button type="button" class="btn btn-float" data-zoom="in" aria-label="Zoom in">+</button>
+                <button type="button" class="btn btn-float" data-zoom="out" aria-label="Zoom out">−</button>
+                <button type="button" class="btn btn-float zoom-world" data-zoom="world">World</button>
             </div>
             <div class="legend" aria-hidden="true">
                 <span><i class="dot flash"></i>flash</span>
