@@ -13,6 +13,8 @@ out); `rank` breaks ties for the lead when no cover or commentary decides it.
 import re
 from dataclasses import dataclass
 
+SUBJECT = "Neuroscience"            # the paper's nameplate
+
 
 @dataclass(frozen=True)
 class Journal:

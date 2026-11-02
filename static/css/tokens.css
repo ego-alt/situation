@@ -10,7 +10,7 @@
     --text-sm: 13px;      /* summaries, sources, notes, the bar */
     --text-base: 15px;    /* headlines */
     --text-lg: 17px;      /* titles: a country, a question */
-    --text-xl: 24px;      /* Papers: the lead story */
+    --text-xl: 24px;      /* Papers: the nameplate and the lead story */
 
     --space-1: 4px;
     --space-2: 8px;

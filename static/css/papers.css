@@ -1,14 +1,17 @@
 /* Papers: the week's neuroscience as a front page, in the map's glass and type: a folio
- * between rules, columns parted by hairlines, stories sized by their commentary. */
+ * under the nameplate, columns parted by hairlines, stories sized by their commentary. */
 .papers-page { height: auto; }
 .press { max-width: 1280px; margin: 0 auto; padding: 0 var(--space-8) calc(var(--space-8) + env(safe-area-inset-bottom)); }
 
 /* ---- masthead ---- */
-.masthead { padding-top: var(--space-6); text-align: center; }
-.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.masthead { padding-top: var(--space-8); text-align: center; }
+.nameplate {
+    margin: 0; padding-left: 0.42em;   /* gives back the tracking's trailing space, so it centres */
+    font: 600 var(--text-xl)/1 var(--font-mono); letter-spacing: 0.42em; text-transform: uppercase; color: var(--color-text-primary);
+}
 .folio {
     display: grid; grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr); align-items: center; gap: var(--space-4);
-    padding: var(--space-1) 0;
+    margin-top: var(--space-4); padding: var(--space-1) 0;
     border-top: 3px double var(--color-border); border-bottom: 1px solid var(--color-border);
     font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
@@ -48,6 +51,7 @@
 /* What the commentary called it, under the paper's own title. */
 .standfirst { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: 1.45; color: var(--color-text-primary); }
 .standfirst-k { margin-right: var(--space-2); font: var(--text-xs) var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent); }
+.s-lead .standfirst { font-size: var(--text-base); }
 .standfirst a { color: inherit; text-decoration: none; }
 .standfirst a:hover { text-decoration: underline; }
 .abstract {
@@ -136,7 +140,8 @@
 /* ---- phone: a list, the lead on top; a story opens to its abstract and links ---- */
 @media (max-width: 860px) {
     .press { padding: 0 var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
-    .masthead { padding-top: var(--space-4); }
+    .masthead { padding-top: var(--space-6); }
+    .nameplate { letter-spacing: 0.3em; padding-left: 0.3em; }
     .folio { grid-template-columns: 44px 1fr 44px; gap: var(--space-2); }
     .folio-step { min-width: 44px; min-height: 44px; padding: 0; }
     .folio-step-label { display: none; }
@@ -145,6 +150,8 @@
     .story, .s-wide.has-fig { display: block; padding: var(--space-4) 0; border-bottom: 1px solid var(--color-border-soft); }
     .s-lead { padding-top: var(--space-6); }
     .s-lead .fig { float: none; width: auto; margin: var(--space-4) 0 0; }
+    .fig img, .s-lead .fig img { max-height: 280px; object-fit: contain; }
+    .s-lead .standfirst { font-size: var(--text-sm); }
     .s-lead .story-head { margin-bottom: 0; }
     .s-lead .story-title { font-size: var(--text-lg); }
     .s-half .story-title, .s-wide .story-title { font-size: var(--text-base); }

@@ -47,7 +47,8 @@ def create_app(config=None):
     @app.route("/papers/<edition>")
     def papers_page(edition=None):
         """Papers; /papers/2026-W44 is that week's edition (the page reads it from the address)."""
-        return render_template("papers.html")
+        from journals import SUBJECT
+        return render_template("papers.html", subject=SUBJECT)
 
     @app.route("/api/papers")
     def papers_api():

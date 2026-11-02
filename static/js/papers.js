@@ -42,7 +42,7 @@
         const src = webLink(large ? p.figure_large || p.figure : p.figure);
         if (!src) return '';
         const alt = p.cover && p.cover_image === p.figure ? 'The issue’s cover' : 'The paper’s first figure';
-        return `<figure class="fig"><img src="${esc(src)}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer"
+        return `<figure class="fig"><img src="${esc(src)}" alt="${alt}" loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer"
             onerror="this.closest('figure').remove()"></figure>`;
     }
 
