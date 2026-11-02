@@ -64,11 +64,11 @@
     font: var(--text-xs)/18px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
 .kicker .journal { color: var(--color-text-secondary); font-weight: 600; }
-.mark-cover { padding: 0 var(--space-1); border: 1px solid var(--color-flash-dim); border-radius: var(--radius-sm); color: var(--color-flash); letter-spacing: 0.06em; }
+.mark-cover { padding: 0 var(--space-1); border: 1px solid var(--color-flash-dim); border-radius: var(--radius-sm); color: var(--color-flash); }
 .story-title { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
-.w6 .story-title, .w7 .story-title, .w8 .story-title, .w12 .story-title { font-size: var(--text-lg); line-height: 1.25; }
-.story-title sub, .story-title sup, .abstract sub, .abstract sup { line-height: 0; }
+:is(.w6, .w7, .w8, .w12) .story-title { font-size: var(--text-lg); line-height: 1.25; }
+:is(.story-title, .abstract) :is(sub, sup) { line-height: 0; }
 .byline { margin: var(--space-2) 0 0; font: var(--text-xs) var(--font-mono); letter-spacing: 0.04em; color: var(--color-text-muted); }
 .byline .n::before { content: "· "; }
 /* What the commentary called it, under the paper's own title, and its summary: set off by a
@@ -82,7 +82,7 @@
 }
 .story.open .standfirst-sum { display: block; }
 .standfirst-sum i { font-style: normal; }
-.standfirst-k { margin-right: var(--space-2); font: var(--text-xs) var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent); }
+.standfirst-k { margin-right: var(--space-2); font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
 .standfirst a { color: inherit; text-decoration: none; }
 .standfirst a:hover { text-decoration: underline; }
 .abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--color-text-secondary); hyphens: auto; }
@@ -90,7 +90,7 @@
 .s-lead:not(.has-fig) .abstract { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 .links {
     display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-3) 0 0;
-    font: var(--text-xs)/18px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase;
+    font: var(--text-xs)/18px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase;
 }
 .links a { color: var(--color-text-secondary); text-decoration: none; }
 .links a:hover { color: var(--color-text-primary); }
@@ -114,9 +114,9 @@
 /* The issue's cover, at the head of the rail: the cover beside its caption. */
 .rail-cover { display: flex; gap: var(--space-4); align-items: flex-end; margin: 0 0 var(--space-6); padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border-soft); }
 .rail-cover img { display: block; width: 50%; height: auto; max-height: 320px; object-fit: contain; object-position: left bottom; border-radius: var(--radius-sm); border: 1px solid var(--color-border-soft); }
-.rail-cover figcaption { display: flex; flex-direction: column; gap: var(--space-1); font: var(--text-xs)/1.5 var(--font-mono); letter-spacing: 0.06em; color: var(--color-text-muted); }
-.rail-cover-k { font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-flash); }
-.rail-cover-note { font: italic var(--text-sm)/1.45 var(--font-sans); letter-spacing: 0; color: var(--color-text-secondary); }
+.rail-cover figcaption { display: flex; flex-direction: column; gap: var(--space-1); }
+.rail-cover-k { font: 600 var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-flash); }
+.rail-cover-note { font: italic var(--text-sm)/1.45 var(--font-sans); color: var(--color-text-secondary); }
 
 /* ---- the rest of a long week, one line each, down two columns ---- */
 .rest { margin-top: var(--space-8); }
@@ -124,7 +124,7 @@
 .s-line { break-inside: avoid; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-soft); }
 .s-line .kicker { margin-bottom: var(--space-1); }
 .s-line .story-title { font-weight: 500; }
-.s-line:not(.open) .fig, .s-line:not(.open) .byline, .s-line:not(.open) .abstract, .s-line:not(.open) .links { display: none; }
+.s-line:not(.open) :is(.fig, .byline, .abstract, .links) { display: none; }
 .s-line .fig { margin: var(--space-3) 0 0; }
 .s-line:hover .story-title { color: var(--color-selected); }
 
@@ -133,7 +133,7 @@
 .section-rule {
     display: flex; justify-content: space-between; margin: 0; padding: var(--space-2) 0;
     border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border-soft);
-    font: 600 var(--text-xs) var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-text-muted);
+    font: 600 var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
 .section-rule .n { font-weight: 400; letter-spacing: 0.04em; }
 .discussed ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
@@ -143,7 +143,7 @@
 .discussed-note { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); }
 .discussed-paper { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: 1.45; color: var(--color-text-secondary); }
 .discussed a { color: inherit; text-decoration: none; }
-.discussed .discussed-note a:hover, .discussed .discussed-paper a:hover { text-decoration: underline; }
+.discussed a:hover { text-decoration: underline; }
 .discussed-when { display: block; margin-top: var(--space-1); font: var(--text-xs) var(--font-mono); letter-spacing: 0.04em; color: var(--color-text-muted); }
 .discussed .btn { margin-top: var(--space-2); }
 
@@ -178,8 +178,7 @@
     .s-lead .story-title { font-size: var(--text-lg); }
     .s-mod .story-title { font-size: var(--text-base); }
     .s-lead .standfirst-head { font-size: var(--text-sm); }
-    .story:not(.s-lead):not(.open) .fig, .story:not(.open) .links { display: none; }
-    .story:not(.s-lead):not(.open) .abstract { display: none; }
+    .story:not(.s-lead):not(.open) :is(.fig, .abstract), .story:not(.open) .links { display: none; }
     .s-lead .abstract, .s-lead:not(.has-fig) .abstract { columns: auto; margin-top: var(--space-3); font-size: var(--text-sm); }
     .s-lead:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
     .rail-cover { margin: 0; padding: var(--space-4) 0; }

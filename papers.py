@@ -187,11 +187,8 @@ def figure_for(doi: str) -> str | None:
     if doi.startswith("10.1016/"):
         ids = get(CROSSREF + doi).json()["message"].get("alternative-id", [])
         pii = next((i for i in ids if re.fullmatch(r"S\w{16}", i)), None)
-        for name in ("ga1.jpg", "gr1.jpg"):
-            url = f"https://ars.els-cdn.com/content/image/1-s2.0-{pii}-{name}" if pii else None
-            if url and requests.head(url, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}).ok:
-                return url
-        return None
+        urls = [f"https://ars.els-cdn.com/content/image/1-s2.0-{pii}-{n}.jpg" for n in ("ga1", "gr1")] if pii else []
+        return next((u for u in urls if requests.head(u, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}).ok), None)
     try:
         image = page_meta(f"https://doi.org/{doi}").get("og:image", "")
     except requests.HTTPError:
@@ -416,23 +413,23 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
     for n in late:
         if n.on in earlier:
             week = edition_id(earlier[n.on].published)
-            discussed.append({**_paper(earlier[n.on], [n], lead=False),
+            discussed.append({**_paper(earlier[n.on], [n]),
                               "edition": week if week in all_editions else None})
     return {**base, "discussed": discussed, "edition": {"id": which, "number": int(which[6:8]),
                                 "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
                                 "in_progress": start >= this_week,
                                 "prev": all_editions[at - 1] if at else None,
                                 "next": all_editions[at + 1] if at + 1 < len(all_editions) else None},
-            "papers": [_paper(p, notes.get(p.doi, []), lead=i == 0) for i, p in enumerate(papers)]}
+            "papers": [_paper(p, notes.get(p.doi, [])) for p in papers]}
 
 
-def _paper(p: Paper, notes: list[Paper], lead: bool) -> dict:
+def _paper(p: Paper, notes: list[Paper]) -> dict:
     j = BY_KEY[p.journal]
     cover_image = p.cover if (p.cover or "").startswith("https://") else None
     return {"doi": p.doi, "journal": j.name, "title": p.title, "authors": p.authors or [], "abstract": p.abstract,
             "published": p.published.isoformat(), "url": p.url, "figure": p.figure,
             "figure_large": large(p.figure), "free": p.free, "cover": bool(p.cover),
-            "cover_image": cover_image, "tier": "lead" if lead else "major" if notes or p.cover else "minor",
+            "cover_image": cover_image,
             "commentary": [{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary,
                             "journal": BY_KEY[n.journal].name, "summary": n.abstract} for n in notes]}
 

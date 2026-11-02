@@ -115,7 +115,6 @@ def test_an_edition_leads_with_the_cover_then_commentary(app, journals):
         assert order[0] == "10.1038/s41586-1"                                   # the cover story
         assert set(order[1:3]) == {"10.1038/s41586-2", "10.1126/science.brain"}    # with commentary
         assert order[3:] == ["10.1016/j.neuron.1"]
-        assert [p["tier"] for p in e["papers"]] == ["lead", "major", "major", "minor"]
         assert e["papers"][1]["commentary"][0]["label"] == "News & Views"
         assert e["papers"][1]["commentary"][0]["summary"] == "What the meta-study means."   # from its page
         # The Preview came out this edition's week, on a paper from August.

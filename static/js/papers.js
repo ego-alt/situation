@@ -9,6 +9,13 @@
     // Titles and abstracts come from the server already escaped, with only <i>, <sub> and <sup> kept.
     const marked = (s) => String(s ?? '');
 
+    // Each row below the lead takes the next of these shapes, so the page changes rhythm as it goes.
+    const SHAPES = [[6, 3, 3], [4, 4, 4], [3, 6, 3], [7, 5], [4, 8], [3, 3, 6], [5, 7]];
+    const MODULES = 9;       // past this many, the rest of a long week is a list
+    const ROW_MAX = 600;     // the most a row of modules runs to before its text is cut
+    const MIN_LINES = 4;     // a story shows at least this much of its abstract
+    const narrow = window.matchMedia('(max-width: 860px)');
+
     let data = null;
     let failure = null;
 
@@ -38,11 +45,16 @@
         return `<p class="byline"${all}>${esc(text)}${names.length > 2 ? ` <span class="n">${names.length} authors</span>` : ''}</p>`;
     }
 
+    /** A link out, or the text alone when there's nowhere safe to go. */
+    function out(href, html, cls = '') {
+        const link = webLink(href);
+        return link ? `<a${cls ? ` class="${cls}"` : ''} href="${esc(link)}" target="_blank" rel="noopener">${html}</a>` : html;
+    }
+
     function figure(p, large) {
         const src = webLink(large ? p.figure_large || p.figure : p.figure);
         if (!src) return '';
-        const alt = 'The paper’s first figure';
-        return `<figure class="fig"><img src="${esc(src)}" alt="${alt}" loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer"
+        return `<figure class="fig"><img src="${esc(src)}" alt="The paper’s first figure" loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer"
             onerror="this.closest('figure').remove()"></figure>`;
     }
 
@@ -54,59 +66,45 @@
             <span class="rail-cover-note">This week’s ${esc(p.journal)} shows the lead story.</span></figcaption></figure>` : '';
     }
 
-    // The commentary speaks for itself in the standfirst; only the cover needs a mark.
-    const marks = (p) => (p.cover ? '<span class="mark mark-cover">Cover story</span>' : '');
+    const summary = (c) => (c.summary ? `<p class="standfirst-sum">${marked(c.summary)}</p>` : '');
 
     /** The commentary's own headline and summary, under the paper's: what the field made of it. */
     function standfirst(p) {
-        return p.commentary.map((c) => {
-            const link = webLink(c.url);
-            const title = marked(c.title);
-            return `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span>${link
-                ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</p>${summary(c)}</div>`;
-        }).join('');
+        return p.commentary.map((c) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span>${out(c.url, marked(c.title))}</p>${summary(c)}</div>`).join('');
     }
 
-    const summary = (c) => (c.summary ? `<p class="standfirst-sum">${marked(c.summary)}</p>` : '');
-
     function links(p) {
-        const out = [];
-        const paper = webLink(p.url);
-        if (paper) out.push(`<a href="${esc(paper)}" target="_blank" rel="noopener">${esc(p.journal)} <span aria-hidden="true">↗</span></a>`);
-        const free = p.free && webLink(p.free.url);
-        if (free) out.push(`<a class="free" href="${esc(free)}" target="_blank" rel="noopener">Free · ${esc(p.free.label)} <span aria-hidden="true">↗</span></a>`);
-        return out.length ? `<p class="links">${out.join('')}</p>` : '';
+        const arrow = ' <span aria-hidden="true">↗</span>';
+        const paper = webLink(p.url) ? out(p.url, esc(p.journal) + arrow) : '';
+        const free = p.free && webLink(p.free.url) ? out(p.free.url, `Free · ${esc(p.free.label)}${arrow}`, 'free') : '';
+        return paper || free ? `<p class="links">${paper}${free}</p>` : '';
     }
 
     function kicker(p) {
-        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span><span>${day(p.published)}</span>${marks(p)}</p>`;
+        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span><span>${day(p.published)}</span>${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}</p>`;
     }
 
-    /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide on the
-     * front page, its figure on top, beside the text (wide slots) or left out (a text column). */
+    /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module
+     * leads with its figure, puts its headline over it (mid widths), floats it in the corner for
+     * the text to wrap (wide), or goes without (a narrow slot with a wide figure, or none). */
     function story(p, size, w = 0) {
         const lead = size === 'lead';
-        const side = size === 'mod' && w >= 7;
-        const text = size === 'mod' && (!p.figure || (w === 3 && ratio(p) > 1.6));
+        const mod = size === 'mod';
+        const text = mod && (!p.figure || (w === 3 && ratio(p) > 1.6));
         const art = size === 'rail' || text ? '' : figure(p, lead);
-        const headFirst = size === 'mod' && (w === 5 || w === 6);
+        const headFirst = mod && (w === 5 || w === 6);
         const head = `<div class="story-head">
                 ${kicker(p)}
                 <h2 class="story-title">${marked(p.title)}</h2>
                 ${byline(p.authors)}
                 ${standfirst(p)}
             </div>`;
-        // The lead's figure and a wide module's float, so the text wraps around and under them.
-        const kind = size === 'mod' ? `s-mod w${w}${side ? ' side' : ''}` : `s-${size}`;
+        const kind = mod ? `s-mod w${w}${w >= 7 ? ' side' : ''}` : `s-${size}`;
         return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" data-journal="${esc(p.journal)}" tabindex="0">
             <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${links(p)}
         </article>`;
     }
-
-    // Each row below the lead takes the next of these shapes, so the page changes rhythm as it goes.
-    const SHAPES = [[6, 3, 3], [4, 4, 4], [3, 6, 3], [7, 5], [4, 8], [3, 3, 6], [5, 7]];
-    const MODULES = 9;   // past this many, the rest of a long week is a list
 
     // Each figure's width over height, so the widest goes in the widest slot.
     const ratios = new Map();
@@ -124,19 +122,15 @@
     }
 
     /** The lead with a rail beside it, then rows of modules in changing shapes, then in a
-     * long week the remainder as a list. */
+     * long week the remainder as a list. The papers come in order: the cover story, those
+     * with a commentary, the rest. */
     function compose(papers) {
-        const [lead, ...rest] = papers;
-        const majors = rest.filter((p) => p.tier === 'major');
-        const minors = rest.filter((p) => p.tier !== 'major');
-        // With the cover at its head, the rail has room for one story.
+        const [lead, ...queue] = papers;
         const art = cover(lead);
-        const room = art ? 1 : 2;
-        const rail = majors.splice(0, room);
-        rail.push(...minors.splice(0, room - rail.length));
+        const rail = queue.splice(0, art ? 1 : 2);   // with the cover at its head, the rail has room for one
         const rows = [rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
             : `<div class="row">${story(lead, 'lead')}</div>`];
-        const queue = [...majors, ...minors];
+        // A list of one isn't worth it: one over the limit goes in the modules.
         const modules = queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length);
         for (let s = 0; modules.length; s++) {
             let shape = SHAPES[s % SHAPES.length];
@@ -155,13 +149,8 @@
         return rows.join('');
     }
 
-    const narrow = window.matchMedia('(max-width: 860px)');
-    const ROW_MAX = 600;   // the most a row of modules runs to before its text is cut
-
     // How tall a story's own content is (the grid stretches the story itself to its row).
     const natural = (el) => el.lastElementChild.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
-
-    const MIN_LINES = 4;   // a story shows at least this much of its abstract before its row is cut
 
     /** The line height of a story's abstract, and how far down its abstract starts. */
     function lines(el) {
@@ -218,14 +207,12 @@
         if (!items?.length) return '';
         const rows = items.map((p) => {
             const c = p.commentary[0];
-            const paper = webLink(p.url);
-            const note = webLink(c.url);
             const back = p.edition ? `<a class="btn" href="${esc(url(`/papers/${p.edition}`))}" data-edition="${esc(p.edition)}">In No. ${Number(p.edition.slice(6))}</a>` : '';
             return `<li class="discussed-item">
                 <p class="kicker"><span class="journal">${esc(c.journal)}</span><span>${esc(c.label)}</span></p>
-                <p class="discussed-note">${note ? `<a href="${esc(note)}" target="_blank" rel="noopener">${marked(c.title)}</a>` : marked(c.title)}</p>
+                <p class="discussed-note">${out(c.url, marked(c.title))}</p>
                 ${summary(c)}
-                <p class="discussed-paper"><span class="standfirst-k">Paper</span>${paper ? `<a href="${esc(paper)}" target="_blank" rel="noopener">${marked(p.title)}</a>` : marked(p.title)}
+                <p class="discussed-paper"><span class="standfirst-k">Paper</span>${out(p.url, marked(p.title))}
                     <span class="discussed-when">${esc(p.journal)}, ${day(p.published, { day: 'numeric', month: 'short', year: 'numeric' })}</span> ${back}</p>
             </li>`;
         }).join('');
@@ -236,19 +223,19 @@
     function drawEdition() {
         const e = data.edition;
         const n = data.next_edition;
-        const out = day(n.out, { weekday: 'long', day: 'numeric', month: 'short' });
+        const due = day(n.out, { weekday: 'long', day: 'numeric', month: 'short' });
         const sofar = `${n.so_far} ${n.so_far === 1 ? 'paper' : 'papers'} so far`;
         if (!e) {
             $('folio').textContent = 'The first edition is being set';
             $('index').innerHTML = '';
-            $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(out)}. ${esc(sofar)}.</p>`;
+            $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(due)}. ${esc(sofar)}.</p>`;
         } else {
             const commented = data.papers.filter((p) => p.commentary.length).length;
             const count = `${data.papers.length} ${data.papers.length === 1 ? 'paper' : 'papers'}${e.in_progress ? ' so far' : ''}`;
             $('index').innerHTML = indexHtml(data.papers);
-            $('edition').classList.remove('picking');
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(span(e.start, e.end))}</span>
                 <span>${count}${commented ? `, ${commented} with commentary` : ''}</span>`;
+            $('edition').classList.remove('picking');
             $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
                 + discussedHtml(data.discussed);
             fit();
@@ -258,7 +245,7 @@
         step($('prevEdition'), e?.prev);
         step($('nextEdition'), e?.next);
         const names = data.journals;
-        const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(out)}. `
+        const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(due)}. `
             : e?.next && data.editions[data.editions.length - 1] === e.next && n.so_far ? `No. ${Number(e.next.slice(6))} is under way, ${esc(sofar)}. ` : '';
         $('foot').innerHTML = `<p>${under}Research papers in neuroscience from
             ${esc(names.slice(0, -1).join(', '))} and ${esc(names[names.length - 1])}, by the week they came out.</p>
