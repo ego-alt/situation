@@ -43,6 +43,17 @@ def create_app(config=None):
     def index():
         return render_template("index.html")
 
+    @app.route("/papers")
+    def papers_page():
+        return render_template("papers.html")
+
+    @app.route("/api/papers")
+    def papers_api():
+        """One week's edition of Papers (?edition=2026-W44; the latest finished week by default)."""
+        import papers
+        from pipeline import clock
+        return jsonify(papers.edition(request.args.get("edition"), clock().date(), papers.last_fetched()))
+
     @app.route("/favicon.ico")
     def favicon():
         return send_from_directory(app.static_folder, "icon.svg", mimetype="image/svg+xml")
@@ -189,6 +200,13 @@ def create_app(config=None):
         with _fetch_lock:
             print(fetch_once())
 
+    @app.cli.command("papers")
+    @click.option("--weeks", default=3, help="How many weeks back to read (more to fill earlier editions).")
+    def papers_command(weeks):
+        """Read the journals for Papers now (the server does every six hours)."""
+        import papers
+        print(papers.fetch(window=timedelta(weeks=weeks)))
+
     @app.cli.command("dropped")
     @click.option("--hours", default=24, help="How far back to look.")
     def dropped_command(hours):
@@ -282,6 +300,13 @@ def start_loop(app):
                     fetch_once()
             except Exception:  # noqa: BLE001 — a bad fetch must not stop the loop
                 app.logger.exception("fetch failed")
+            try:
+                import papers
+                with app.app_context():
+                    if papers.due(datetime.now(UTC)):
+                        papers.fetch()
+            except Exception:  # noqa: BLE001 — nor a bad journal
+                app.logger.exception("papers fetch failed")
             time.sleep(app.config["FETCH_EVERY_MINUTES"] * 60)
 
     threading.Thread(target=loop, daemon=True, name="situation-fetch").start()

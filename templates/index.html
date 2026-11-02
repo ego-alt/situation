@@ -12,10 +12,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
     <script>window.APP_ROOT = {{ request.script_root|tojson }};</script>
+    {% set tab = 'news' %}{% include '_last_tab.html' %}
 </head>
 <body>
     <header class="bar">
-        <div class="brand"><span class="brand-mark" aria-hidden="true"></span>SITUATION<span class="brand-sub">open-source monitor</span></div>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">SITUATION</span>{% include '_tabs.html' %}</div>
         <div class="readouts">
             <span class="readout clock"><span class="k">UTC</span> <span id="clockUtc">--:--</span></span>
             <span class="readout clock"><span class="k" id="localZone">LOCAL</span> <span id="clockLocal">--:--</span></span>

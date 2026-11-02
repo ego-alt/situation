@@ -1,0 +1,14 @@
+<script>
+    // Opening the app goes back to the tab you were last on; the tabs themselves always go where they say.
+    (() => {
+        const tab = {{ tab|tojson }};
+        try {
+            const root = `${location.origin}${window.APP_ROOT || ''}/`;
+            const from = document.referrer.startsWith(root);   // moving within the app, not arriving
+            const last = localStorage.getItem('situation.tab');
+            const there = { news: {{ url_for('index')|tojson }}, papers: {{ url_for('papers_page')|tojson }} }[last];
+            if (!from && !location.search && last && last !== tab && there) location.replace(there);
+            else localStorage.setItem('situation.tab', tab);
+        } catch (_) { /* no storage: always the page asked for */ }
+    })();
+</script>

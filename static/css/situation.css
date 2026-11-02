@@ -21,6 +21,16 @@ body {
 .brand { display: flex; align-items: center; gap: var(--space-3); font-weight: 600; color: var(--color-text-primary); letter-spacing: 0.18em; }
 .brand-mark { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); box-shadow: 0 0 8px var(--color-accent); }
 .brand-sub { color: var(--color-text-muted); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; font-size: var(--text-xs); }
+/* News and Papers: the two halves of the app, as tabs beside the name. */
+.tabs { display: flex; align-self: stretch; gap: var(--space-4); margin-left: var(--space-3); }
+.brand { align-self: stretch; }
+.tab {
+    display: flex; align-items: center; padding-top: 2px; border-bottom: 2px solid transparent;
+    color: var(--color-text-muted); font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none;
+}
+.tab:hover { color: var(--color-text-secondary); }
+.tab[aria-current="page"] { color: var(--color-text-primary); border-bottom-color: var(--color-accent); }
+.tab:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .readouts { display: flex; gap: var(--space-4); color: var(--color-text-secondary); white-space: nowrap; }
 .readout .k { color: var(--color-text-muted); }
 .k.flash { color: var(--color-flash); }
@@ -186,7 +196,10 @@ body {
     .label-choices .k { display: none; }
     .bar { height: auto; min-height: 44px; gap: var(--space-3); padding: var(--space-2) var(--space-3); padding-top: max(var(--space-2), env(safe-area-inset-top)); }
     .brand { letter-spacing: 0.12em; }
-    .brand-sub, .readout.clock { display: none; }
+    .brand-sub, .brand-name, .readout.clock { display: none; }
+    .tabs { margin-left: 0; gap: var(--space-3); }
+    .tab { letter-spacing: 0.1em; }
+    .sync-button .k { display: none; }   /* the ↻ says it */
     #sourcesReadout:not(.warn) { display: none; }   /* only worth the room when a feed has gone quiet */
     .readouts { gap: var(--space-3); font-size: var(--text-xs); }
     .board { display: block; height: auto; }

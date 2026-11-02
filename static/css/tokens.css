@@ -3,13 +3,14 @@
  * Role names follow dashboard/docs/ui-spec.md (tests/test_style_tokens.py checks
  * that no stylesheet sets a raw font size). */
 :root {
-    /* Type: facts in Plex Mono, headlines in Inter. Four sizes, two pixels apart. */
+    /* Type: facts in Plex Mono, headlines in Inter. Five sizes, two pixels or more apart. */
     --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
     --text-xs: 11px;      /* labels, tags, meta, counts */
     --text-sm: 13px;      /* summaries, sources, notes, the bar */
     --text-base: 15px;    /* headlines */
     --text-lg: 17px;      /* titles: a country, a question */
+    --text-xl: 24px;      /* Papers: the nameplate and the lead story */
 
     --space-1: 4px;
     --space-2: 8px;
@@ -42,6 +43,8 @@
     /* Accent: the phosphor green */
     --color-accent: #5fd3a6;
     --color-accent-haze: rgba(95, 211, 166, 0.05);   /* the glow behind the map */
+    --color-accent-dim: #24493c;                     /* a commentary mark's border */
+    --color-plate: #ffffff;                          /* behind a paper's figure (drawn on white) */
 
     /* Tiers */
     --color-flash: #ffb020;

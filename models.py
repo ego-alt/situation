@@ -103,6 +103,27 @@ class Label(db.Model):
     source = db.Column(db.String, nullable=False, default="you", index=True)   # you, or claude:<model>
 
 
+class Paper(db.Model):
+    """A research paper in one of the journals Papers reads (journals.py), or a
+    commentary the journal commissioned on one (`on` is that paper's DOI)."""
+    __tablename__ = "papers"
+    doi = db.Column(db.String, primary_key=True)                # lower case
+    journal = db.Column(db.String, nullable=False, index=True)  # journals.py key
+    kind = db.Column(db.String, nullable=False, index=True)     # research | commentary | other (looked at, not either)
+    title = db.Column(db.String, nullable=False)                # plain text, with <i>, <sub>, <sup> kept
+    authors = db.Column(db.JSON)                                # surnames, in order
+    abstract = db.Column(db.String)
+    published = db.Column(db.Date, index=True)                  # first out, online or in print: its edition's week
+    url = db.Column(db.String)
+    figure = db.Column(db.String)                               # an image of its first figure or graphical abstract
+    free = db.Column(db.JSON)                                   # {"url", "label"}: a copy anyone can read
+    on = db.Column(db.String, index=True)                       # commentary: the DOI it's about
+    cover = db.Column(db.String)                                # research: the cover image, when it's the cover story
+    pmid = db.Column(db.String)
+    fetched = db.Column(db.DateTime, default=utcnow)
+    enriched = db.Column(db.DateTime)                           # when its figure was looked for
+
+
 def migrate():
     """Add columns that create_all() can't add to an existing table."""
     def columns(table):
