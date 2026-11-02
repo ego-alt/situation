@@ -78,29 +78,48 @@
         return `<p class="kicker"><span class="journal">${esc(p.journal)}</span><span>${day(p.published)}</span>${marks(p)}</p>`;
     }
 
-    /** One story. `size`: lead, rail, half, wide, third or line; each shows more or less of the same parts. */
-    function story(p, size) {
+    /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide on the
+     * front page, its figure on top, beside the text (wide slots) or left out (a text column). */
+    function story(p, size, w = 0) {
         const lead = size === 'lead';
-        const art = lead && p.cover_image ? cover(p) : size === 'rail' ? '' : figure(p, lead || size === 'wide');
+        const side = size === 'mod' && w >= 7;
+        const text = size === 'mod' && (!p.figure || (w === 3 && ratio(p) > 1.6));
+        const art = lead && p.cover_image ? cover(p) : size === 'rail' || text ? '' : figure(p, lead);
         const head = `<div class="story-head">
                 ${kicker(p)}
                 <h2 class="story-title">${marked(p.title)}</h2>
                 ${byline(p.authors)}
                 ${standfirst(p)}
             </div>`;
-        // The lead sets its headline first and wraps the abstract around the picture.
-        return `<article class="story s-${size}${art ? ' has-fig' : ''}" data-doi="${esc(p.doi)}" tabindex="0">
-            ${lead ? head + art : art + head}
-            ${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}
+        // The lead's figure and a wide module's float, so the text wraps around and under them.
+        const kind = size === 'mod' ? `s-mod w${w}${side ? ' side' : ''}` : `s-${size}`;
+        return `<article class="story ${kind}${art ? ' has-fig' : ''}" data-doi="${esc(p.doi)}" tabindex="0">
+            <div class="flow">${lead ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${links(p)}
         </article>`;
     }
 
-    const TILES = 6;   // papers without commentary shown as tiles; past a row or two more, the rest are lines
+    // Each row below the lead takes the next of these shapes, so the page changes rhythm as it goes.
+    const SHAPES = [[6, 3, 3], [4, 4, 4], [3, 6, 3], [7, 5], [4, 8], [3, 3, 6], [5, 7]];
+    const MODULES = 9;   // past this many, the rest of a long week is a list
 
-    /** Rows that each fill the width: the lead with a rail beside it, then pairs of the
-     * papers with commentary, then the rest three across (never one left alone), and
-     * in a long week the remainder as a list. */
+    // Each figure's width over height, so the widest goes in the widest slot.
+    const ratios = new Map();
+    const ratio = (p) => ratios.get(p.doi) ?? (p.figure ? 1.3 : 0);
+
+    function measure(papers) {
+        const todo = papers.filter((p) => webLink(p.figure) && !ratios.has(p.doi)).map((p) => new Promise((done) => {
+            const img = new Image();
+            img.referrerPolicy = 'no-referrer';
+            img.onload = () => { ratios.set(p.doi, img.naturalWidth / img.naturalHeight); done(); };
+            img.onerror = done;
+            img.src = p.figure;
+        }));
+        return Promise.race([Promise.all(todo), new Promise((done) => setTimeout(done, 1500))]);
+    }
+
+    /** The lead with a rail beside it, then rows of modules in changing shapes, then in a
+     * long week the remainder as a list. */
     function compose(papers) {
         const [lead, ...rest] = papers;
         const majors = rest.filter((p) => p.tier === 'major');
@@ -109,22 +128,63 @@
         rail.push(...minors.splice(0, 2 - rail.length));
         const rows = [rail.length ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
             : `<div class="row">${story(lead, 'lead')}</div>`];
-        while (majors.length) {
-            const two = majors.splice(0, majors.length === 1 ? 1 : 2);
-            rows.push(`<div class="row row-${two.length}">${two.map((p) => story(p, two.length === 1 ? 'wide' : 'half')).join('')}</div>`);
+        const queue = [...majors, ...minors];
+        const modules = queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length);
+        for (let s = 0; modules.length; s++) {
+            let shape = SHAPES[s % SHAPES.length];
+            if (modules.length < shape.length) shape = modules.length === 1 ? [12] : [7, 5];
+            const items = modules.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
+            const slots = shape.map((w, i) => ({ w, i })).sort((a, b) => b.w - a.w);
+            const placed = [];
+            slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
+            rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
         }
-        const tiles = minors.splice(0, minors.length > TILES + 1 ? TILES : minors.length);
-        while (tiles.length) {
-            const n = tiles.length === 4 ? 2 : Math.min(3, tiles.length);
-            const group = tiles.splice(0, n);
-            rows.push(`<div class="row row-${n}">${group.map((p) => story(p, n === 1 ? 'wide' : n === 2 ? 'half' : 'third')).join('')}</div>`);
-        }
-        if (minors.length) {
+        if (queue.length) {
             rows.push(`<section class="rest" aria-label="The rest of the week">
-                <h2 class="section-rule"><span>The rest of the week</span><span class="n">${minors.length} ${minors.length === 1 ? 'paper' : 'papers'}</span></h2>
-                <div class="rest-list">${minors.map((p) => story(p, 'line')).join('')}</div></section>`);
+                <h2 class="section-rule"><span>The rest of the week</span><span class="n">${queue.length} ${queue.length === 1 ? 'paper' : 'papers'}</span></h2>
+                <div class="rest-list">${queue.map((p) => story(p, 'line')).join('')}</div></section>`);
         }
         return rows.join('');
+    }
+
+    const narrow = window.matchMedia('(max-width: 860px)');
+    const ROW_MAX = 600;   // the most a row of modules runs to before its text is cut
+
+    // How tall a story's own content is (the grid stretches the story itself to its row).
+    const natural = (el) => el.lastElementChild.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+
+    /** Cut a story's text at a whole line so the story ends at `height`; the last line fades. */
+    function clamp(el, height) {
+        const flow = el.querySelector('.flow');
+        const abstract = flow.querySelector('.abstract');
+        if (!abstract || natural(el) <= height + 1) return;
+        const room = height - (natural(el) - flow.offsetHeight);
+        const line = parseFloat(getComputedStyle(abstract).lineHeight);
+        const lines = Math.max(2, Math.floor((room - abstract.offsetTop) / line));
+        flow.style.maxHeight = `${abstract.offsetTop + lines * line}px`;
+        flow.classList.add('cut');
+    }
+
+    /** Even out each row on a desktop: every story's text runs to the foot of its row (the
+     * lead's, or the widest module's), so no column ends with a gap. */
+    function fit() {
+        const rows = [...document.querySelectorAll('#edition .row')];
+        for (const flow of document.querySelectorAll('#edition .flow')) { flow.style.maxHeight = ''; flow.classList.remove('cut'); }
+        if (narrow.matches) return;
+        for (const row of rows) {
+            const lead = row.querySelector('.s-lead');
+            if (lead) {
+                const rail = [...row.querySelectorAll('.rail .story')];
+                const gap = rail.length > 1 ? rail[1].getBoundingClientRect().top - rail[0].getBoundingClientRect().bottom : 0;
+                rail.forEach((el) => clamp(el, (natural(lead) - gap * (rail.length - 1)) / rail.length));
+                continue;
+            }
+            const stories = [...row.children].filter((el) => !el.classList.contains('open'));
+            const widest = stories.reduce((a, b) => (b.offsetWidth > a.offsetWidth ? b : a), stories[0]);
+            if (!widest) continue;
+            const height = Math.min(natural(widest), ROW_MAX);
+            stories.forEach((el) => clamp(el, height));
+        }
     }
 
     function discussedHtml(items) {
@@ -160,6 +220,9 @@
                 <span>${count}${commented ? `, ${commented} with commentary` : ''}</span>`;
             $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
                 + discussedHtml(data.discussed);
+            fit();
+            // The lead's figure sets the front row's height once it's in.
+            $('edition').querySelector('.s-lead img')?.addEventListener('load', fit);
         }
         step($('prevEdition'), e?.prev);
         step($('nextEdition'), e?.next);
@@ -202,6 +265,7 @@
             else {
                 data = await res.json();
                 failure = null;
+                await measure(data.papers);
                 drawEdition();
                 if (push && data.edition) history.pushState({ edition: data.edition.id }, '', url(`/papers/${data.edition.id}`));
                 if (push) window.scrollTo({ top: 0 });
@@ -218,7 +282,7 @@
 
     // ---------- reading ----------
 
-    /** A story opens in place to its whole abstract and full figure; again closes it. */
+    /** A story opens in place to its whole abstract and full figure; again closes it (its row grows). */
     function toggle(el) {
         el.classList.toggle('open');
         el.setAttribute('aria-expanded', el.classList.contains('open'));
@@ -252,6 +316,9 @@
     window.addEventListener('popstate', () => load(fromPath()));
 
     load(fromPath());
+    let resizing = 0;
+    window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(fit, 150); });
+    document.fonts?.ready.then(fit);
     setInterval(drawStatus, 60000);
     setInterval(() => !document.hidden && load(data?.edition?.id), 30 * 60000);
 })();
