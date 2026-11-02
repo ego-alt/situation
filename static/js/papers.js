@@ -153,20 +153,36 @@
     // How tall a story's own content is (the grid stretches the story itself to its row).
     const natural = (el) => el.lastElementChild.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
 
+    const MIN_LINES = 4;   // a story shows at least this much of its abstract before its row is cut
+
+    /** The line height of a story's abstract, and how far down its abstract starts. */
+    function lines(el) {
+        const abstract = el.querySelector('.flow .abstract');
+        return abstract && { top: abstract.offsetTop, line: parseFloat(getComputedStyle(abstract).lineHeight) };
+    }
+
+    /** How tall a story needs to be to show MIN_LINES of its abstract (or all of it, if shorter). */
+    function need(el) {
+        const l = lines(el);
+        if (!l) return natural(el);
+        const flow = el.querySelector('.flow');
+        return Math.min(natural(el), natural(el) - flow.offsetHeight + l.top + MIN_LINES * l.line);
+    }
+
     /** Cut a story's text at a whole line so the story ends at `height`; the last line fades. */
     function clamp(el, height) {
+        const l = lines(el);
+        if (!l || natural(el) <= height + 1) return;
         const flow = el.querySelector('.flow');
-        const abstract = flow.querySelector('.abstract');
-        if (!abstract || natural(el) <= height + 1) return;
         const room = height - (natural(el) - flow.offsetHeight);
-        const line = parseFloat(getComputedStyle(abstract).lineHeight);
-        const lines = Math.max(2, Math.floor((room - abstract.offsetTop) / line));
-        flow.style.maxHeight = `${abstract.offsetTop + lines * line}px`;
+        const n = Math.max(2, Math.floor((room - l.top) / l.line));
+        flow.style.maxHeight = `${l.top + n * l.line}px`;
         flow.classList.add('cut');
     }
 
-    /** Even out each row on a desktop: every story's text runs to the foot of its row (the
-     * lead's, or the widest module's), so no column ends with a gap. */
+    /** Even out each row on a desktop: every story's text runs to the foot of its row, so no
+     * column ends with a gap. The row is as tall as its widest story (or the lead), but never so
+     * short that a story beside it shows less than a few lines. */
     function fit() {
         const rows = [...document.querySelectorAll('#edition .row')];
         for (const flow of document.querySelectorAll('#edition .flow')) { flow.style.maxHeight = ''; flow.classList.remove('cut'); }
@@ -176,13 +192,14 @@
             if (lead) {
                 const rail = [...row.querySelectorAll('.rail .story')];
                 const gap = rail.length > 1 ? rail[1].getBoundingClientRect().top - rail[0].getBoundingClientRect().bottom : 0;
-                rail.forEach((el) => clamp(el, (natural(lead) - gap * (rail.length - 1)) / rail.length));
+                const each = Math.max((natural(lead) - gap * (rail.length - 1)) / rail.length, ...rail.map(need));
+                rail.forEach((el) => clamp(el, each));
                 continue;
             }
             const stories = [...row.children].filter((el) => !el.classList.contains('open'));
             const widest = stories.reduce((a, b) => (b.offsetWidth > a.offsetWidth ? b : a), stories[0]);
             if (!widest) continue;
-            const height = Math.min(natural(widest), ROW_MAX);
+            const height = Math.min(Math.max(natural(widest), ...stories.map(need)), ROW_MAX);
             stories.forEach((el) => clamp(el, height));
         }
     }
