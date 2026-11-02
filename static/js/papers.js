@@ -41,8 +41,8 @@
         if (!names.length) return '';
         const list = names.length > 1 ? `${names[0]} … ${names[names.length - 1]}` : names[0];
         const text = names.length === 2 ? `${names[0]} & ${names[1]}` : list;
-        const all = names.length > 2 ? ` title="${esc(names.slice(0, 40).join(', ') + (names.length > 40 ? ` and ${names.length - 40} more` : ''))}"` : '';
-        return `<p class="byline"${all}>${esc(text)}${names.length > 2 ? ` <span class="n">${names.length} authors</span>` : ''}</p>`;
+        const all = names.length > 2 ? ` title="${esc(`${names.length} authors: ${names.slice(0, 40).join(', ')}${names.length > 40 ? ` and ${names.length - 40} more` : ''}`)}"` : '';
+        return `<p class="byline"${all}>${esc(text)}</p>`;
     }
 
     /** A link out, or the text alone when there's nowhere safe to go. */
@@ -73,15 +73,22 @@
         return p.commentary.map((c) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span>${out(c.url, marked(c.title))}</p>${summary(c)}</div>`).join('');
     }
 
-    function links(p) {
-        const arrow = ' <span aria-hidden="true">↗</span>';
-        const paper = webLink(p.url) ? out(p.url, esc(p.journal) + arrow) : '';
-        const free = p.free && webLink(p.free.url) ? out(p.free.url, `Free · ${esc(p.free.label)}${arrow}`, 'free') : '';
-        return paper || free ? `<p class="links">${paper}${free}</p>` : '';
-    }
+    // The headline links to the paper; below it only a copy anyone can read.
+    const free = (p) => (p.free && webLink(p.free.url)
+        ? `<p class="links">${out(p.free.url, `Free · ${esc(p.free.label)} <span aria-hidden="true">↗</span>`, 'free')}</p>` : '');
 
     function kicker(p) {
-        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span><span>${day(p.published)}</span>${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}</p>`;
+        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}</p>`;
+    }
+
+    // Where an abstract turns from what was known to what they found.
+    const FINDING = /(?<=[.?!]\s)(?=(?:Here,? (?:we|by|using)|We (?:show|find|found|report|demonstrate|identify|identified|reveal|present|describe|discover|discovered|establish|uncover|developed|performed|analysed|analyzed|used)|In this (?:study|work)|This study|Using\b))/;
+
+    /** The abstract with its background dimmed, so the eye lands on the finding. */
+    function abstractHtml(text) {
+        if (!text) return '';
+        const at = text.search(FINDING);
+        return `<p class="abstract">${at > 0 ? `<span class="background">${marked(text.slice(0, at))}</span>${marked(text.slice(at))}` : marked(text)}</p>`;
     }
 
     /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module
@@ -95,14 +102,14 @@
         const headFirst = mod && (w === 5 || w === 6);
         const head = `<div class="story-head">
                 ${kicker(p)}
-                <h2 class="story-title">${marked(p.title)}</h2>
+                <h2 class="story-title">${out(p.url, marked(p.title))}</h2>
                 ${byline(p.authors)}
                 ${standfirst(p)}
             </div>`;
         const kind = mod ? `s-mod w${w}${w >= 7 ? ' side' : ''}` : `s-${size}`;
         return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" data-journal="${esc(p.journal)}" tabindex="0">
-            <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
-            ${links(p)}
+            <div class="flow">${lead || headFirst ? head + art : art + head}${abstractHtml(p.abstract)}</div>
+            ${free(p)}
         </article>`;
     }
 
@@ -166,13 +173,23 @@
         return Math.min(natural(el), natural(el) - flow.offsetHeight + l.top + MIN_LINES * l.line);
     }
 
-    /** Cut a story's text at a whole line so the story ends at `height`; the last line fades. */
+    /** Cut a story's text at a whole line so the story ends at `height`; the last line fades.
+     * If the background would fill most of what's left, it goes, so the finding shows. */
     function clamp(el, height) {
         const l = lines(el);
         if (!l || natural(el) <= height + 1) return;
         const flow = el.querySelector('.flow');
         const room = height - (natural(el) - flow.offsetHeight);
         const n = Math.max(2, Math.floor((room - l.top) / l.line));
+        const background = flow.querySelector('.abstract .background');
+        if (background && !el.classList.contains('brief')) {
+            const rects = background.getClientRects();
+            const end = rects[rects.length - 1].bottom - flow.querySelector('.abstract').getBoundingClientRect().top;
+            if (end > (n * l.line) / 2) {
+                el.classList.add('brief');
+                return clamp(el, height);
+            }
+        }
         flow.style.maxHeight = `${l.top + n * l.line}px`;
         flow.classList.add('cut');
     }
@@ -183,6 +200,7 @@
     function fit() {
         const rows = [...document.querySelectorAll('#edition .row')];
         for (const flow of document.querySelectorAll('#edition .flow')) { flow.style.maxHeight = ''; flow.classList.remove('cut'); }
+        for (const el of document.querySelectorAll('#edition .brief')) el.classList.remove('brief');
         if (narrow.matches) return;
         for (const row of rows) {
             const lead = row.querySelector('.s-lead');
@@ -230,11 +248,8 @@
             $('index').innerHTML = '';
             $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(due)}. ${esc(sofar)}.</p>`;
         } else {
-            const commented = data.papers.filter((p) => p.commentary.length).length;
-            const count = `${data.papers.length} ${data.papers.length === 1 ? 'paper' : 'papers'}${e.in_progress ? ' so far' : ''}`;
             $('index').innerHTML = indexHtml(data.papers);
-            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(span(e.start, e.end))}</span>
-                <span>${count}${commented ? `, ${commented} with commentary` : ''}</span>`;
+            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(span(e.start, e.end))}</span>${e.in_progress ? '<span>So far</span>' : ''}`;
             $('edition').classList.remove('picking');
             $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
                 + discussedHtml(data.discussed);
@@ -245,8 +260,7 @@
         step($('prevEdition'), e?.prev);
         step($('nextEdition'), e?.next);
         const names = data.journals;
-        const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(due)}. `
-            : e?.next && data.editions[data.editions.length - 1] === e.next && n.so_far ? `No. ${Number(e.next.slice(6))} is under way, ${esc(sofar)}. ` : '';
+        const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(due)}. ` : '';
         $('foot').innerHTML = `<p>${under}Research papers in neuroscience from
             ${esc(names.slice(0, -1).join(', '))} and ${esc(names[names.length - 1])}, by the week they came out.</p>
             <p>Abstracts and links: <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>. Figures: the publishers.</p>`;

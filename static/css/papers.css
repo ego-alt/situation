@@ -64,13 +64,14 @@
     font: var(--text-xs)/18px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
 .kicker .journal { color: var(--color-text-secondary); font-weight: 600; }
-.mark-cover { padding: 0 var(--space-1); border: 1px solid var(--color-flash-dim); border-radius: var(--radius-sm); color: var(--color-flash); }
+.mark-cover { color: var(--color-flash); }
 .story-title { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
 :is(.w6, .w7, .w8, .w12) .story-title { font-size: var(--text-lg); line-height: 1.25; }
 :is(.story-title, .abstract) :is(sub, sup) { line-height: 0; }
+.story-title a { color: inherit; text-decoration: none; }
+.story-title a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .byline { margin: var(--space-2) 0 0; font: var(--text-xs) var(--font-mono); letter-spacing: 0.04em; color: var(--color-text-muted); }
-.byline .n::before { content: "· "; }
 /* What the commentary called it, under the paper's own title, and its summary: set off by a
    rule, kept to a few lines until the story is opened. */
 .standfirst { margin: var(--space-3) 0 0; padding-left: var(--space-3); border-left: 2px solid var(--color-accent); }
@@ -81,11 +82,14 @@
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
 }
 .story.open .standfirst-sum { display: block; }
+.story:not(.s-lead, .s-rail, .open) .standfirst-sum { display: none; }   /* the summary on the front row */
 .standfirst-sum i { font-style: normal; }
 .standfirst-k { margin-right: var(--space-2); font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
 .standfirst a { color: inherit; text-decoration: none; }
 .standfirst a:hover { text-decoration: underline; }
-.abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--color-text-secondary); hyphens: auto; }
+.abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--color-text-primary); hyphens: auto; }
+.abstract .background { color: var(--color-text-muted); }   /* what was known, before what they found */
+.brief:not(.open) .abstract .background { display: none; }   /* no room for both (papers.js clamp) */
 .s-lead .abstract { margin-top: 0; font-size: var(--text-base); line-height: 1.6; }
 .s-lead:not(.has-fig) .abstract { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 .links {
@@ -97,7 +101,7 @@
 .links .free { color: var(--color-accent); }
 
 /* Figures, drawn on white: cropped to the top in a module, whole in the lead or an opened story. */
-.fig { margin: 0 0 var(--space-4); border: 1px solid var(--color-border-soft); border-radius: var(--radius-sm); overflow: hidden; }
+.fig { margin: 0 0 var(--space-4); border-radius: var(--radius-sm); overflow: hidden; }
 .fig img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
 .s-mod .fig { aspect-ratio: 4 / 3; }
 .w3 .fig { aspect-ratio: 1; }
@@ -165,8 +169,6 @@
     .folio { grid-template-columns: 44px 1fr 44px; gap: var(--space-2); }
     .folio-step { min-width: 44px; padding: 0; }
     .folio-step-label { display: none; }
-    .folio-line span:nth-child(3) { flex-basis: 100%; }
-    .folio-line span:nth-child(3)::before { content: none; }
     .row, .rail { display: block; padding: 0; border: 0; }
     .row > *, .rail > .story + .story { padding: 0; margin: 0; border: 0; }
     .story { padding: var(--space-4) 0; border-bottom: 1px solid var(--color-border-soft); }
@@ -181,6 +183,7 @@
     .story:not(.s-lead):not(.open) :is(.fig, .abstract), .story:not(.open) .links { display: none; }
     .s-lead .abstract, .s-lead:not(.has-fig) .abstract { columns: auto; margin-top: var(--space-3); font-size: var(--text-sm); }
     .s-lead:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+    .s-lead:not(.open) .abstract .background { display: none; }   /* five lines: the finding */
     .rail-cover { margin: 0; padding: var(--space-4) 0; }
     .rail-cover img { width: 40%; }
     .rest-list { columns: auto; }
