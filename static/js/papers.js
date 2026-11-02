@@ -81,16 +81,6 @@
         return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}</p>`;
     }
 
-    // Where an abstract turns from what was known to what they found.
-    const FINDING = /(?<=[.?!]\s)(?=(?:Here,? (?:we|by|using)|We (?:show|find|found|report|demonstrate|identify|identified|reveal|present|describe|discover|discovered|establish|uncover|developed|performed|analysed|analyzed|used)|In this (?:study|work)|This study|Using\b))/;
-
-    /** The abstract with its background dimmed, so the eye lands on the finding. */
-    function abstractHtml(text) {
-        if (!text) return '';
-        const at = text.search(FINDING);
-        return `<p class="abstract">${at > 0 ? `<span class="background">${marked(text.slice(0, at))}</span>${marked(text.slice(at))}` : marked(text)}</p>`;
-    }
-
     /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module
      * leads with its figure, puts its headline over it (mid widths), floats it in the corner for
      * the text to wrap (wide), or goes without (a narrow slot with a wide figure, or none). */
@@ -108,7 +98,7 @@
             </div>`;
         const kind = mod ? `s-mod w${w}${w >= 7 ? ' side' : ''}` : `s-${size}`;
         return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" data-journal="${esc(p.journal)}" tabindex="0">
-            <div class="flow">${lead || headFirst ? head + art : art + head}${abstractHtml(p.abstract)}</div>
+            <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${free(p)}
         </article>`;
     }
@@ -173,23 +163,13 @@
         return Math.min(natural(el), natural(el) - flow.offsetHeight + l.top + MIN_LINES * l.line);
     }
 
-    /** Cut a story's text at a whole line so the story ends at `height`; the last line fades.
-     * If the background would fill most of what's left, it goes, so the finding shows. */
+    /** Cut a story's text at a whole line so the story ends at `height`; the last line fades. */
     function clamp(el, height) {
         const l = lines(el);
         if (!l || natural(el) <= height + 1) return;
         const flow = el.querySelector('.flow');
         const room = height - (natural(el) - flow.offsetHeight);
         const n = Math.max(2, Math.floor((room - l.top) / l.line));
-        const background = flow.querySelector('.abstract .background');
-        if (background && !el.classList.contains('brief')) {
-            const rects = background.getClientRects();
-            const end = rects[rects.length - 1].bottom - flow.querySelector('.abstract').getBoundingClientRect().top;
-            if (end > (n * l.line) / 2) {
-                el.classList.add('brief');
-                return clamp(el, height);
-            }
-        }
         flow.style.maxHeight = `${l.top + n * l.line}px`;
         flow.classList.add('cut');
     }
@@ -200,7 +180,6 @@
     function fit() {
         const rows = [...document.querySelectorAll('#edition .row')];
         for (const flow of document.querySelectorAll('#edition .flow')) { flow.style.maxHeight = ''; flow.classList.remove('cut'); }
-        for (const el of document.querySelectorAll('#edition .brief')) el.classList.remove('brief');
         if (narrow.matches) return;
         for (const row of rows) {
             const lead = row.querySelector('.s-lead');

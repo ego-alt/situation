@@ -87,9 +87,7 @@
 .standfirst-k { margin-right: var(--space-2); font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
 .standfirst a { color: inherit; text-decoration: none; }
 .standfirst a:hover { text-decoration: underline; }
-.abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--color-text-primary); hyphens: auto; }
-.abstract .background { color: var(--color-text-muted); }   /* what was known, before what they found */
-.brief:not(.open) .abstract .background { display: none; }   /* no room for both (papers.js clamp) */
+.abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--color-text-secondary); hyphens: auto; }
 .s-lead .abstract { margin-top: 0; font-size: var(--text-base); line-height: 1.6; }
 .s-lead:not(.has-fig) .abstract { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 .links {
@@ -183,7 +181,6 @@
     .story:not(.s-lead):not(.open) :is(.fig, .abstract), .story:not(.open) .links { display: none; }
     .s-lead .abstract, .s-lead:not(.has-fig) .abstract { columns: auto; margin-top: var(--space-3); font-size: var(--text-sm); }
     .s-lead:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
-    .s-lead:not(.open) .abstract .background { display: none; }   /* five lines: the finding */
     .rail-cover { margin: 0; padding: var(--space-4) 0; }
     .rail-cover img { width: 40%; }
     .rest-list { columns: auto; }
