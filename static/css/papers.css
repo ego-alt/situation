@@ -1,18 +1,14 @@
-/* Papers: the week's neuroscience as a front page. The same glass, type and rules as
- * the map, set as a periodical: a nameplate, a folio between rules, columns divided
- * by hairlines, and stories sized by what the journals made of them. */
+/* Papers: the week's neuroscience as a front page, in the map's glass and type: a folio
+ * between rules, columns parted by hairlines, stories sized by their commentary. */
 .papers-page { height: auto; }
 .press { max-width: 1280px; margin: 0 auto; padding: 0 var(--space-8) calc(var(--space-8) + env(safe-area-inset-bottom)); }
 
 /* ---- masthead ---- */
-.masthead { padding-top: var(--space-8); text-align: center; }
-.nameplate {
-    margin: 0; padding-left: 0.42em;   /* the tracking's trailing space, given back so it centres */
-    font: 600 var(--text-xl)/1 var(--font-mono); letter-spacing: 0.42em; text-transform: uppercase; color: var(--color-text-primary);
-}
+.masthead { padding-top: var(--space-6); text-align: center; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .folio {
     display: grid; grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr); align-items: center; gap: var(--space-4);
-    margin-top: var(--space-4); padding: var(--space-1) 0;
+    padding: var(--space-1) 0;
     border-top: 3px double var(--color-border); border-bottom: 1px solid var(--color-border);
     font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
@@ -42,8 +38,7 @@
     font: var(--text-xs)/18px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
 .kicker .journal { color: var(--color-text-secondary); font-weight: 600; }
-.mark { padding: 0 var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-sm); letter-spacing: 0.06em; }
-.mark-cover { border-color: var(--color-flash-dim); color: var(--color-flash); }
+.mark-cover { padding: 0 var(--space-1); border: 1px solid var(--color-flash-dim); border-radius: var(--radius-sm); color: var(--color-flash); letter-spacing: 0.06em; }
 .story-title { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
 .s-half .story-title, .s-wide .story-title { font-size: var(--text-lg); }
@@ -70,10 +65,9 @@
 .links a:hover { color: var(--color-text-primary); }
 .links .free { color: var(--color-accent); }
 
-/* Figures are the papers' own, on white: framed by a hairline, cropped to the top of
-   the figure in a small story and shown whole in the lead or an opened one. */
+/* Figures, drawn on white: cropped to the top in a tile, whole in the lead or an opened
+   story, and a little dimmed until you're looking at that story. */
 .fig { margin: 0 0 var(--space-4); border: 1px solid var(--color-border-soft); border-radius: var(--radius-sm); overflow: hidden; }
-/* Drawn on white, so a little dimmed on the dark page until you're looking at that story. */
 .fig img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; filter: brightness(0.9); transition: filter 0.2s; }
 .story:hover .fig img, .story:focus-within .fig img, .story.open .fig img { filter: none; }
 .s-third .fig { aspect-ratio: 16 / 10; }
@@ -81,16 +75,14 @@
 .story.open .fig { aspect-ratio: auto; height: auto; }
 .story.open .fig img { max-height: 520px; object-fit: contain; }
 
-/* The lead: its headline across the top, then the abstract wrapped around the figure
-   (the cover, when it's the cover story). A wide story, alone on its row, sets its
-   figure beside the text. */
+/* The lead wraps its abstract around the figure (or cover); a wide story sets its figure beside the text. */
 .s-lead .story-head { margin-bottom: var(--space-4); }
 .s-lead .fig { float: left; width: calc(50% - var(--space-3)); margin: var(--space-1) var(--space-6) var(--space-3) 0; }
 .s-lead .fig img { max-height: 440px; object-fit: contain; }
 .s-lead .fig-cover { width: 34%; }
 .s-lead .abstract { margin: 0; font-size: var(--text-base); line-height: 1.6; display: block; overflow: visible; }
 .s-lead:not(.has-fig) .abstract { columns: 3; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
-/* A tile without a figure runs its abstract longer, so its row keeps an even depth. */
+/* Without a figure, a tile runs its abstract longer so the row stays even. */
 .s-third:not(.has-fig) .abstract { -webkit-line-clamp: 14; }
 .s-half:not(.has-fig) .abstract { -webkit-line-clamp: 19; }
 .s-lead .links { clear: both; padding-top: var(--space-1); }
@@ -105,8 +97,6 @@
 
 /* ---- the rest of a long week, one line each, down two columns ---- */
 .rest { margin-top: var(--space-8); }
-.section-rule { display: flex; justify-content: space-between; }
-.section-rule .n { font-weight: 400; letter-spacing: 0.04em; }
 .rest-list { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 .s-line { break-inside: avoid; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-soft); }
 .s-line .kicker { margin-bottom: var(--space-1); }
@@ -118,9 +108,11 @@
 /* ---- commentary out this week on earlier papers ---- */
 .discussed { margin-top: var(--space-8); }
 .section-rule {
-    margin: 0; padding: var(--space-2) 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border-soft);
+    display: flex; justify-content: space-between; margin: 0; padding: var(--space-2) 0;
+    border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border-soft);
     font: 600 var(--text-xs) var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-text-muted);
 }
+.section-rule .n { font-weight: 400; letter-spacing: 0.04em; }
 .discussed ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
 .discussed-item { padding: var(--space-4) var(--space-6) var(--space-4) 0; border-bottom: 1px solid var(--color-border-soft); }
 .discussed-item:nth-child(even) { padding: var(--space-4) 0 var(--space-4) var(--space-6); border-left: 1px solid var(--color-border-soft); }
@@ -144,7 +136,7 @@
 /* ---- phone: a list, the lead on top; a story opens to its abstract and links ---- */
 @media (max-width: 860px) {
     .press { padding: 0 var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
-    .masthead { padding-top: var(--space-6); }
+    .masthead { padding-top: var(--space-4); }
     .folio { grid-template-columns: 44px 1fr 44px; gap: var(--space-2); }
     .folio-step { min-width: 44px; min-height: 44px; padding: 0; }
     .folio-step-label { display: none; }
@@ -167,7 +159,7 @@
     .discussed ul { display: block; }
     .rest-list { columns: auto; }
     .discussed-item, .discussed-item:nth-child(even) { padding: var(--space-4) 0; border-left: 0; }
-    /* The bar: the dot and the tabs; how fresh it is only when a journal didn't answer. */
+    /* The bar: the dot and the tabs, and SRC only when a journal didn't answer. */
     .papers-page #updatedReadout, .papers-page #journalsReadout:not(.warn) { display: none; }
 }
 

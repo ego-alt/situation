@@ -119,7 +119,6 @@ class Paper(db.Model):
     free = db.Column(db.JSON)                                   # {"url", "label"}: a copy anyone can read
     on = db.Column(db.String, index=True)                       # commentary: the DOI it's about
     cover = db.Column(db.String)                                # research: the cover image, when it's the cover story
-    pmid = db.Column(db.String)
     fetched = db.Column(db.DateTime, default=utcnow)
     enriched = db.Column(db.DateTime)                           # when its figure was looked for
 

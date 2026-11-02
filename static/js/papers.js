@@ -74,8 +74,8 @@
         return out.length ? `<p class="links">${out.join('')}</p>` : '';
     }
 
-    function kicker(p, withDate = true) {
-        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${withDate ? `<span>${day(p.published)}</span>` : ''}${marks(p)}</p>`;
+    function kicker(p) {
+        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span><span>${day(p.published)}</span>${marks(p)}</p>`;
     }
 
     /** One story. `size`: lead, rail, half, wide, third or line; each shows more or less of the same parts. */
@@ -163,7 +163,7 @@
         }
         step($('prevEdition'), e?.prev);
         step($('nextEdition'), e?.next);
-        const names = data.journals.map((j) => j.name);
+        const names = data.journals;
         const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(out)}. `
             : e?.next && data.editions[data.editions.length - 1] === e.next && n.so_far ? `No. ${Number(e.next.slice(6))} is under way, ${esc(sofar)}. ` : '';
         $('foot').innerHTML = `<p>${under}Research papers in neuroscience from

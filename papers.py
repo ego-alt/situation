@@ -1,11 +1,8 @@
 """Papers: a weekly paper of the neuroscience in the journals in journals.py.
 
-Once a day the past three weeks of each journal are read from Europe PMC,
-which has their abstracts, article types, free copies and the commentary links
-PubMed keeps ("Comment on"). Each paper belongs to the week it first came out
-(online or in print). A week is an edition, filling in while it's under way. Nothing is
-ranked by guesswork: the cover story leads, then the papers the journal
-commissioned a commentary on, then the rest.
+Once a day the last three weeks of each journal are read from Europe PMC: abstracts,
+article types, free copies and PubMed's commentary links. A paper belongs to the
+week it first came out; the cover story leads, then papers with a commentary, then the rest.
 """
 import html
 import re
@@ -20,8 +17,8 @@ from sources import USER_AGENT
 
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CROSSREF = "https://api.crossref.org/works/"
-WINDOW = timedelta(days=21)         # how far back each fetch looks: commentaries and free copies come later
-EVERY = timedelta(days=1)          # a weekly paper: once a day is plenty
+WINDOW = timedelta(days=21)     # commentaries and free copies come later, so look back this far
+EVERY = timedelta(days=1)
 TIMEOUT = 20
 NOT_RESEARCH = {"Review", "News", "Editorial", "Letter", "Published Erratum", "Retraction of Publication",
                 "Retracted Publication", "Expression of Concern", "Comment"}
@@ -67,8 +64,8 @@ def about_the_brain(title: str, abstract: str) -> bool:
 # ---------- what Europe PMC says ----------
 
 def europe_pmc(issn: str, since: date, until: date) -> list[dict]:
-    """Everything of a journal's that Europe PMC took in between two days, with abstracts, all pages.
-    (By the day it came in: a piece only in print is dated the 1st of its issue's month.)"""
+    """Everything of a journal's that Europe PMC took in between two days (by the day it came in:
+    a piece only in print is dated the 1st of its month)."""
     query = f'ISSN:"{issn}" AND FIRST_IDATE:[{since.isoformat()} TO {until.isoformat()}]'
     out, cursor = [], "*"
     while True:
@@ -81,7 +78,7 @@ def europe_pmc(issn: str, since: date, until: date) -> list[dict]:
 
 
 def kind_of(record: dict) -> str:
-    """research, commentary, news (a journal's news pages, where Nature files News & Views) or other."""
+    """research, commentary, news (where Nature files News & Views) or other."""
     types = set(record.get("pubTypeList", {}).get("pubType", []))
     if "Comment" in types:
         return "commentary"
@@ -91,7 +88,7 @@ def kind_of(record: dict) -> str:
         return "other"
     if "research-article" in types or len(record.get("abstractText") or "") >= 400:
         return "research"
-    return "other"   # a journal's front matter has no abstract worth the name
+    return "other"   # front matter
 
 
 def _links(record: dict, kind: str) -> list[str]:
@@ -126,8 +123,8 @@ def surnames(record: dict) -> list[str]:
 
 
 def published_on(record: dict) -> date | None:
-    """The day it came out: online if it was, else in print. A print date that's only a
-    month ("2026 Oct", stored as the 1st) gives way to the day Europe PMC got it."""
+    """The day it came out, online or in print; a print date that's only a month gives
+    way to the day Europe PMC got it."""
     online = _date(record.get("electronicPublicationDate"))
     if online:
         return online
@@ -185,8 +182,8 @@ def references(doi: str) -> list[str]:
 
 
 def figure_for(doi: str) -> str | None:
-    """An image of the paper's graphical abstract or first figure: Cell Press's from
-    Elsevier's image server, anyone else's from the og:image on the paper's page."""
+    """The graphical abstract or first figure: Cell Press's from Elsevier's image server,
+    others' from the og:image on the paper's page."""
     if doi.startswith("10.1016/"):
         ids = get(CROSSREF + doi).json()["message"].get("alternative-id", [])
         pii = next((i for i in ids if re.fullmatch(r"S\w{16}", i)), None)
@@ -198,15 +195,14 @@ def figure_for(doi: str) -> str | None:
     try:
         image = page_meta(f"https://doi.org/{doi}").get("og:image", "")
     except requests.HTTPError:
-        return None         # a publisher that turns readers like this away (Science)
+        return None         # Science turns readers like this away
     return image if re.match(r"https://", image) and re.search(r"Fig|fig|MediaObjects", image) else None
 
 
 # ---------- a fetch ----------
 
 def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
-    """Read every journal for the last `window`, store what's new, link commentaries
-    to their papers, find figures and the cover story. Returns a count per journal."""
+    """Read every journal for the last `window`; returns papers per journal."""
     now = now or datetime.now(UTC)
     since, until = (now - window).date(), now.date()
     report = {}
@@ -223,7 +219,7 @@ def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
         db.session.commit()
     covered = db.session.get(SourceStatus, "papers:since") or SourceStatus(key="papers:since")
     start = datetime.combine(since, datetime.min.time())
-    covered.last_ok = min(covered.last_ok or start, start)    # the earliest day ever read: where editions begin
+    covered.last_ok = min(covered.last_ok or start, start)    # where editions begin
     db.session.add(covered)
     _link_commentaries(since)
     _enrich()
@@ -233,7 +229,7 @@ def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
 
 
 def _read(j, since: date, until: date) -> int:
-    """Store a journal's research papers (those in scope) and commentaries; returns how many papers it has."""
+    """Store a journal's papers in scope and its commentaries; returns how many papers."""
     known = {p.doi: p for p in Paper.query.filter(Paper.journal == j.key, Paper.published >= since)}
     in_subject = subject_dois(j.subject_feed) if j.scope == "subject" else set()
     count = 0
@@ -251,8 +247,7 @@ def _read(j, since: date, until: date) -> int:
                 continue
             count += 1
         elif kind == "news":
-            # Filed with the news (Nature's News & Views): its page says which it is,
-            # looked at once for each piece the subject feed lists.
+            # Nature's News & Views are filed as news: its page says which it is.
             if not j.commentary_page_type or doi in known or doi not in in_subject:
                 continue
             page_type = page_meta(f"https://doi.org/{doi}").get("dc.type")
@@ -275,7 +270,7 @@ def _store(j, r: dict, kind: str, p: Paper | None = None) -> Paper:
     if p.kind == "other":
         return p
     p.title, p.published = clean(r.get("title")).rstrip("."), published_on(r)
-    p.authors, p.pmid, p.url = surnames(r), r.get("pmid"), f"https://doi.org/{doi}"
+    p.authors, p.url = surnames(r), f"https://doi.org/{doi}"
     if kind == "research":
         p.abstract, p.free = clean(r.get("abstractText")), free_copy(r)
     else:
@@ -286,8 +281,7 @@ def _store(j, r: dict, kind: str, p: Paper | None = None) -> Paper:
 
 
 def _adopt(doi: str) -> bool:
-    """Add a paper a commentary is about, from before the window: when it's research
-    in one of the journals read here (and, for "words", about the brain)."""
+    """Add an older paper a commentary is about, if it's in scope here."""
     found = get(EUROPE_PMC, query=f'DOI:"{doi}"', format="json", resultType="core").json()
     r = next(iter(found.get("resultList", {}).get("result", [])), None)
     info = (r or {}).get("journalInfo", {}).get("journal", {})
@@ -301,9 +295,8 @@ def _adopt(doi: str) -> bool:
 
 
 def _link_commentaries(since: date):
-    """Tie each commentary to its paper: the one PubMed links it to, else the first of
-    its first few references that's a paper in these journals. A paper from before
-    the window is added, so its commentary has something to point to."""
+    """Tie each commentary to its paper: PubMed's link, else the first of its first few
+    references that's a paper here (an older one is added)."""
     research = {d for (d,) in db.session.query(Paper.doi).filter(Paper.kind == "research")}
     for c in Paper.query.filter(Paper.kind == "commentary", Paper.published >= since):
         if c.on in research:
@@ -379,15 +372,9 @@ def editions(today: date) -> list[str]:
     return sorted({edition_id(d) for (d,) in days})
 
 
-def _commentary(p: Paper, notes: list[Paper]) -> list[dict]:
-    return [{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary, "journal": BY_KEY[n.journal].name,
-             "authors": n.authors or []} for n in notes]
-
-
 def edition(which: str | None, today: date, fetched: datetime | None = None) -> dict:
-    """One week's paper: its papers in the order they're laid out, the cover story
-    first, then those with a commentary, then the rest; within each, Nature and
-    Science before Neuron, newest first. Opens on the newest finished week."""
+    """One week's papers in layout order: the cover story, those with a commentary, the
+    rest; within each by journal rank, newest first. Defaults to the newest finished week."""
     all_editions = editions(today)
     this_week = monday(today)
     finished = [e for e in all_editions if week_of(e) < this_week]
@@ -395,8 +382,7 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
     upcoming = {"out": (this_week + timedelta(days=7)).isoformat(),
                 "so_far": Paper.query.filter(Paper.kind == "research", Paper.published >= this_week).count()}
     base = {"editions": all_editions, "next_edition": upcoming, "fetched": fetched.isoformat() if fetched else None,
-            "sources": status(),
-            "journals": [{"key": j.key, "name": j.name, "commentary": j.commentary} for j in JOURNALS]}
+            "sources": status(), "journals": [j.name for j in JOURNALS]}
     if not which:
         return {**base, "edition": None, "papers": [], "discussed": []}
     start = week_of(which)
@@ -410,14 +396,13 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
         return (0 if p.cover else 1 if p.doi in notes else 2, BY_KEY[p.journal].rank, -p.published.toordinal(), p.title)
 
     papers.sort(key=order)
-    # With no cover story and no commentary, the lead is the first paper with a figure to show.
+    # Nothing to lead with: the first paper with a figure leads.
     if papers and not papers[0].cover and papers[0].doi not in notes:
         lead = next((p for p in papers if p.figure), papers[0])
         papers.remove(lead)
         papers.insert(0, lead)
     at = all_editions.index(which)
-    # Commentaries out this week on papers from earlier weeks (Neuron's Previews come with
-    # its print issue, weeks after the paper went online).
+    # This week's commentaries on earlier papers (Neuron's Previews come with its print issue).
     late = Paper.query.filter(Paper.kind == "commentary", Paper.published >= start,
                               Paper.published < start + timedelta(days=7), Paper.on.isnot(None)).all()
     earlier = {p.doi: p for p in Paper.query.filter(Paper.kind == "research", Paper.doi.in_([n.on for n in late]),
@@ -428,7 +413,7 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
             week = edition_id(earlier[n.on].published)
             discussed.append({**_paper(earlier[n.on], [n], lead=False),
                               "edition": week if week in all_editions else None})
-    return {**base, "discussed": discussed, "edition": {"id": which, "number": int(which[6:8]), "year": int(which[:4]),
+    return {**base, "discussed": discussed, "edition": {"id": which, "number": int(which[6:8]),
                                 "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
                                 "in_progress": start >= this_week,
                                 "prev": all_editions[at - 1] if at else None,
@@ -438,16 +423,17 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
 
 def _paper(p: Paper, notes: list[Paper], lead: bool) -> dict:
     j = BY_KEY[p.journal]
-    return {"doi": p.doi, "journal": j.name, "journal_key": j.key, "title": p.title, "authors": p.authors or [],
-            "abstract": p.abstract, "published": p.published.isoformat(), "url": p.url, "figure": p.figure,
-            "figure_large": large(p.cover if (p.cover or "").startswith("https://") else p.figure),
-            "free": p.free, "cover": bool(p.cover),
-            "cover_image": p.cover if (p.cover or "").startswith("https://") else None,
-            "commentary": _commentary(p, notes), "tier": "lead" if lead else "major" if notes or p.cover else "minor"}
+    cover_image = p.cover if (p.cover or "").startswith("https://") else None
+    return {"doi": p.doi, "journal": j.name, "title": p.title, "authors": p.authors or [], "abstract": p.abstract,
+            "published": p.published.isoformat(), "url": p.url, "figure": p.figure,
+            "figure_large": large(cover_image or p.figure), "free": p.free, "cover": bool(p.cover),
+            "cover_image": cover_image, "tier": "lead" if lead else "major" if notes or p.cover else "minor",
+            "commentary": [{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary,
+                            "journal": BY_KEY[n.journal].name} for n in notes]}
 
 
 def large(image: str | None) -> str | None:
-    """The same image bigger, for the lead or an opened story (each image server has its own sizes)."""
+    """The same image bigger, for the lead or an opened story."""
     if not image:
         return None
     image = re.sub(r"^(https://media\.springernature\.com/)(m685|w440)/", r"\1lw1200/", image)
