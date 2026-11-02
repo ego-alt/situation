@@ -42,13 +42,13 @@
         const src = webLink(large ? p.figure_large || p.figure : p.figure);
         if (!src) return '';
         const alt = p.cover && p.cover_image === p.figure ? 'The issue’s cover' : 'The paper’s first figure';
-        return `<figure class="fig"><img src="${esc(src)}" alt="${alt}" loading="lazy" decoding="async"
+        return `<figure class="fig"><img src="${esc(src)}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer"
             onerror="this.closest('figure').remove()"></figure>`;
     }
 
     function cover(p) {
         const src = webLink(p.cover_image);
-        return src ? `<figure class="fig fig-cover"><img src="${esc(src)}" alt="This week’s cover of ${esc(p.journal)}" decoding="async"
+        return src ? `<figure class="fig fig-cover"><img src="${esc(src)}" alt="This week’s cover of ${esc(p.journal)}" decoding="async" referrerpolicy="no-referrer"
             onerror="this.closest('figure').remove()"><figcaption>On the cover</figcaption></figure>` : '';
     }
 
@@ -78,7 +78,7 @@
         return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${withDate ? `<span>${day(p.published)}</span>` : ''}${marks(p)}</p>`;
     }
 
-    /** One story. `size`: lead, rail, half, wide or third; each shows more or less of the same parts. */
+    /** One story. `size`: lead, rail, half, wide, third or line; each shows more or less of the same parts. */
     function story(p, size) {
         const lead = size === 'lead';
         const art = lead && p.cover_image ? cover(p) : size === 'rail' ? '' : figure(p, lead || size === 'wide');
@@ -96,8 +96,11 @@
         </article>`;
     }
 
+    const TILES = 6;   // papers without commentary shown as tiles; past a row or two more, the rest are lines
+
     /** Rows that each fill the width: the lead with a rail beside it, then pairs of the
-     * papers with commentary, then the rest three across (never one left alone). */
+     * papers with commentary, then the rest three across (never one left alone), and
+     * in a long week the remainder as a list. */
     function compose(papers) {
         const [lead, ...rest] = papers;
         const majors = rest.filter((p) => p.tier === 'major');
@@ -110,10 +113,16 @@
             const two = majors.splice(0, majors.length === 1 ? 1 : 2);
             rows.push(`<div class="row row-${two.length}">${two.map((p) => story(p, two.length === 1 ? 'wide' : 'half')).join('')}</div>`);
         }
-        while (minors.length) {
-            const n = minors.length === 4 ? 2 : Math.min(3, minors.length);
-            const group = minors.splice(0, n);
+        const tiles = minors.splice(0, minors.length > TILES + 1 ? TILES : minors.length);
+        while (tiles.length) {
+            const n = tiles.length === 4 ? 2 : Math.min(3, tiles.length);
+            const group = tiles.splice(0, n);
             rows.push(`<div class="row row-${n}">${group.map((p) => story(p, n === 1 ? 'wide' : n === 2 ? 'half' : 'third')).join('')}</div>`);
+        }
+        if (minors.length) {
+            rows.push(`<section class="rest" aria-label="The rest of the week">
+                <h2 class="section-rule"><span>The rest of the week</span><span class="n">${minors.length} ${minors.length === 1 ? 'paper' : 'papers'}</span></h2>
+                <div class="rest-list">${minors.map((p) => story(p, 'line')).join('')}</div></section>`);
         }
         return rows.join('');
     }
@@ -124,7 +133,7 @@
             const c = p.commentary[0];
             const paper = webLink(p.url);
             const note = webLink(c.url);
-            const back = p.edition ? `<a class="btn" href="?edition=${esc(p.edition)}" data-edition="${esc(p.edition)}">In No. ${Number(p.edition.slice(6))}</a>` : '';
+            const back = p.edition ? `<a class="btn" href="${esc(url(`/papers/${p.edition}`))}" data-edition="${esc(p.edition)}">In No. ${Number(p.edition.slice(6))}</a>` : '';
             return `<li class="discussed-item">
                 <p class="kicker"><span class="journal">${esc(c.journal)}</span><span>${esc(c.label)}</span></p>
                 <p class="discussed-note">${note ? `<a href="${esc(note)}" target="_blank" rel="noopener">${marked(c.title)}</a>` : marked(c.title)}</p>
@@ -146,15 +155,18 @@
             $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(out)}. ${esc(sofar)}.</p>`;
         } else {
             const commented = data.papers.filter((p) => p.commentary.length).length;
+            const count = `${data.papers.length} ${data.papers.length === 1 ? 'paper' : 'papers'}${e.in_progress ? ' so far' : ''}`;
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(span(e.start, e.end))}</span>
-                <span>${data.papers.length} ${data.papers.length === 1 ? 'paper' : 'papers'}${commented ? `, ${commented} with commentary` : ''}</span>`;
+                <span>${count}${commented ? `, ${commented} with commentary` : ''}</span>`;
             $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
                 + discussedHtml(data.discussed);
         }
         step($('prevEdition'), e?.prev);
         step($('nextEdition'), e?.next);
         const names = data.journals.map((j) => j.name);
-        $('foot').innerHTML = `<p>${e && !e.next ? `Next edition ${esc(out)}, ${esc(sofar)}. ` : ''}Research papers in neuroscience from
+        const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(out)}. `
+            : e?.next && data.editions[data.editions.length - 1] === e.next && n.so_far ? `No. ${Number(e.next.slice(6))} is under way, ${esc(sofar)}. ` : '';
+        $('foot').innerHTML = `<p>${under}Research papers in neuroscience from
             ${esc(names.slice(0, -1).join(', '))} and ${esc(names[names.length - 1])}, by the week they came out.</p>
             <p>Abstracts and links: <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>. Figures: the publishers.</p>`;
         document.title = e ? `Situation · Papers No. ${e.number}` : 'Situation · Papers';
@@ -191,7 +203,7 @@
                 data = await res.json();
                 failure = null;
                 drawEdition();
-                if (push && data.edition) history.pushState({ edition: data.edition.id }, '', `?edition=${data.edition.id}`);
+                if (push && data.edition) history.pushState({ edition: data.edition.id }, '', url(`/papers/${data.edition.id}`));
                 if (push) window.scrollTo({ top: 0 });
             }
         } catch (_) {
@@ -215,7 +227,7 @@
     $('edition').addEventListener('click', (e) => {
         const to = e.target.closest('[data-edition]');
         if (to) { e.preventDefault(); return load(to.dataset.edition, { push: true }); }
-        if (e.target.closest('.retry')) return load(new URLSearchParams(location.search).get('edition'));
+        if (e.target.closest('.retry')) return load(fromPath());
         if (e.target.closest('a') || window.getSelection()?.toString()) return;
         const el = e.target.closest('.story');
         if (el) toggle(el);
@@ -235,9 +247,11 @@
         const button = { ArrowLeft: $('prevEdition'), ArrowRight: $('nextEdition') }[e.key];
         if (button && !button.disabled) button.click();
     });
-    window.addEventListener('popstate', () => load(new URLSearchParams(location.search).get('edition')));
+    // The edition is in the address (/papers/2026-W44), so back and forward step through what you read.
+    const fromPath = () => (location.pathname.match(/\/papers\/(\d{4}-W\d{2})\/?$/) || [])[1] || null;
+    window.addEventListener('popstate', () => load(fromPath()));
 
-    load(new URLSearchParams(location.search).get('edition'));
+    load(fromPath());
     setInterval(drawStatus, 60000);
     setInterval(() => !document.hidden && load(data?.edition?.id), 30 * 60000);
 })();

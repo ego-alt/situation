@@ -18,7 +18,7 @@
 }
 .folio-line { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; color: var(--color-text-secondary); }
 .folio-line span + span::before { content: "·"; margin: 0 var(--space-2); color: var(--color-text-muted); }
-.folio-step { justify-self: start; padding: var(--space-1) var(--space-2); letter-spacing: 0.1em; }
+.folio-step { justify-self: start; min-height: 44px; padding: 0 var(--space-2); letter-spacing: 0.1em; }
 #nextEdition { justify-self: end; }
 .folio-step:disabled { visibility: hidden; }
 
@@ -42,7 +42,7 @@
     font: var(--text-xs)/18px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
 .kicker .journal { color: var(--color-text-secondary); font-weight: 600; }
-.mark { padding: 0 var(--space-1); border: 1px solid var(--color-accent-dim); border-radius: var(--radius-sm); color: var(--color-accent); letter-spacing: 0.06em; }
+.mark { padding: 0 var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-sm); letter-spacing: 0.06em; }
 .mark-cover { border-color: var(--color-flash-dim); color: var(--color-flash); }
 .story-title { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
@@ -72,8 +72,10 @@
 
 /* Figures are the papers' own, on white: framed by a hairline, cropped to the top of
    the figure in a small story and shown whole in the lead or an opened one. */
-.fig { margin: 0 0 var(--space-4); border: 1px solid var(--color-border-soft); border-radius: var(--radius-sm); overflow: hidden; background: var(--color-plate); }
-.fig img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.fig { margin: 0 0 var(--space-4); border: 1px solid var(--color-border-soft); border-radius: var(--radius-sm); overflow: hidden; }
+/* Drawn on white, so a little dimmed on the dark page until you're looking at that story. */
+.fig img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; filter: brightness(0.9); transition: filter 0.2s; }
+.story:hover .fig img, .story:focus-within .fig img, .story.open .fig img { filter: none; }
 .s-third .fig { aspect-ratio: 16 / 10; }
 .s-half .fig { height: 260px; }
 .story.open .fig { aspect-ratio: auto; height: auto; }
@@ -87,7 +89,10 @@
 .s-lead .fig img { max-height: 440px; object-fit: contain; }
 .s-lead .fig-cover { width: 34%; }
 .s-lead .abstract { margin: 0; font-size: var(--text-base); line-height: 1.6; display: block; overflow: visible; }
-.s-lead:not(.has-fig) .abstract { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
+.s-lead:not(.has-fig) .abstract { columns: 3; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
+/* A tile without a figure runs its abstract longer, so its row keeps an even depth. */
+.s-third:not(.has-fig) .abstract { -webkit-line-clamp: 14; }
+.s-half:not(.has-fig) .abstract { -webkit-line-clamp: 19; }
 .s-lead .links { clear: both; padding-top: var(--space-1); }
 .s-wide.has-fig { display: grid; gap: 0 var(--space-6); align-items: start; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); grid-template-areas: "fig head" "fig abstract" "fig links"; }
 .s-wide .fig { grid-area: fig; margin: 0; aspect-ratio: 4 / 3; }
@@ -97,6 +102,18 @@
 .fig-cover { background: none; border: 0; }
 .fig-cover img { max-height: none !important; }
 .fig-cover figcaption { padding-top: var(--space-2); font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted); }
+
+/* ---- the rest of a long week, one line each, down two columns ---- */
+.rest { margin-top: var(--space-8); }
+.section-rule { display: flex; justify-content: space-between; }
+.section-rule .n { font-weight: 400; letter-spacing: 0.04em; }
+.rest-list { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
+.s-line { break-inside: avoid; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-soft); }
+.s-line .kicker { margin-bottom: var(--space-1); }
+.s-line .story-title { font-weight: 500; }
+.s-line:not(.open) .fig, .s-line:not(.open) .byline, .s-line:not(.open) .abstract, .s-line:not(.open) .links { display: none; }
+.s-line .fig { margin: var(--space-3) 0 0; }
+.s-line:hover .story-title { color: var(--color-selected); }
 
 /* ---- commentary out this week on earlier papers ---- */
 .discussed { margin-top: var(--space-8); }
@@ -148,7 +165,12 @@
     .s-lead .fig-cover { width: 60%; }
     .s-third .fig, .s-half .fig, .s-wide .fig { aspect-ratio: auto; height: auto; margin-bottom: var(--space-3); }
     .discussed ul { display: block; }
+    .rest-list { columns: auto; }
     .discussed-item, .discussed-item:nth-child(even) { padding: var(--space-4) 0; border-left: 0; }
     /* The bar: the dot and the tabs; how fresh it is only when a journal didn't answer. */
     .papers-page #updatedReadout, .papers-page #journalsReadout:not(.warn) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fig img { transition: none; }
 }

@@ -1,9 +1,9 @@
 """Papers: a weekly paper of the neuroscience in the journals in journals.py.
 
-Every few hours the past three weeks of each journal are read from Europe PMC,
+Once a day the past three weeks of each journal are read from Europe PMC,
 which has their abstracts, article types, free copies and the commentary links
 PubMed keeps ("Comment on"). Each paper belongs to the week it first came out
-(online or in print), and a week is an edition once it's over. Nothing is
+(online or in print). A week is an edition, filling in while it's under way. Nothing is
 ranked by guesswork: the cover story leads, then the papers the journal
 commissioned a commentary on, then the rest.
 """
@@ -21,7 +21,7 @@ from sources import USER_AGENT
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CROSSREF = "https://api.crossref.org/works/"
 WINDOW = timedelta(days=21)         # how far back each fetch looks: commentaries and free copies come later
-EVERY = timedelta(hours=6)
+EVERY = timedelta(days=1)          # a weekly paper: once a day is plenty
 TIMEOUT = 20
 NOT_RESEARCH = {"Review", "News", "Editorial", "Letter", "Published Erratum", "Retraction of Publication",
                 "Retracted Publication", "Expression of Concern", "Comment"}
@@ -367,14 +367,15 @@ def week_of(edition: str) -> date | None:
 
 
 def editions(today: date) -> list[str]:
-    """Every finished week that was read in full and has a paper in it, oldest first."""
+    """Every week read in full that has a paper in it, oldest first: this week too, while it fills in."""
     covered = db.session.get(SourceStatus, "papers:since")
     if not covered or not covered.last_ok:
         return []
     first = covered.last_ok.date()
     first = first if first.weekday() == 0 else monday(first) + timedelta(days=7)
     days = (db.session.query(Paper.published).distinct()
-            .filter(Paper.kind == "research", Paper.published >= first, Paper.published < monday(today)))
+            .filter(Paper.kind == "research", Paper.published >= first,
+                    Paper.published < monday(today) + timedelta(days=7)))
     return sorted({edition_id(d) for (d,) in days})
 
 
@@ -385,10 +386,12 @@ def _commentary(p: Paper, notes: list[Paper]) -> list[dict]:
 
 def edition(which: str | None, today: date, fetched: datetime | None = None) -> dict:
     """One week's paper: its papers in the order they're laid out, the cover story
-    first, then those with a commentary, then the rest by journal and day."""
+    first, then those with a commentary, then the rest; within each, Nature and
+    Science before Neuron, newest first. Opens on the newest finished week."""
     all_editions = editions(today)
-    which = which if which in all_editions else (all_editions[-1] if all_editions else None)
     this_week = monday(today)
+    finished = [e for e in all_editions if week_of(e) < this_week]
+    which = which if which in all_editions else (finished or all_editions or [None])[-1]
     upcoming = {"out": (this_week + timedelta(days=7)).isoformat(),
                 "so_far": Paper.query.filter(Paper.kind == "research", Paper.published >= this_week).count()}
     base = {"editions": all_editions, "next_edition": upcoming, "fetched": fetched.isoformat() if fetched else None,
@@ -404,7 +407,7 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
         notes.setdefault(n.on, []).append(n)
 
     def order(p):
-        return (0 if p.cover else 1 if p.doi in notes else 2, BY_KEY[p.journal].rank, p.published, p.title)
+        return (0 if p.cover else 1 if p.doi in notes else 2, BY_KEY[p.journal].rank, -p.published.toordinal(), p.title)
 
     papers.sort(key=order)
     # With no cover story and no commentary, the lead is the first paper with a figure to show.
@@ -427,6 +430,7 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
                               "edition": week if week in all_editions else None})
     return {**base, "discussed": discussed, "edition": {"id": which, "number": int(which[6:8]), "year": int(which[:4]),
                                 "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
+                                "in_progress": start >= this_week,
                                 "prev": all_editions[at - 1] if at else None,
                                 "next": all_editions[at + 1] if at + 1 < len(all_editions) else None},
             "papers": [_paper(p, notes.get(p.doi, []), lead=i == 0) for i, p in enumerate(papers)]}

@@ -34,13 +34,13 @@ How importance is decided, and what comes next: [`docs/plan.md`](docs/plan.md).
 
 The second tab is a weekly paper of neuroscience research: every research paper in Neuron, and the neuroscience in Nature and Science, from one week.
 
-- **One edition a week.** A paper belongs to the week it first came out, online or in print, and the edition is out once that week is over (Monday). Step back through earlier editions with ‹ and › or the arrow keys.
-- **Laid out by what the journals made of it.** The cover story leads when it's a neuroscience paper (Nature's issue page names it; Science and Neuron don't say in a form that can be read reliably). Papers the journal commissioned a commentary on (News & Views, Perspective, Preview) come next, larger, with the commentary's headline under their own. The rest fill the columns. On a phone it's a list.
+- **One edition a week.** A paper belongs to the week it first came out, online or in print. The tab opens on last week's edition; this week's fills in as papers come out. Step through editions with ‹ and › or the arrow keys; each has its own address (`/papers/2026-W44`).
+- **Laid out by what the journals made of it.** The cover story leads when it's a neuroscience paper (Nature's issue page names it; Science and Neuron don't say in a form that can be read reliably). Papers the journal commissioned a commentary on (News & Views, Perspective, Preview) come next, larger, with the commentary's headline under their own. The rest fill the columns, and in a long week what's left is a list, a line each. On a phone it's all a list.
 - **Enough to skim without clicking.** The real title, first and last author, the abstract and the first figure or graphical abstract, with links to the paper, the commentary and a free copy (PubMed Central, open access or the preprint) when there is one.
 - **Late commentary still counts.** Neuron's Previews come with its print issue, weeks after a paper went online: the paper is marked in its own edition, and the edition of the week the commentary came out lists it under *Commentary on earlier papers*.
 - **Nothing filtered out.** Which journals, and how each one's neuroscience is found, is in `journals.py`: all of a neuroscience journal, a publisher's own subject feed (Nature), or the nervous-system words in the title and abstract (Science, which files nothing by subject).
 
-The journals are read every six hours from [Europe PMC](https://europepmc.org/) (abstracts, article types, free copies and PubMed's commentary links), with Crossref for a commentary's references and the publishers' pages for figures. Science's site turns automated readers away, so its papers have no figure. `uv run flask --app app:create_app papers --weeks 6` reads further back to fill earlier editions.
+The journals are read once a day from [Europe PMC](https://europepmc.org/) (abstracts, article types, free copies and PubMed's commentary links), with Crossref for a commentary's references and the publishers' pages for figures. Science's site turns automated readers away, so its papers have no figure. `uv run flask --app app:create_app papers --weeks 6` reads further back to fill earlier editions.
 
 ## Run it
 
