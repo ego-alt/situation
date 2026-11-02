@@ -252,11 +252,12 @@ def _read(j, since: date, until: date) -> int:
             if kind == "other":
                 known[doi] = Paper(doi=doi, journal=j.key, kind="other", title=title, published=published)
                 db.session.add(known[doi])
+                db.session.commit()
                 continue
         elif kind != "commentary":
             continue
         known[doi] = _store(j, r, kind, known.get(doi))
-    db.session.commit()
+        db.session.commit()     # each as it comes, so the database isn't held while pages are read
     return count
 
 
@@ -296,7 +297,7 @@ def _link_commentaries(since: date):
     """Tie each commentary to its paper: PubMed's link, else the first of its first few
     references that's a paper here (an older one is added)."""
     research = {d for (d,) in db.session.query(Paper.doi).filter(Paper.kind == "research")}
-    for c in Paper.query.filter(Paper.kind == "commentary", Paper.published >= since):
+    for c in Paper.query.filter(Paper.kind == "commentary", Paper.published >= since).all():
         if c.on in research:
             continue
         try:
@@ -307,13 +308,14 @@ def _link_commentaries(since: date):
                     break
         except (requests.RequestException, ValueError, KeyError):
             continue
-    db.session.commit()
+        db.session.commit()
 
 
 def _enrich(limit: int = 60):
     """Look once for each new paper's figure, and for the summary of a commentary Europe PMC
     has none for (Nature's News & Views: its page's description)."""
-    for p in Paper.query.filter(Paper.kind.in_(["research", "commentary"]), Paper.enriched.is_(None)).limit(limit):
+    new = Paper.query.filter(Paper.kind.in_(["research", "commentary"]), Paper.enriched.is_(None)).limit(limit).all()
+    for p in new:
         try:
             if p.kind == "research":
                 p.figure = figure_for(p.doi)
@@ -322,6 +324,7 @@ def _enrich(limit: int = 60):
         except (requests.RequestException, ValueError, KeyError):
             continue        # tried again next time
         p.enriched = utcnow()
+        db.session.commit()
 
 
 def _covers():
