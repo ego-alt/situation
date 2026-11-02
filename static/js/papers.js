@@ -41,29 +41,33 @@
     function figure(p, large) {
         const src = webLink(large ? p.figure_large || p.figure : p.figure);
         if (!src) return '';
-        const alt = p.cover && p.cover_image === p.figure ? 'The issue’s cover' : 'The paper’s first figure';
+        const alt = 'The paper’s first figure';
         return `<figure class="fig"><img src="${esc(src)}" alt="${alt}" loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer"
             onerror="this.closest('figure').remove()"></figure>`;
     }
 
+    /** The issue's cover, at the head of the rail beside the story it shows. */
     function cover(p) {
         const src = webLink(p.cover_image);
-        return src ? `<figure class="fig fig-cover"><img src="${esc(src)}" alt="This week’s cover of ${esc(p.journal)}" decoding="async" referrerpolicy="no-referrer"
-            onerror="this.closest('figure').remove()"><figcaption>On the cover</figcaption></figure>` : '';
+        return src ? `<figure class="rail-cover"><img src="${esc(src)}" alt="This week’s cover of ${esc(p.journal)}" decoding="async" referrerpolicy="no-referrer"
+            onerror="this.closest('figure').remove()"><figcaption><span class="rail-cover-k">On the cover</span>
+            <span class="rail-cover-note">This week’s ${esc(p.journal)} shows the lead story.</span></figcaption></figure>` : '';
     }
 
     // The commentary speaks for itself in the standfirst; only the cover needs a mark.
     const marks = (p) => (p.cover ? '<span class="mark mark-cover">Cover story</span>' : '');
 
-    /** The commentary's own headline, under the paper's: what the field made of it. */
+    /** The commentary's own headline and summary, under the paper's: what the field made of it. */
     function standfirst(p) {
         return p.commentary.map((c) => {
             const link = webLink(c.url);
             const title = marked(c.title);
-            return `<p class="standfirst"><span class="standfirst-k">${esc(c.label)}</span>${link
-                ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</p>`;
+            return `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span>${link
+                ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</p>${summary(c)}</div>`;
         }).join('');
     }
+
+    const summary = (c) => (c.summary ? `<p class="standfirst-sum">${marked(c.summary)}</p>` : '');
 
     function links(p) {
         const out = [];
@@ -84,7 +88,8 @@
         const lead = size === 'lead';
         const side = size === 'mod' && w >= 7;
         const text = size === 'mod' && (!p.figure || (w === 3 && ratio(p) > 1.6));
-        const art = lead && p.cover_image ? cover(p) : size === 'rail' || text ? '' : figure(p, lead);
+        const art = size === 'rail' || text ? '' : figure(p, lead);
+        const headFirst = size === 'mod' && (w === 5 || w === 6);
         const head = `<div class="story-head">
                 ${kicker(p)}
                 <h2 class="story-title">${marked(p.title)}</h2>
@@ -93,8 +98,8 @@
             </div>`;
         // The lead's figure and a wide module's float, so the text wraps around and under them.
         const kind = size === 'mod' ? `s-mod w${w}${side ? ' side' : ''}` : `s-${size}`;
-        return `<article class="story ${kind}${art ? ' has-fig' : ''}" data-doi="${esc(p.doi)}" tabindex="0">
-            <div class="flow">${lead ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
+        return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" data-journal="${esc(p.journal)}" tabindex="0">
+            <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${links(p)}
         </article>`;
     }
@@ -124,9 +129,12 @@
         const [lead, ...rest] = papers;
         const majors = rest.filter((p) => p.tier === 'major');
         const minors = rest.filter((p) => p.tier !== 'major');
-        const rail = majors.splice(0, 2);
-        rail.push(...minors.splice(0, 2 - rail.length));
-        const rows = [rail.length ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
+        // With the cover at its head, the rail has room for one story.
+        const art = cover(lead);
+        const room = art ? 1 : 2;
+        const rail = majors.splice(0, room);
+        rail.push(...minors.splice(0, room - rail.length));
+        const rows = [rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
             : `<div class="row">${story(lead, 'lead')}</div>`];
         const queue = [...majors, ...minors];
         const modules = queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length);
@@ -191,8 +199,10 @@
             const lead = row.querySelector('.s-lead');
             if (lead) {
                 const rail = [...row.querySelectorAll('.rail .story')];
+                if (!rail.length) continue;
                 const gap = rail.length > 1 ? rail[1].getBoundingClientRect().top - rail[0].getBoundingClientRect().bottom : 0;
-                const each = Math.max((natural(lead) - gap * (rail.length - 1)) / rail.length, ...rail.map(need));
+                const above = rail[0].getBoundingClientRect().top - lead.getBoundingClientRect().top;   // the cover, if any
+                const each = Math.max((natural(lead) - above - gap * (rail.length - 1)) / rail.length, ...rail.map(need));
                 rail.forEach((el) => clamp(el, each));
                 continue;
             }
@@ -214,6 +224,7 @@
             return `<li class="discussed-item">
                 <p class="kicker"><span class="journal">${esc(c.journal)}</span><span>${esc(c.label)}</span></p>
                 <p class="discussed-note">${note ? `<a href="${esc(note)}" target="_blank" rel="noopener">${marked(c.title)}</a>` : marked(c.title)}</p>
+                ${summary(c)}
                 <p class="discussed-paper"><span class="standfirst-k">Paper</span>${paper ? `<a href="${esc(paper)}" target="_blank" rel="noopener">${marked(p.title)}</a>` : marked(p.title)}
                     <span class="discussed-when">${esc(p.journal)}, ${day(p.published, { day: 'numeric', month: 'short', year: 'numeric' })}</span> ${back}</p>
             </li>`;
@@ -229,10 +240,13 @@
         const sofar = `${n.so_far} ${n.so_far === 1 ? 'paper' : 'papers'} so far`;
         if (!e) {
             $('folio').textContent = 'The first edition is being set';
+            $('index').innerHTML = '';
             $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(out)}. ${esc(sofar)}.</p>`;
         } else {
             const commented = data.papers.filter((p) => p.commentary.length).length;
             const count = `${data.papers.length} ${data.papers.length === 1 ? 'paper' : 'papers'}${e.in_progress ? ' so far' : ''}`;
+            $('index').innerHTML = indexHtml(data.papers);
+            $('edition').classList.remove('picking');
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(span(e.start, e.end))}</span>
                 <span>${count}${commented ? `, ${commented} with commentary` : ''}</span>`;
             $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
@@ -250,6 +264,22 @@
             ${esc(names.slice(0, -1).join(', '))} and ${esc(names[names.length - 1])}, by the week they came out.</p>
             <p>Abstracts and links: <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>. Figures: the publishers.</p>`;
         document.title = e ? `Situation · Papers No. ${e.number}` : 'Situation · Papers';
+    }
+
+    /** Each journal and how many of the week's papers are its; one picked lights up its papers. */
+    function indexHtml(papers) {
+        const counts = new Map();
+        papers.forEach((p) => counts.set(p.journal, (counts.get(p.journal) || 0) + 1));
+        if (counts.size < 2) return '';
+        return [...counts].map(([name, n]) => `<button type="button" class="index-item" data-journal="${esc(name)}" aria-pressed="false">${esc(name)} <span class="n">${n}</span></button>`).join('');
+    }
+
+    /** Light up one journal's papers and dim the rest; the same journal again, or Escape, clears it. */
+    function pick(name) {
+        const on = name && $('index').querySelector(`[aria-pressed="true"]`)?.dataset.journal !== name ? name : null;
+        $('index').querySelectorAll('.index-item').forEach((b) => b.setAttribute('aria-pressed', b.dataset.journal === on));
+        $('edition').classList.toggle('picking', !!on);
+        $('edition').querySelectorAll('.story').forEach((el) => el.classList.toggle('picked', el.dataset.journal === on));
     }
 
     function step(button, id) {
@@ -319,12 +349,17 @@
             toggle(e.target);
         }
     });
+    $('index').addEventListener('click', (e) => {
+        const b = e.target.closest('.index-item');
+        if (b) pick(b.dataset.journal);
+    });
     for (const id of ['prevEdition', 'nextEdition']) {
         $(id).addEventListener('click', () => $(id).dataset.edition && load($(id).dataset.edition, { push: true }));
     }
     // ← and → turn the page.
     document.addEventListener('keydown', (e) => {
         if (e.altKey || e.ctrlKey || e.metaKey || /input|textarea|select/i.test(e.target.tagName)) return;
+        if (e.key === 'Escape') return pick(null);
         const button = { ArrowLeft: $('prevEdition'), ArrowRight: $('nextEdition') }[e.key];
         if (button && !button.disabled) button.click();
     });

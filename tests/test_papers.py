@@ -73,7 +73,8 @@ def journals(monkeypatch):
     monkeypatch.setattr(papers, "subject_dois", lambda url: {"10.1038/s41586-1", "10.1038/s41586-2",
                                                              "10.1038/d41586-nv", "10.1038/d41586-news"})
     monkeypatch.setattr(papers, "page_meta",
-                        lambda url: {"dc.type": "News And Views" if url.endswith("-nv") else "News"})
+                        lambda url: {"dc.type": "News And Views" if url.endswith("-nv") else "News",
+                                     "description": "What the meta-study means."})
     monkeypatch.setattr(papers, "references", lambda doi: REFERENCES.get(doi, []))
     monkeypatch.setattr(papers, "figure_for", lambda doi: f"https://img.example/{doi}.png")
     monkeypatch.setattr(papers, "cover_story", lambda url: ("10.1038/s41586-1", "https://img.example/cover.jpg"))
@@ -86,9 +87,6 @@ def test_clean_keeps_only_italics_and_scripts():
     # Reference numbers go (their list isn't shown); a power of ten stays.
     assert papers.clean("well-being<sup>1</sup> and circuits<sup>3–5</sup>, 10<sup>6</sup> cells") == \
         "well-being and circuits, 10<sup>6</sup> cells"
-
-
-
 
 
 def test_fetch_stores_the_neuroscience_and_ties_commentary(app, journals):
@@ -119,6 +117,7 @@ def test_an_edition_leads_with_the_cover_then_commentary(app, journals):
         assert order[3:] == ["10.1016/j.neuron.1"]
         assert [p["tier"] for p in e["papers"]] == ["lead", "major", "major", "minor"]
         assert e["papers"][1]["commentary"][0]["label"] == "News & Views"
+        assert e["papers"][1]["commentary"][0]["summary"] == "What the meta-study means."   # from its page
         # The Preview came out this edition's week, on a paper from August.
         [late] = e["discussed"]
         assert late["doi"] == "10.1016/j.neuron.old" and late["commentary"][0]["label"] == "Preview"

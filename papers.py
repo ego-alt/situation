@@ -171,7 +171,7 @@ def cover_story(page_url: str) -> tuple[str, str] | None:
     if i < 0:
         return None
     m = re.search(r'href="https://doi\.org/(10\.[^"]+)"', text[i:i + 6000])
-    img = re.search(r'<img src="([^"]+)"[^>]*data-test="issue-cover-image"', text[i:i + 8000])
+    img = re.search(r'<img\s+src="([^"]+)"[^>]*data-test="issue-cover-image"', text)
     return (m.group(1).lower(), img.group(1) if img else None) if m else None
 
 
@@ -271,8 +271,9 @@ def _store(j, r: dict, kind: str, p: Paper | None = None) -> Paper:
         return p
     p.title, p.published = clean(r.get("title")).rstrip("."), published_on(r)
     p.authors, p.url = surnames(r), f"https://doi.org/{doi}"
+    p.abstract = clean(r.get("abstractText")) or p.abstract   # a commentary's is its summary
     if kind == "research":
-        p.abstract, p.free = clean(r.get("abstractText")), free_copy(r)
+        p.free = free_copy(r)
     else:
         on = _links(r, "Comment on")
         p.on = p.on or (on[0] if on else None)
@@ -313,10 +314,14 @@ def _link_commentaries(since: date):
 
 
 def _enrich(limit: int = 60):
-    """Look once for each new paper's figure."""
-    for p in Paper.query.filter(Paper.kind == "research", Paper.enriched.is_(None)).limit(limit):
+    """Look once for each new paper's figure, and for the summary of a commentary Europe PMC
+    has none for (Nature's News & Views: its page's description)."""
+    for p in Paper.query.filter(Paper.kind.in_(["research", "commentary"]), Paper.enriched.is_(None)).limit(limit):
         try:
-            p.figure = figure_for(p.doi)
+            if p.kind == "research":
+                p.figure = figure_for(p.doi)
+            elif not p.abstract and BY_KEY[p.journal].commentary_page_type:
+                p.abstract = clean(page_meta(p.url).get("description"))
         except (requests.RequestException, ValueError, KeyError):
             continue        # tried again next time
         p.enriched = utcnow()
@@ -426,10 +431,10 @@ def _paper(p: Paper, notes: list[Paper], lead: bool) -> dict:
     cover_image = p.cover if (p.cover or "").startswith("https://") else None
     return {"doi": p.doi, "journal": j.name, "title": p.title, "authors": p.authors or [], "abstract": p.abstract,
             "published": p.published.isoformat(), "url": p.url, "figure": p.figure,
-            "figure_large": large(cover_image or p.figure), "free": p.free, "cover": bool(p.cover),
+            "figure_large": large(p.figure), "free": p.free, "cover": bool(p.cover),
             "cover_image": cover_image, "tier": "lead" if lead else "major" if notes or p.cover else "minor",
             "commentary": [{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary,
-                            "journal": BY_KEY[n.journal].name} for n in notes]}
+                            "journal": BY_KEY[n.journal].name, "summary": n.abstract} for n in notes]}
 
 
 def large(image: str | None) -> str | None:
