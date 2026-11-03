@@ -18,7 +18,7 @@
 .folio-line { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; color: var(--color-text-secondary); }
 .folio-line span + span::before { content: "·"; margin: 0 var(--space-2); color: var(--color-text-muted); }
 .folio-step { justify-self: start; min-height: 44px; padding: 0 var(--space-2); letter-spacing: 0.1em; }
-#nextEdition { justify-self: end; }
+.folio-step[data-dir="next"] { justify-self: end; }
 .folio-step:disabled { visibility: hidden; }
 
 /* ---- rows: twelve columns, parted by hairlines ---- */
@@ -37,7 +37,17 @@
 
 /* ---- a story ---- */
 .story { min-width: 0; cursor: pointer; }
-.story:focus-visible { outline: 1px solid var(--color-accent); outline-offset: var(--space-2); }
+.story.open { cursor: auto; }
+.story.open .story-head { cursor: pointer; }
+/* The title is the button that opens a story; it looks like the title. */
+.story-open { padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; color: inherit; text-align: left; cursor: pointer; }
+.story-open:focus-visible { outline: 1px solid var(--color-accent); outline-offset: var(--space-1); }
+/* Shut an opened story from its foot, under the links. */
+.story-close {
+    display: none; min-height: 44px; margin-top: var(--space-2); padding: 0;
+    font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary);
+}
+.story.open .story-close { display: inline-flex; }
 /* Its figure, headline and abstract; cut at a whole line when its row is shorter (papers.js
    fit), with the end of the last line faded. */
 .flow { position: relative; overflow: clip; }
@@ -52,6 +62,9 @@
 }
 .kicker .journal { color: var(--color-text-secondary); font-weight: 600; }
 .mark-cover { color: var(--color-flash); }
+/* Says the story opens, and turns over once it has. */
+.chev { margin-left: auto; color: var(--color-text-muted); transition: transform 0.2s; }
+.story.open .chev { transform: rotate(180deg); }
 .story-title { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
 :is(.w6, .w7, .w8, .w12) .story-title { font-size: var(--text-lg); line-height: 1.25; }
@@ -69,7 +82,7 @@
 .story.open .standfirst-sum { display: block; }
 .story:not(.s-lead, .s-rail, .open) .standfirst-sum { display: none; }   /* the summary on the front row */
 .standfirst-sum i { font-style: normal; }
-.standfirst-k { margin-right: var(--space-2); font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.standfirst-k { margin-right: var(--space-1); font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
 .abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--color-text-secondary); hyphens: auto; }
 .s-lead .abstract { margin-top: 0; font-size: var(--text-base); line-height: 1.6; }
 .s-lead:not(.has-fig) .abstract { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
@@ -80,7 +93,6 @@
     font: var(--text-xs)/18px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase;
 }
 .links a { color: var(--color-text-secondary); text-decoration: none; }
-.links a:hover { color: var(--color-text-primary); }
 .links .free { color: var(--color-accent); }
 
 /* Figures, drawn on white: cropped to the top in a module, whole in the lead or an opened story. */
@@ -113,7 +125,14 @@
 .s-line .story-title { font-weight: 500; }
 .s-line:not(.open) :is(.fig, .byline, .abstract) { display: none; }
 .s-line .fig { margin: var(--space-3) 0 0; }
-.s-line:hover .story-title { color: var(--color-selected); }
+@media (hover: hover) {
+    .links a:hover { color: var(--color-text-primary); }
+    .s-line:hover .story-title { color: var(--color-selected); }
+}
+/* On a desktop the rail, and a narrow slot with a wide figure, go without theirs. */
+@media (min-width: 861px) {
+    .bare .fig { display: none; }
+}
 
 /* ---- commentary out this week on earlier papers ---- */
 .discussed { margin-top: var(--space-8); }
@@ -141,27 +160,82 @@
 .press-foot p { margin: 0; }
 .press-foot a { color: inherit; }
 .papers-page .notice { margin-top: var(--space-4); }
+/* The steps again at the foot of the edition, where you finish reading it: the folio's rules,
+   turned over (one above, the footer's double one below). */
+.turn {
+    display: flex; justify-content: space-between; margin-top: var(--space-8); padding: var(--space-1) 0; border-top: 1px solid var(--color-border);
+    font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary);
+}
+.turn[hidden] { display: none; }
+.turn + .press-foot { margin-top: 0; }
+/* Touch: small links keep their look, with a finger-sized target. */
+@media (hover: none) {
+    .discussed .btn, .press-foot a { position: relative; }
+    .discussed .btn::after { content: ""; position: absolute; inset: -12px 0; }
+    .press-foot a::after { content: ""; position: absolute; inset: -15px 0; }
+}
 
-/* ---- phone: a list, the lead on top; a story opens to its abstract and links ---- */
+/* ---- a figure on its own, over the page: tap to zoom, Close or Back to put it away ---- */
+.viewer {
+    width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0;
+    background: var(--color-bg-base); color: var(--color-text-primary);
+}
+.viewer[open] { display: flex; flex-direction: column; }
+.viewer::backdrop { background: var(--color-bg-overlay); }
+.viewer-bar {
+    display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-4); padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid var(--color-border-soft);
+}
+.viewer-title {
+    flex: 1; margin: 0; font: var(--text-sm)/1.4 var(--font-sans); color: var(--color-text-secondary);
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.viewer-close { position: relative; min-height: 32px; margin: 6px 0; padding: 0 var(--space-3); }
+.viewer-close::after { content: ""; position: absolute; inset: -6px 0; }
+.viewer-stage { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.viewer-stage img { display: block; max-width: 100%; max-height: 100%; border-radius: var(--radius-sm); cursor: zoom-in; }
+.viewer-stage.zoomed { align-items: flex-start; justify-content: flex-start; }
+.viewer-stage.zoomed img { flex: none; width: 250%; max-width: none; max-height: none; cursor: zoom-out; }
+.viewer-hint {
+    margin: 0; padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom));
+    text-align: center; font: var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
+}
+
+/* ---- phone: a list, the lead on top. Every other story has its figure as a thumbnail beside
+   the title and, without a commentary, two lines of its abstract; it opens to all of it. ---- */
 @media (max-width: 860px) {
     .press { padding: 0 var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
     .masthead { padding-top: var(--space-6); }
     .nameplate { letter-spacing: 0.3em; padding-left: 0.3em; }
     .folio { grid-template-columns: 44px 1fr 44px; gap: var(--space-2); }
     .folio-step { min-width: 44px; padding: 0; }
-    .folio-step-label { display: none; }
+    .folio .folio-step-label, .folio-year { display: none; }
+    .turn .folio-step { padding: 0; }
     .row, .rail { display: block; padding: 0; border: 0; }
-    .row > *, .rail > .story + .story { padding: 0; margin: 0; border: 0; }
+    .row > * { padding: 0; border-left: 0; }
+    .rail > .story + .story { margin: 0; border-top: 0; }
     .story { padding: var(--space-4) 0; border-bottom: 1px solid var(--color-border-soft); }
     .s-lead { padding-top: var(--space-6); }
     .s-lead .story-head { margin-bottom: 0; }
-    .s-lead .fig, .side .fig { float: none; width: auto; margin: var(--space-4) 0 0; }
-    .fig img, .s-lead .fig img { max-height: 280px; object-fit: contain; }
-    .s-mod .fig { aspect-ratio: auto; margin-bottom: var(--space-3); }
+    .s-lead .fig { float: none; width: auto; margin: var(--space-4) 0 0; }
+    .s-lead .fig img { max-height: 280px; object-fit: contain; }
+    /* The lead's figure keeps its shape while it loads, so nothing under it jumps. */
+    .s-lead .fig[style] { aspect-ratio: var(--r); width: min(100%, calc(280px * var(--r))); margin-inline: auto; }
+    .s-lead.open .fig[style] { width: 100%; }
+    .s-lead .fig[style] img { max-height: none; }
+    .story:not(.s-lead) .flow { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head fig" "abs abs"; }
+    .story:not(.s-lead) .story-head { grid-area: head; }
+    .story:not(.s-lead) .fig { grid-area: fig; float: none; width: 72px; aspect-ratio: 1; margin: var(--space-1) 0 0 var(--space-4); }
+    .story:not(.s-lead) .fig img { object-fit: cover; object-position: top center; }
+    .story:not(.s-lead) .abstract { grid-area: abs; }
+    .story:not(.s-lead, .open) .abstract { margin-top: var(--space-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+    .has-note:not(.open) .abstract, .s-line:not(.open) :is(.fig, .byline, .abstract) { display: none; }   /* the rest of a long week stays a plain list */
+    .story.open:not(.s-lead) .flow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "fig" "abs"; }
+    .story.open:not(.s-lead) .fig { width: auto; aspect-ratio: auto; margin: var(--space-4) 0 0; }
+    .story.open:not(.s-lead) .fig img { height: auto; max-height: 70vh; object-fit: contain; }
     .s-lead .story-title { font-size: var(--text-lg); }
     .s-mod .story-title { font-size: var(--text-base); }
     .s-lead .standfirst-head { font-size: var(--text-sm); }
-    .story:not(.s-lead):not(.open) :is(.fig, .abstract) { display: none; }
     .links { row-gap: 0; }
     .links a { display: inline-flex; align-items: center; min-height: 44px; }
     .s-lead .abstract, .s-lead:not(.has-fig) .abstract { columns: auto; margin-top: var(--space-3); font-size: var(--text-sm); }
@@ -171,6 +245,12 @@
     .rest-list { columns: auto; }
     .discussed ul { display: block; }
     .discussed-item, .discussed-item:nth-child(even) { padding: var(--space-4) 0; border-left: 0; }
+    /* One rule between sections: the last story or item before one goes without its own. */
+    .row:is(:has(+ section), :last-child) .story:last-child, .rest .s-line:last-child, .discussed-item:last-child { border-bottom: 0; }
     /* The bar: the dot and the tabs, and SRC only when a journal didn't answer. */
     .papers-page #updatedReadout, .papers-page #journalsReadout:not(.warn) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chev { transition: none; }
 }

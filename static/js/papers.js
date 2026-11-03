@@ -9,6 +9,7 @@
     const webLink = (u) => (/^https?:\/\//i.test(String(u || '')) ? u : null);
     // Titles and abstracts come from the server already escaped, with only <i>, <sub> and <sup> kept.
     const marked = (s) => String(s ?? '');
+    const plain = (html) => { const el = document.createElement('div'); el.innerHTML = html; return el.textContent; };
 
     // Each row below the lead takes the next of these shapes, so the page changes rhythm as it goes.
     const SHAPES = [[6, 3, 3], [4, 4, 4], [3, 6, 3], [7, 5], [4, 8], [3, 3, 6], [5, 7]];
@@ -30,11 +31,11 @@
         return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
     }
 
-    /** "26 Oct – 1 Nov 2026" */
+    /** "26 Oct – 1 Nov 2026", the year in its own span */
     function span(start, end) {
         const sameMonth = start.slice(0, 7) === end.slice(0, 7);
         const from = day(start, sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
-        return `${from} – ${day(end, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        return `${esc(from)} – ${esc(day(end))}<span class="folio-year"> ${end.slice(0, 4)}</span>`;
     }
 
     /** First and last author: who did it and whose lab it came from. */
@@ -49,8 +50,10 @@
     function figure(p, large) {
         const src = webLink(large ? p.figure_large || p.figure : p.figure);
         if (!src) return '';
-        return `<figure class="fig"><img src="${esc(src)}" alt="The paper’s first figure" loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer"
-            onerror="this.closest('figure').remove()"></figure>`;
+        const big = !large && webLink(p.figure_large);
+        const r = large && ratios.get(p.doi);
+        return `<figure class="fig"${r ? ` style="--r: ${r.toFixed(3)}"` : ''}><img src="${esc(src)}"${big ? ` data-large="${esc(big)}"` : ''} alt="Figure from “${esc(plain(p.title))}”"
+            loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()"></figure>`;
     }
 
     /** The issue's cover, at the head of the rail beside the story it shows. */
@@ -65,7 +68,7 @@
 
     /** The commentary's own headline and summary, under the paper's: what the field made of it. */
     function standfirst(p) {
-        return p.commentary.map((c) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span>${marked(c.title)}</p>${summary(c)}</div>`).join('');
+        return p.commentary.map((c) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span> ${marked(c.title)}</p>${summary(c)}</div>`).join('');
     }
 
     /** A link out to the publisher, or nothing when there's nowhere safe to go. */
@@ -82,28 +85,32 @@
     }
 
     function kicker(p) {
-        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}</p>`;
+        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span> ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}<span class="chev" aria-hidden="true">▾</span></p>`;
     }
 
     /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module
      * leads with its figure, puts its headline over it (mid widths), floats it in the corner for
-     * the text to wrap (wide), or goes without (a narrow slot with a wide figure, or none). */
+     * the text to wrap (wide), or goes without on a desktop (the rail, a narrow slot with a wide
+     * figure). On a phone every story but the lead shows its figure as a thumbnail. The title is
+     * the button that opens the story in place. */
     function story(p, size, w = 0) {
         const lead = size === 'lead';
         const mod = size === 'mod';
-        const text = mod && (!p.figure || (w === 3 && ratio(p) > 1.6));
-        const art = size === 'rail' || text ? '' : figure(p, lead);
+        const art = figure(p, lead);
+        const bare = size === 'rail' || (mod && w === 3 && ratio(p) > 1.6);
         const headFirst = mod && (w === 5 || w === 6);
         const head = `<div class="story-head">
                 ${kicker(p)}
-                <h2 class="story-title">${marked(p.title)}</h2>
+                <h2 class="story-title"><button type="button" class="story-open" aria-expanded="false">${marked(p.title)}</button></h2>
                 ${byline(p.authors)}
                 ${standfirst(p)}
             </div>`;
         const kind = mod ? `s-mod w${w}${w >= 7 ? ' side' : ''}` : `s-${size}`;
-        return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" tabindex="0" aria-expanded="false">
-            <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
+        const marks = `${art && !bare ? ' has-fig' : ''}${art && bare ? ' bare' : ''}${headFirst ? ' head-first' : ''}${p.commentary.length ? ' has-note' : ''}`;
+        return `<article class="story ${kind}${marks}" data-doi="${esc(p.doi)}">
+            <div class="flow">${lead || headFirst || size === 'line' ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${links(p)}
+            <button type="button" class="btn btn-ghost story-close">Close <span aria-hidden="true">▴</span></button>
         </article>`;
     }
 
@@ -111,13 +118,16 @@
     const ratios = new Map();
     const ratio = (p) => ratios.get(p.doi) ?? (p.figure ? 1.3 : 0);
 
+    /** Each figure's proportions, for the desktop's slots. A phone only needs the lead's, to keep
+     * its place while it loads, so it fetches just that (the large one it shows). */
     function measure(papers) {
-        const todo = papers.filter((p) => webLink(p.figure) && !ratios.has(p.doi)).map((p) => new Promise((done) => {
+        const list = narrow.matches ? papers.slice(0, 1) : papers;
+        const todo = list.filter((p) => webLink(p.figure) && !ratios.has(p.doi)).map((p) => new Promise((done) => {
             const img = new Image();
             img.referrerPolicy = 'no-referrer';
             img.onload = () => { ratios.set(p.doi, img.naturalWidth / img.naturalHeight); done(); };
             img.onerror = done;
-            img.src = p.figure;
+            img.src = narrow.matches ? webLink(p.figure_large) || p.figure : p.figure;
         }));
         return Promise.race([Promise.all(todo), new Promise((done) => setTimeout(done, 1500))]);
     }
@@ -151,7 +161,7 @@
     }
 
     // How tall a story's own content is (the grid stretches the story itself to its row).
-    const natural = (el) => el.lastElementChild.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+    const natural = (el) => [...el.children].filter((c) => c.offsetHeight).pop().getBoundingClientRect().bottom - el.getBoundingClientRect().top;
 
     /** The line height of a story's abstract, and how far down its abstract starts. */
     function lines(el) {
@@ -210,10 +220,10 @@
             const c = p.commentary[0];
             const back = p.edition ? `<a class="btn" href="${esc(url(`/papers/${p.edition}`))}" data-edition="${esc(p.edition)}">In No. ${Number(p.edition.slice(6))}</a>` : '';
             return `<li class="discussed-item">
-                <p class="kicker"><span class="journal">${esc(c.journal)}</span><span>${esc(c.label)}</span></p>
+                <p class="kicker"><span class="journal">${esc(c.journal)}</span> <span>${esc(c.label)}</span></p>
                 <p class="discussed-note">${marked(c.title)}</p>
                 ${summary(c)}
-                <p class="discussed-paper"><span class="standfirst-k">Paper</span>${marked(p.title)}
+                <p class="discussed-paper"><span class="standfirst-k">Paper</span> ${marked(p.title)}
                     <span class="discussed-when">${esc(p.journal)}, ${day(p.published, { day: 'numeric', month: 'short', year: 'numeric' })}</span> ${back}</p>
                 ${links(p)}
             </li>`;
@@ -226,20 +236,21 @@
         const e = data.edition;
         const n = data.next_edition;
         const due = day(n.out, { weekday: 'long', day: 'numeric', month: 'short' });
-        const sofar = `${n.so_far} ${n.so_far === 1 ? 'paper' : 'papers'} so far`;
+        const sofar = n.so_far ? `${n.so_far} ${n.so_far === 1 ? 'paper' : 'papers'} so far` : 'No papers yet';
         if (!e) {
             $('folio').textContent = 'The first edition is being set';
             $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(due)}. ${esc(sofar)}.</p>`;
         } else {
-            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(span(e.start, e.end))}</span>${e.in_progress ? '<span>So far</span>' : ''}`;
+            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.in_progress ? '<span>So far</span>' : ''}`;
             $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
                 + discussedHtml(data.discussed);
             fit();
             // The lead's figure sets the front row's height once it's in.
             $('edition').querySelector('.s-lead img')?.addEventListener('load', fit);
         }
-        step($('prevEdition'), e?.prev);
-        step($('nextEdition'), e?.next);
+        step('prev', e?.prev);
+        step('next', e?.next);
+        $('turn').hidden = !e?.prev && !e?.next;
         const names = data.journals;
         const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(due)}. ` : '';
         $('foot').innerHTML = `<p>${under}Research papers in neuroscience from
@@ -248,11 +259,14 @@
         document.title = e ? `Situation · Papers No. ${e.number}` : 'Situation · Papers';
     }
 
-    function step(button, id) {
-        button.disabled = !id;
-        button.dataset.edition = id || '';
-        button.querySelector('.folio-step-label').textContent = id ? `No. ${Number(id.slice(6))}` : '';
-        button.setAttribute('aria-label', id ? `${button.id === 'prevEdition' ? 'Previous' : 'Next'} edition, No. ${Number(id.slice(6))}` : 'No more editions');
+    /** The steps to the edition before or after: in the folio, and again at the foot. */
+    function step(dir, id) {
+        for (const button of document.querySelectorAll(`.folio-step[data-dir="${dir}"]`)) {
+            button.disabled = !id;
+            button.dataset.edition = id || '';
+            button.querySelector('.folio-step-label').textContent = id ? `No. ${Number(id.slice(6))}` : '';
+            button.setAttribute('aria-label', id ? `${dir === 'prev' ? 'Previous' : 'Next'} edition, No. ${Number(id.slice(6))}` : 'No more editions');
+        }
     }
 
     function drawStatus() {
@@ -263,14 +277,17 @@
             $('journalsReadout').classList.toggle('warn', s.failing.length > 0);
             $('journalsReadout').title = s.failing.length ? `Couldn’t read: ${s.failing.join(', ')}` : 'Every journal answered';
         }
+        // Said once: with nothing to show, the page itself says it (and the sign-in bar, when there is one).
         let notice = '';
-        if (failure === 'signed-out') notice = 'Signed out, so this isn’t updating.';
-        else if (failure) notice = 'Can’t reach the server, so this isn’t updating.';
+        if (data && failure === 'signed-out') notice = document.querySelector('.signed-out-bar') ? '' : 'Signed out, so this isn’t updating.';
+        else if (data && failure) notice = 'Can’t reach the server, so this isn’t updating.';
+        else if (s?.failing.length) notice = `Couldn’t read ${s.failing.join(' or ')} this time, so a paper or two may be missing.`;
         $('notice').textContent = notice;
         $('notice').hidden = !notice;
     }
 
-    async function load(edition, { push = false } = {}) {
+    /** Fetch and draw an edition: `push` puts it in the history; `y` puts back where you were. */
+    async function load(edition, { push = false, y = null } = {}) {
         try {
             const res = await fetch(url(`/api/papers${edition ? `?edition=${encodeURIComponent(edition)}` : ''}`), { credentials: 'same-origin' });
             if (res.status === 401) failure = 'signed-out';
@@ -280,26 +297,66 @@
                 failure = null;
                 await measure(data.papers);
                 drawEdition();
-                if (push && data.edition) history.pushState({ edition: data.edition.id }, '', url(`/papers/${data.edition.id}`));
-                if (push) window.scrollTo({ top: 0 });
+                const id = data.edition?.id;
+                if (push && id) history.pushState({ edition: id }, '', url(`/papers/${id}`));
+                else if (edition && fromPath() !== edition) history.replaceState({ edition: id }, '', url(`/papers/${edition}`));
+                window.scrollTo({ top: push ? 0 : y ?? window.scrollY });
             }
         } catch (_) {
             failure = 'offline';
         }
         if (!data && failure) {
-            $('edition').innerHTML = `<p class="press-empty">${failure === 'signed-out' ? 'Signed out.' : 'Can’t reach the server.'}
-                <button type="button" class="btn retry">Try again</button></p>`;
+            const why = failure === 'offline' ? 'Can’t reach the server.' : document.querySelector('.signed-out-bar') ? '' : 'Signed out.';
+            $('edition').innerHTML = `<p class="press-empty">${why} <button type="button" class="btn retry">Try again</button></p>`;
         }
         drawStatus();
     }
 
     // ---------- reading ----------
 
-    /** A story opens in place to its whole abstract and full figure; again closes it (its row grows). */
+    /** A story opens in place to its whole abstract, its figure at full size and the links out;
+     * its title or Close shuts it again (its row grows). Shut from below, it comes back into view. */
     function toggle(el) {
-        el.classList.toggle('open');
-        el.setAttribute('aria-expanded', el.classList.contains('open'));
+        const open = el.classList.toggle('open');
+        el.querySelector('.story-open').setAttribute('aria-expanded', open);
+        const img = el.querySelector('.fig img[data-large]');
+        if (open && img) { img.src = img.dataset.large; img.removeAttribute('data-large'); }
+        if (!open && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: 'start' });
     }
+
+    // A figure opens on its own, over the page, to be zoomed; Back or Close puts it away.
+    const viewer = $('viewer');
+    let viewing = false;
+    let skipPop = false;
+
+    function view(el) {
+        const img = el.querySelector('.fig img');
+        $('viewerImg').src = img.dataset.large || img.src;
+        $('viewerImg').alt = img.alt;
+        $('viewerTitle').textContent = plain(el.querySelector('.story-open').innerHTML);
+        $('viewerStage').classList.remove('zoomed');
+        viewer.showModal();
+        viewing = true;
+        history.pushState({ ...history.state, figure: true }, '');
+    }
+
+    viewer.addEventListener('close', () => {
+        if (!viewing) return;
+        viewing = false;
+        skipPop = true;
+        history.back();
+    });
+    $('viewerClose').addEventListener('click', () => viewer.close());
+    /** A tap zooms in where it lands, another zooms back out to the whole figure. */
+    $('viewerImg').addEventListener('click', (e) => {
+        const stage = $('viewerStage');
+        const box = e.target.getBoundingClientRect();
+        const at = [(e.clientX - box.left) / box.width, (e.clientY - box.top) / box.height];
+        stage.classList.toggle('zoomed');
+        if (stage.classList.contains('zoomed')) {
+            stage.scrollTo(at[0] * stage.scrollWidth - stage.clientWidth / 2, at[1] * stage.scrollHeight - stage.clientHeight / 2);
+        }
+    });
 
     $('edition').addEventListener('click', (e) => {
         const to = e.target.closest('[data-edition]');
@@ -307,31 +364,60 @@
         if (e.target.closest('.retry')) return load(fromPath());
         if (e.target.closest('a') || window.getSelection()?.toString()) return;
         const el = e.target.closest('.story');
-        if (el) toggle(el);
+        if (!el) return;
+        const open = el.classList.contains('open');
+        if (e.target.closest('.fig') && (open || el.classList.contains('s-lead'))) return view(el);
+        // Open, only the title and Close shut it, so a tap while reading doesn't.
+        if (!open || e.target.closest('.story-head, .story-close')) toggle(el);
     });
-    $('edition').addEventListener('keydown', (e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('story')) {
-            e.preventDefault();
-            toggle(e.target);
-        }
+    document.addEventListener('click', (e) => {
+        const button = e.target.closest('.folio-step');
+        if (button?.dataset.edition) load(button.dataset.edition, { push: true });
     });
-    for (const id of ['prevEdition', 'nextEdition']) {
-        $(id).addEventListener('click', () => $(id).dataset.edition && load($(id).dataset.edition, { push: true }));
-    }
     // ← and → turn the page.
     document.addEventListener('keydown', (e) => {
-        if (e.altKey || e.ctrlKey || e.metaKey || /input|textarea|select/i.test(e.target.tagName)) return;
+        if (viewing || e.altKey || e.ctrlKey || e.metaKey || /input|textarea|select/i.test(e.target.tagName)) return;
         const button = { ArrowLeft: $('prevEdition'), ArrowRight: $('nextEdition') }[e.key];
         if (button && !button.disabled) button.click();
     });
-    // The edition is in the address (/papers/2026-W44), so back and forward step through what you read.
-    const fromPath = () => (location.pathname.match(/\/papers\/(\d{4}-W\d{2})\/?$/) || [])[1] || null;
-    window.addEventListener('popstate', () => load(fromPath()));
 
-    load(fromPath());
+    // The edition is in the address (/papers/2026-W44), so back and forward step through what you
+    // read, each where you left it. Leaving for News and coming back soon after does too.
+    const fromPath = () => (location.pathname.match(/\/papers\/(\d{4}-W\d{2})\/?$/) || [])[1] || null;
+    const PLACE = 'situation.papers.place';
+    const SOON = 30 * 60000;
+    history.scrollRestoration = 'manual';
+    window.addEventListener('popstate', (e) => {
+        if (skipPop) { skipPop = false; return; }
+        if (viewing) { viewing = false; viewer.close(); return; }
+        load(fromPath(), { y: e.state?.y ?? 0 });
+    });
+    let saving = 0;
+    window.addEventListener('scroll', () => {
+        clearTimeout(saving);
+        saving = setTimeout(() => {
+            if (!data?.edition || viewing) return;
+            history.replaceState({ ...history.state, edition: data.edition.id, y: window.scrollY }, '');
+            try { sessionStorage.setItem(PLACE, JSON.stringify({ edition: data.edition.id, y: window.scrollY, at: Date.now() })); } catch (_) { /* no storage: start at the top */ }
+        }, 200);
+    }, { passive: true });
+
+    function place() {
+        if (fromPath()) return { edition: fromPath(), y: history.state?.y ?? 0 };
+        try {
+            const saved = JSON.parse(sessionStorage.getItem(PLACE));
+            if (saved && Date.now() - saved.at < SOON) return saved;
+        } catch (_) { /* no storage */ }
+        return { edition: null, y: history.state?.y ?? 0 };
+    }
+
+    const start = place();
+    load(start.edition, { y: start.y });
     let resizing = 0;
     window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(fit, 150); });
+    // Turned wide (a tablet, a window), the desktop's slots need every figure's proportions.
+    narrow.addEventListener('change', () => data && !narrow.matches && measure(data.papers).then(() => drawEdition()));
     document.fonts?.ready.then(fit);
     setInterval(drawStatus, 60000);
-    setInterval(() => !document.hidden && load(data?.edition?.id), 30 * 60000);
+    setInterval(() => !document.hidden && !viewing && load(data?.edition?.id), 30 * 60000);
 })();

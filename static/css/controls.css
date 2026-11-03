@@ -15,9 +15,9 @@
     background: transparent;
     color: var(--color-text-secondary);
     font: var(--text-xs) var(--font-mono);
+    text-decoration: none;
     cursor: pointer;
 }
-.btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-text-muted); }
 .btn:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }
 .btn:disabled { opacity: 0.5; cursor: default; }
 
@@ -30,7 +30,12 @@
     color: var(--color-text-primary);
     font: var(--text-sm) var(--font-sans);
 }
-.btn-lg:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-accent); }
 
 .btn-ghost { border-color: transparent; color: inherit; font: inherit; letter-spacing: inherit; }
-.btn-ghost:hover:not(:disabled) { border-color: var(--color-border); }
+
+/* Hover only where there's a pointer to hover with: on a touch screen it sticks after a tap. */
+@media (hover: hover) {
+    .btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-text-muted); }
+    .btn-lg:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-accent); }
+    .btn-ghost:hover:not(:disabled) { border-color: var(--color-border); }
+}
