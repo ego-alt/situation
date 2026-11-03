@@ -101,7 +101,7 @@
                 ${standfirst(p)}
             </div>`;
         const kind = mod ? `s-mod w${w}${w >= 7 ? ' side' : ''}` : `s-${size}`;
-        return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" data-journal="${esc(p.journal)}" tabindex="0" aria-expanded="false">
+        return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" tabindex="0" aria-expanded="false">
             <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${links(p)}
         </article>`;
@@ -229,12 +229,9 @@
         const sofar = `${n.so_far} ${n.so_far === 1 ? 'paper' : 'papers'} so far`;
         if (!e) {
             $('folio').textContent = 'The first edition is being set';
-            $('index').innerHTML = '';
             $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(due)}. ${esc(sofar)}.</p>`;
         } else {
-            $('index').innerHTML = indexHtml(data.papers);
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(span(e.start, e.end))}</span>${e.in_progress ? '<span>So far</span>' : ''}`;
-            $('edition').classList.remove('picking');
             $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
                 + discussedHtml(data.discussed);
             fit();
@@ -249,21 +246,6 @@
             ${esc(names.slice(0, -1).join(', '))} and ${esc(names[names.length - 1])}, by the week they came out.</p>
             <p>Abstracts and links: <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>. Figures: the publishers.</p>`;
         document.title = e ? `Situation · Papers No. ${e.number}` : 'Situation · Papers';
-    }
-
-    /** The week's journals; one picked lights up its papers. */
-    function indexHtml(papers) {
-        const names = [...new Set(papers.map((p) => p.journal))];
-        if (names.length < 2) return '';
-        return names.map((name) => `<button type="button" class="index-item" data-journal="${esc(name)}" aria-pressed="false">${esc(name)}</button>`).join('');
-    }
-
-    /** Light up one journal's papers and dim the rest; the same journal again, or Escape, clears it. */
-    function pick(name) {
-        const on = name && $('index').querySelector(`[aria-pressed="true"]`)?.dataset.journal !== name ? name : null;
-        $('index').querySelectorAll('.index-item').forEach((b) => b.setAttribute('aria-pressed', b.dataset.journal === on));
-        $('edition').classList.toggle('picking', !!on);
-        $('edition').querySelectorAll('.story').forEach((el) => el.classList.toggle('picked', el.dataset.journal === on));
     }
 
     function step(button, id) {
@@ -333,17 +315,12 @@
             toggle(e.target);
         }
     });
-    $('index').addEventListener('click', (e) => {
-        const b = e.target.closest('.index-item');
-        if (b) pick(b.dataset.journal);
-    });
     for (const id of ['prevEdition', 'nextEdition']) {
         $(id).addEventListener('click', () => $(id).dataset.edition && load($(id).dataset.edition, { push: true }));
     }
     // ← and → turn the page.
     document.addEventListener('keydown', (e) => {
         if (e.altKey || e.ctrlKey || e.metaKey || /input|textarea|select/i.test(e.target.tagName)) return;
-        if (e.key === 'Escape') return pick(null);
         const button = { ArrowLeft: $('prevEdition'), ArrowRight: $('nextEdition') }[e.key];
         if (button && !button.disabled) button.click();
     });
