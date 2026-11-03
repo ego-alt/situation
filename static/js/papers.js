@@ -1,5 +1,6 @@
 /* Papers: one week's neuroscience, laid out as a front page. The cover story leads,
- * the papers with a commentary come next and larger, the rest fill the columns. */
+ * the papers with a commentary come next and larger, the rest fill the columns. Everything is
+ * read here: a story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
     const url = (p) => `${ROOT}${p}`;
@@ -45,12 +46,6 @@
         return `<p class="byline"${all}>${esc(text)}</p>`;
     }
 
-    /** A link out, or the text alone when there's nowhere safe to go. */
-    function out(href, html, cls = '') {
-        const link = webLink(href);
-        return link ? `<a${cls ? ` class="${cls}"` : ''} href="${esc(link)}" target="_blank" rel="noopener">${html}</a>` : html;
-    }
-
     function figure(p, large) {
         const src = webLink(large ? p.figure_large || p.figure : p.figure);
         if (!src) return '';
@@ -70,12 +65,21 @@
 
     /** The commentary's own headline and summary, under the paper's: what the field made of it. */
     function standfirst(p) {
-        return p.commentary.map((c) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span>${out(c.url, marked(c.title))}</p>${summary(c)}</div>`).join('');
+        return p.commentary.map((c) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span>${marked(c.title)}</p>${summary(c)}</div>`).join('');
     }
 
-    // The headline links to the paper; below it only a copy anyone can read.
-    const free = (p) => (p.free && webLink(p.free.url)
-        ? `<p class="links">${out(p.free.url, `Free · ${esc(p.free.label)} <span aria-hidden="true">↗</span>`, 'free')}</p>` : '');
+    /** A link out to the publisher, or nothing when there's nowhere safe to go. */
+    function away(href, label, cls = '') {
+        const link = webLink(href);
+        return link ? `<a${cls ? ` class="${cls}"` : ''} href="${esc(link)}" target="_blank" rel="noopener">${esc(label)} <span aria-hidden="true">↗</span></a>` : '';
+    }
+
+    /** The way out, shown only in an opened story: everything else is read here. */
+    function links(p) {
+        const all = [away(p.url, `Paper · ${p.journal}`), p.free && away(p.free.url, `Free · ${p.free.label}`, 'free'),
+            ...p.commentary.map((c) => away(c.url, c.label))].filter(Boolean);
+        return all.length ? `<p class="links">${all.join('')}</p>` : '';
+    }
 
     function kicker(p) {
         return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}</p>`;
@@ -92,14 +96,14 @@
         const headFirst = mod && (w === 5 || w === 6);
         const head = `<div class="story-head">
                 ${kicker(p)}
-                <h2 class="story-title">${out(p.url, marked(p.title))}</h2>
+                <h2 class="story-title">${marked(p.title)}</h2>
                 ${byline(p.authors)}
                 ${standfirst(p)}
             </div>`;
         const kind = mod ? `s-mod w${w}${w >= 7 ? ' side' : ''}` : `s-${size}`;
-        return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" data-journal="${esc(p.journal)}" tabindex="0">
+        return `<article class="story ${kind}${art ? ' has-fig' : ''}${headFirst ? ' head-first' : ''}" data-doi="${esc(p.doi)}" data-journal="${esc(p.journal)}" tabindex="0" aria-expanded="false">
             <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
-            ${free(p)}
+            ${links(p)}
         </article>`;
     }
 
@@ -207,10 +211,11 @@
             const back = p.edition ? `<a class="btn" href="${esc(url(`/papers/${p.edition}`))}" data-edition="${esc(p.edition)}">In No. ${Number(p.edition.slice(6))}</a>` : '';
             return `<li class="discussed-item">
                 <p class="kicker"><span class="journal">${esc(c.journal)}</span><span>${esc(c.label)}</span></p>
-                <p class="discussed-note">${out(c.url, marked(c.title))}</p>
+                <p class="discussed-note">${marked(c.title)}</p>
                 ${summary(c)}
-                <p class="discussed-paper"><span class="standfirst-k">Paper</span>${out(p.url, marked(p.title))}
+                <p class="discussed-paper"><span class="standfirst-k">Paper</span>${marked(p.title)}
                     <span class="discussed-when">${esc(p.journal)}, ${day(p.published, { day: 'numeric', month: 'short', year: 'numeric' })}</span> ${back}</p>
+                ${links(p)}
             </li>`;
         }).join('');
         return `<section class="discussed" aria-label="Commentary on earlier papers">
@@ -246,12 +251,11 @@
         document.title = e ? `Situation · Papers No. ${e.number}` : 'Situation · Papers';
     }
 
-    /** Each journal and how many of the week's papers are its; one picked lights up its papers. */
+    /** The week's journals; one picked lights up its papers. */
     function indexHtml(papers) {
-        const counts = new Map();
-        papers.forEach((p) => counts.set(p.journal, (counts.get(p.journal) || 0) + 1));
-        if (counts.size < 2) return '';
-        return [...counts].map(([name, n]) => `<button type="button" class="index-item" data-journal="${esc(name)}" aria-pressed="false">${esc(name)} <span class="n">${n}</span></button>`).join('');
+        const names = [...new Set(papers.map((p) => p.journal))];
+        if (names.length < 2) return '';
+        return names.map((name) => `<button type="button" class="index-item" data-journal="${esc(name)}" aria-pressed="false">${esc(name)}</button>`).join('');
     }
 
     /** Light up one journal's papers and dim the rest; the same journal again, or Escape, clears it. */
