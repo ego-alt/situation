@@ -110,7 +110,6 @@
         return `<article class="story ${kind}${marks}" data-doi="${esc(p.doi)}">
             <div class="flow">${lead || headFirst || size === 'line' ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${links(p)}
-            <button type="button" class="btn btn-ghost story-close">Close <span aria-hidden="true">▴</span></button>
         </article>`;
     }
 
@@ -315,7 +314,7 @@
     // ---------- reading ----------
 
     /** A story opens in place to its whole abstract, its figure at full size and the links out;
-     * its title or Close shuts it again (its row grows). Shut from below, it comes back into view. */
+     * a tap anywhere on it shuts it again (its row grows). Shut from below, it comes back into view. */
     function toggle(el) {
         const open = el.classList.toggle('open');
         el.querySelector('.story-open').setAttribute('aria-expanded', open);
@@ -365,10 +364,8 @@
         if (e.target.closest('a') || window.getSelection()?.toString()) return;
         const el = e.target.closest('.story');
         if (!el) return;
-        const open = el.classList.contains('open');
-        if (e.target.closest('.fig') && (open || el.classList.contains('s-lead'))) return view(el);
-        // Open, only the title and Close shut it, so a tap while reading doesn't.
-        if (!open || e.target.closest('.story-head, .story-close')) toggle(el);
+        if (e.target.closest('.fig') && (el.classList.contains('open') || el.classList.contains('s-lead'))) return view(el);
+        toggle(el);
     });
     document.addEventListener('click', (e) => {
         const button = e.target.closest('.folio-step');
