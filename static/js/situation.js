@@ -12,7 +12,7 @@
     const STALE_MS = 30 * 60 * 1000;   // older news than this gets a notice
     const HIT_PX = 22;                 // pin tap radius on screen (44px across: a fingertip)
     const CLUSTER_PX = 26;             // at world scale, pins closer than this on screen are one
-    const DISC_PX = 9;                 // a story's numbered pin: its radius on screen
+    const DOT_PX = 3;                  // close up, a city in the news: its dot's radius on screen
 
     let world = null;
     let data = null;
@@ -324,12 +324,6 @@
     }
 
     /** Today's stories grouped by country, biggest first: one pin each. */
-    /** Each story's number in the list (FLASH first, then PRIORITY): the same number marks its pin. */
-    function numbers() {
-        const order = [...data.stories.filter((s) => s.tier === 'major'), ...data.stories.filter((s) => s.tier !== 'major')];
-        return new Map(order.map((s, i) => [s.id, i + 1]));
-    }
-
     function countries(stories = data.stories) {
         const byIso = new Map();
         for (const s of stories) {
@@ -340,7 +334,7 @@
         return [...byIso.entries()].map(([iso, stories]) => ({
             iso, stories, x: stories[0].x, y: stories[0].y, top: stories[0], place: stories[0].place || iso,
             kind: stories.some((s) => s.tier === 'major') ? 'flash' : 'priority',
-            label: `${iso}${stories.length > 1 ? ` +${stories.length - 1}` : ''}`,
+            label: `${countryName(iso).toUpperCase()}${stories.length > 1 ? ` +${stories.length - 1}` : ''}`,
         }));
     }
 
@@ -396,36 +390,31 @@
             document.querySelectorAll(`.land[data-iso="${c.iso}"]`).forEach((p) => p.classList.add(`hot-${c.kind}`));
         }
         const marks = close ? places() : cluster(countries(), upp);
-        const nos = numbers();
-        for (const m of marks) m.no = Math.min(...m.stories.map((s) => nos.get(s.id)));
-        // Boxes labels must not cover: every dot, then each label placed (biggest stories first).
-        const dot = DISC_PX * upp;
-        const taken = marks.map((m) => [m.x - dot, m.y - dot, 2 * dot, 2 * dot]);
-        const spots = marks.map((m) => (narrow.matches || close || m.kind === 'flash' || m.stories.length > 1
-            ? labelSpot(m.x, m.y, m.label, taken, upp, DISC_PX + 4) : null));
+        // No pins: a country in the news is tinted and named on itself. Close up, a city
+        // (which has no outline to tint) is a small dot with its name beside it.
+        const dotted = (m) => close && !areaFor(m);
+        const dot = DOT_PX * upp;
+        const taken = marks.filter(dotted).map((m) => [m.x - dot, m.y - dot, 2 * dot, 2 * dot]);
+        const spots = marks.map((m) => labelSpot(m.x, m.y, m.label, taken, upp, dotted(m) ? DOT_PX + 4 : 0, !dotted(m)));
         for (const [i, m] of [...marks.entries()].reverse()) {     // biggest drawn last, on top
-            const r = (narrow.matches ? DISC_PX - 1 : DISC_PX) * upp;
             const ids = m.stories.map((s) => s.id);
             const picked = filter && (filter.ids ? ids.some((id) => filter.ids.has(id)) : filter.isos?.has(m.iso));
             const selected = picked || ids.includes(openId) ? ' selected' : '';
             const area = close ? areaFor(m) : null;
             if (area) area.path.classList.add(`hot-${m.kind}`, ...(selected ? ['selected'] : []));
+            // picked or opened: the country itself is outlined (there's no pin to light up)
+            if (selected && !close) (m.isos || [m.iso]).forEach((iso) => document.querySelectorAll(`.land[data-iso="${iso}"]`).forEach((p) => p.classList.add('selected')));
             const g = el('g', {
                 class: `pin ${m.kind}${selected}`, 'data-iso': m.iso, tabindex: 0, role: 'button',
                 'aria-label': `${m.place}: ${m.stories.length} ${m.stories.length > 1 ? 'stories' : 'story'}`,
             }, pins);
-            el('circle', { cx: m.x, cy: m.y, r: Math.max(HIT_PX * upp, r), class: 'hit' }, g);
-            // a region in the news is tinted too, and keeps its number
-            if (m.kind === 'flash') el('circle', { cx: m.x, cy: m.y, r, class: 'ring' }, g);
-            el('circle', { cx: m.x, cy: m.y, r, class: 'core' }, g).style.strokeWidth = `${2 * upp}px`;
-            const no = el('text', { x: m.x, y: m.y, class: 'no', 'text-anchor': 'middle', 'dominant-baseline': 'central' }, g);
-            no.style.fontSize = `${(m.no > 9 ? 8.5 : 10) * upp}px`;
-            no.textContent = m.no;
+            el('circle', { cx: m.x, cy: m.y, r: HIT_PX * upp, class: 'hit' }, g);
+            if (dotted(m)) el('circle', { cx: m.x, cy: m.y, r: dot, class: 'core' }, g);
             el('title', {}, g).textContent = m.stories.map((s) => s.headline).join('\n');
             const spot = spots[i];
             if (spot) {
                 const tag = el('text', { x: spot.x, y: spot.y, class: `tag ${m.kind}`, 'text-anchor': spot.anchor }, g);
-                tag.style.fontSize = `${9.5 * upp}px`;
+                tag.style.fontSize = `${(narrow.matches ? 7.5 : 9) * upp}px`;   // a phone's map is small: its names smaller
                 tag.style.strokeWidth = `${3 * upp}px`;
                 tag.textContent = m.label;
             }
@@ -457,7 +446,7 @@
         }
         for (const c of out.filter((g) => g.members.length > 1)) {
             c.isos = c.members.map((m) => m.iso);
-            c.label = `${c.iso} +${c.members.length - 1}`;
+            c.label = `${countryName(c.iso).toUpperCase()} +${c.members.length - 1}`;
             c.place = c.members.map((m) => m.place).join(', ');
         }
         return out;
@@ -465,11 +454,12 @@
 
     /** Where a label goes: right of its point, else left, above or below, wherever
      * it doesn't cover a label already placed; none if all are taken. */
-    function labelSpot(x, y, text, taken, upp, gapPx = 9) {
-        const w = text.length * 6.2 * upp;
+    function labelSpot(x, y, text, taken, upp, gapPx = 9, centred = false) {
+        const w = text.length * (narrow.matches ? 5.8 : 6.8) * upp;   // the capitals' width, letter-spaced
         const h = 10 * upp;
         const gap = gapPx * upp;
         const options = [
+            ...(centred ? [{ x, y: y + h * 0.35, anchor: 'middle', box: [x - w / 2, y - h / 2] }] : []),   // on the place itself
             { x: x + gap, y: y + h * 0.35, anchor: 'start', box: [x + gap, y - h / 2] },
             { x: x - gap, y: y + h * 0.35, anchor: 'end', box: [x - gap - w, y - h / 2] },
             { x, y: y - gap, anchor: 'middle', box: [x - w / 2, y - gap - h] },
@@ -601,6 +591,43 @@
         }
     }
 
+    /** A country's everyday English name ("United States", not "United States of America"). */
+    const regionNames = (() => { try { return new Intl.DisplayNames(['en'], { type: 'region' }); } catch (_) { return null; } })();
+    function countryName(iso, fallback = iso) {
+        try { return regionNames?.of(iso) || fallback; } catch (_) { return fallback; }
+    }
+
+    /** The box round a country's biggest piece of land (the US without Alaska and the
+     * Aleutians, which cross the date line), from its map path. */
+    function mainland(d) {
+        let best = null;
+        for (const part of d.split('M').slice(1)) {
+            const n = part.match(/-?[\d.]+/g)?.map(Number) || [];
+            const xs = n.filter((_, i) => i % 2 === 0);
+            const ys = n.filter((_, i) => i % 2 === 1);
+            const b = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+            if (!best || (b[2] - b[0]) * (b[3] - b[1]) > (best[2] - best[0]) * (best[3] - best[1])) best = b;
+        }
+        return best;
+    }
+
+    /** The lead story's locator: its country, tinted, among its neighbours. */
+    function locatorHtml(s, kind) {
+        const shape = world?.countries.find((c) => c.iso === s.iso);
+        const b = shape && mainland(shape.d);
+        if (!b) return '';
+        const pad = Math.max(b[2] - b[0], b[3] - b[1], 24) * 0.6;
+        const v = [b[0] - pad, b[1] - pad, b[2] - b[0] + 2 * pad, b[3] - b[1] + 2 * pad];
+        const side = Math.max(v[2], v[3]);
+        const [x, y] = [v[0] - (side - v[2]) / 2, v[1] - (side - v[3]) / 2];
+        const near = world.countries.filter((c) => {
+            const o = box(c.iso);
+            return o && o[0] < x + side && o[2] > x && o[1] < y + side && o[3] > y;
+        });
+        const paths = near.map((c) => `<path d="${c.d}" class="${c.iso === s.iso ? `here ${kind}` : ''}"/>`).join('');
+        return `<svg class="locator" viewBox="${x} ${y} ${side} ${side}" aria-hidden="true">${paths}</svg>`;
+    }
+
     function itemHtml(s) {
         const kind = s.tier === 'major' ? 'flash' : 'priority';
         const sources = s.sources.map((a) => {
@@ -609,21 +636,24 @@
             const times = [stamp(a.published), stamp(a.updated, 'Updated')].filter(Boolean).join(' · ');
             return `<li><span class="outlet">${esc(a.outlet)}${times ? ` · ${times}` : ''}</span>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</li>`;
         }).join('');
-        const no = numbers().get(s.id);
-        const fresh = before && !(s.id in before) ? 'new' : before && before[s.id] !== s.headline ? 'updated' : '';
+        const fresh = before && !(s.id in before) ? 'New' : before && before[s.id] !== s.headline ? 'Updated' : '';
+        // The top story leads the list: a bigger headline, and where it is on a small map of its own.
+        const top = data.stories.find((x) => x.tier === 'major') || data.stories[0];
+        const lead = !filter && s.id === top?.id;
+        // Kept for when it's opened: the time there, and Wikipedia's notice.
+        const facts = [localTime(s.newest, s.zone), s.itn ? '<span>In Wikipedia\'s In the news</span>' : ''].filter(Boolean);
         return `
-            <article class="item ${kind}${openId === s.id ? ' open' : ''}" data-id="${s.id}" data-iso="${esc(s.iso || '')}" tabindex="0">
+            <article class="item ${kind}${lead ? ' lead' : ''}${openId === s.id ? ' open' : ''}" data-id="${s.id}" data-iso="${esc(s.iso || '')}" tabindex="0">
+                ${lead ? locatorHtml(s, kind) : ''}
                 <div class="meta">
+                    ${s.running ? '<span class="live" title="A running story: many events that are part of one thing">Live</span>' : ''}
                     ${fresh ? `<span class="fresh" title="Since your last visit">${fresh}</span>` : ''}
-                    ${no ? `<span class="no">${no}</span>` : ''}
-                    ${s.iso ? `<span class="place" title="${esc(s.place)}">${esc(s.iso)}</span>` : ''}
-                    <span>${ago(s.newest)}</span>
-                    ${localTime(s.newest, s.zone)}
-                    <span>${s.outlets} src</span>
-                    ${s.running ? `<span class="run" title="A running story: many events that are part of one thing">running · ${s.events} ${s.events === 1 ? 'event' : 'events'}</span>` : ''}
-                    ${s.itn ? '<span class="wiki" title="In Wikipedia\'s In the news">wiki itn</span>' : ''}
+                    ${s.iso ? `<span class="where" title="${esc(s.place)}">${esc(countryName(s.iso, s.place))}</span>` : ''}
+                    <span class="sep">${ago(s.newest)}</span>
+                    <span class="sep">${s.outlets} outlets</span>
                 </div>
                 <h3 class="headline">${esc(s.headline)}</h3>
+                ${facts.length ? `<p class="facts">${facts.join('<span aria-hidden="true"> · </span>')}</p>` : ''}
                 ${s.latest ? `<p class="latest-line"><span class="latest-tag">Latest · ${esc(ago(s.latest.at))} · ${esc(s.latest.outlet)}</span> ${esc(s.latest.title)}</p>` : ''}
                 ${s.running ? developmentsHtml(s) : ''}
                 <ul class="sources">${sources}</ul>
@@ -686,6 +716,8 @@
             <dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>`;
     }
 
+    let lastShown = null;   // what the list showed last: a change fades it in
+
     function drawFeed() {
         const inPlace = (s) => !filter || (filter.ids ? filter.ids.has(s.id) : filter.isos.has(s.iso));
         const stories = data.stories.filter(inPlace);
@@ -707,25 +739,30 @@
             html += `<div class="capped">${data.cleared - data.stories.length} more cleared the bar today; showing the top ${data.stories.length}.</div>`;
         }
         if (!filter) html += situationsHtml(data.ongoing.filter((o) => o.topic));
+        const shown = filter ? filter.label : '';
+        if (shown !== lastShown) {
+            $('feed').classList.remove('swap');
+            void $('feed').offsetWidth;                          // restart the fade
+            $('feed').classList.add('swap');
+            lastShown = shown;
+        }
         $('feed').innerHTML = html;
         render();
-        $('countMajor').textContent = data.counts.major;
-        $('countHeadline').textContent = data.counts.headline;
     }
 
     let syncing = false;
 
     function drawStatus() {
-        $('sync').textContent = syncing ? 'syncing…' : failure === 'signed-out' ? 'signed out'
-            : failure ? 'offline' : data?.fetched ? (ago(data.fetched) === '0m' ? 'just now' : `${ago(data.fetched)} ago`) : 'never';
-        const src = data?.sources;
-        if (src) {
-            $('sources').textContent = `${src.ok}/${src.total}`;
-            $('sourcesReadout').classList.toggle('warn', src.silent.length > 0);
-            $('sourcesReadout').title = src.silent.length
-                ? `Nothing for 6 hours or more from: ${src.silent.join(', ')}`
-                : 'Every feed is answering';
-        }
+        const fresh = data?.fetched ? ago(data.fetched) : null;
+        $('sync').textContent = syncing ? 'Updating…' : failure === 'signed-out' ? 'Signed out'
+            : failure ? 'Offline' : fresh ? (fresh === '0m' ? 'Updated just now' : `Updated ${fresh} ago`) : 'Not updated yet';
+        const silent = data?.sources?.silent || [];
+        const stale = data && (!data.fetched || Date.now() - new Date(data.fetched) > STALE_MS);
+        $('syncButton').classList.toggle('warn', !!failure || stale || silent.length > 0);
+        $('syncButton').title = [
+            silent.length ? `Quiet for 6 hours or more: ${silent.join(', ')}` : data?.sources ? `All ${data.sources.total} feeds answering` : '',
+            'Tap to fetch the news now',
+        ].filter(Boolean).join('. ');
         // Say plainly when what's on screen isn't current.
         let notice = '';
         const from = data?.fetched ? ` News from ${clockTime(data.fetched)}.` : '';
@@ -839,11 +876,6 @@
     // ---------- clocks + refresh ----------
 
     function tick() {
-        const now = new Date();
-        $('clockUtc').textContent = now.toISOString().slice(11, 16) + 'Z';
-        $('clockLocal').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-        const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'LOCAL';
-        $('localZone').textContent = zone.split('/').pop().replace('_', ' ').toUpperCase().slice(0, 9);
         if (data || failure) drawStatus();
     }
 
@@ -905,6 +937,7 @@
             drawMap();
             startGestures();
             render();
+            if (data) drawFeed();   // the lead's locator needs the map
         } catch (_) {
             $('map').outerHTML = '<p class="map-missing">The map didn’t load. The stories are all in the list.</p>';
         }

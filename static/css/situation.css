@@ -19,8 +19,6 @@ body {
     font-family: var(--font-mono); font-size: var(--text-sm); letter-spacing: 0.04em;
 }
 .brand { display: flex; align-items: center; gap: var(--space-3); font-weight: 600; color: var(--color-text-primary); letter-spacing: 0.18em; }
-.brand-mark { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); box-shadow: 0 0 8px var(--color-accent); }
-.brand-sub { color: var(--color-text-muted); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; font-size: var(--text-xs); }
 /* News and Papers: the two halves of the app, as tabs beside the name. */
 .tabs { display: flex; align-self: stretch; gap: var(--space-4); margin-left: var(--space-3); }
 .brand { align-self: stretch; }
@@ -31,18 +29,20 @@ body {
 @media (hover: hover) { .tab:hover { color: var(--color-text-secondary); } }
 .tab[aria-current="page"] { color: var(--color-text-primary); border-bottom-color: var(--color-accent); }
 .tab:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
+.brand-sub { color: var(--color-text-muted); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; font-size: var(--text-xs); }
+/* Papers and the labelling page: their facts as readouts. */
 .readouts { display: flex; gap: var(--space-4); color: var(--color-text-secondary); white-space: nowrap; }
 .readout .k { color: var(--color-text-muted); }
-.k.flash { color: var(--color-flash); }
-.k.priority { color: var(--color-priority); }
 .readout.warn, .readout.warn .k { color: var(--color-flash); }
-/* SYNC is also a button (.btn-ghost): tap it to fetch now. Pulled out by its
-   padding so its text lines up with the other readouts. */
-.sync-button { padding: 2px 6px; margin: -2px -6px; }
-.sync-button[aria-busy="true"] { cursor: progress; }
-.sync-button[aria-busy="true"] .sync-icon { display: inline-block; animation: spin 1s linear infinite; }
-.sync-icon { color: var(--color-text-muted); }
-@keyframes spin { to { transform: rotate(360deg); } }
+/* The one status: how fresh the news is, a button to fetch now. Green while all is well, amber when not. */
+.status { display: flex; align-items: center; gap: var(--space-2); padding: 2px 6px; margin: -2px -6px; white-space: nowrap;
+    font: var(--text-xs) var(--font-sans); letter-spacing: 0.01em; color: var(--color-text-muted); }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent); }
+.status.warn { color: var(--color-flash); }
+.status.warn .status-dot { background: var(--color-flash); }
+.status[aria-busy="true"] { cursor: progress; }
+.status[aria-busy="true"] .status-dot { animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
 
 /* ---- board: map + intel panel ---- */
 .board {
@@ -78,30 +78,25 @@ body {
 .map .region.hot-priority { fill: var(--color-region-priority); stroke: var(--color-region-priority-edge); stroke-width: 1; }
 .map .region.hot-flash { fill: var(--color-region-flash); stroke: var(--color-region-flash-edge); stroke-width: 1; }
 .map .region.selected { stroke: var(--color-selected); }
-.map .ring { fill: none; stroke-width: 1; }
 .map .pin { cursor: pointer; outline: none; }
 .map .pin .hit { fill: transparent; stroke: none; }
 .map .pin:focus-visible .core, .map .pin.selected .core { stroke: var(--color-selected); }
-.map .pin .core { stroke: var(--color-sea); }   /* edged in the sea's colour: clear on its own country's tint */
-.map .pin .no { font-family: var(--font-mono); font-weight: 700; fill: var(--color-sea); pointer-events: none; }
+.map .pin .core { stroke: var(--color-sea); stroke-width: 1; }   /* a city close up */
 .map .pin.flash .core { fill: var(--color-flash); }
 .map .pin.priority .core { fill: var(--color-priority); }
-.map .pin.flash .ring { stroke: var(--color-flash); }
-.map .pin.flash .ring { animation: pulse 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
-.map .pin.selected .ring { animation: none; opacity: 0; }
 .map .pin.active .core { stroke: var(--color-selected); }
-.map .tag { font-family: var(--font-mono); font-weight: 500; letter-spacing: 0.04em; fill: var(--color-text-primary); paint-order: stroke; stroke: var(--color-sea); stroke-linejoin: round; pointer-events: none; }
+.map .land.selected { stroke: var(--color-selected); }
+.map .pin.selected .tag, .map .pin:focus-visible .tag, .map .pin.active .tag { fill: var(--color-selected); }
+.map .tag { font-family: var(--font-sans); font-weight: 600; letter-spacing: 0.08em; fill: var(--color-text-primary); paint-order: stroke; stroke: var(--color-sea); stroke-linejoin: round; pointer-events: none; }
 .map-missing { margin: 0; padding: var(--space-6) var(--space-4); color: var(--color-text-muted); font: var(--text-sm) var(--font-mono); }
-@keyframes pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3.2); opacity: 0; } }
 .legend {
     position: absolute; left: 10px; bottom: 10px; display: flex; gap: var(--space-4); align-items: center;
     padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--color-bg-overlay);
     font: var(--text-xs) var(--font-mono); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em;
 }
-.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: var(--space-2); vertical-align: 1px; }
-.dot.flash { background: var(--color-flash); box-shadow: 0 0 6px var(--color-flash-glow); }
-.dot.priority { background: var(--color-priority); }
-.legend-note { text-transform: none; }
+.dot { display: inline-block; width: 10px; height: 8px; border-radius: 2px; margin-right: var(--space-2); vertical-align: 0; }   /* a swatch of the country's tint */
+.dot.flash { background: var(--color-land-flash); box-shadow: inset 0 0 0 1px var(--color-land-flash-edge); }
+.dot.priority { background: var(--color-land-priority); box-shadow: inset 0 0 0 1px var(--color-land-priority-edge); }
 .scanline {
     position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
     background: repeating-linear-gradient(to bottom, transparent 0 3px, var(--color-scanline) 3px 4px);
@@ -123,36 +118,44 @@ body {
 .item.active { background: var(--color-bg-inset); }
 @media (hover: hover) { .item:hover { background: var(--color-bg-inset); } }
 .item:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
-.meta .local { color: var(--color-text-secondary); }
 .country-card { margin: 0 0 var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border-soft); border-radius: var(--radius-md); background: var(--color-bg-inset); }
 .country-name { font: 600 var(--text-lg)/1.3 var(--font-sans); margin-bottom: var(--space-2); }
 .country-card dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font: var(--text-sm)/1.5 var(--font-mono); }
 .country-card dt { color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--text-xs); line-height: 18px; }
 .country-card dd { margin: 0; color: var(--color-text-primary); }
 .country-card .muted { color: var(--color-text-muted); }
-.meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: center; font: var(--text-xs) var(--font-mono); color: var(--color-text-muted); letter-spacing: 0.03em; }
-/* A story's number in the list, as on its pin; each fact wraps whole, never mid-way. */
+/* A story's line of facts, quiet: where, how long ago, how many outlets.
+   Each fact wraps whole, never mid-way. */
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: center; font: var(--text-xs)/18px var(--font-sans); color: var(--color-text-muted); }
 .meta > * { white-space: nowrap; }
-.meta .no { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; font-weight: 700; color: var(--color-bg-base); background: var(--color-priority); }
-.flash .meta .no { background: var(--color-flash); }
-.place { color: var(--color-text-secondary); border: 1px solid var(--color-border); padding: 0 var(--space-1); border-radius: var(--radius-sm); }
-.flash .place { color: var(--color-flash); border-color: var(--color-flash-dim); }
-.wiki { color: var(--color-accent); }
+.meta .where { color: var(--color-text-secondary); font-weight: 500; }
+.meta .sep::before { content: "·"; margin-right: var(--space-2); }
+.live { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-flash); font-size: 10.5px; }
+.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .headline { margin: var(--space-2) 0 0; font-size: var(--text-base); line-height: 1.35; font-weight: 500; color: var(--color-text-primary); }
 .flash .headline { font-weight: 600; }
+/* The top story leads: a bigger headline, and a small map of where it is beside it. */
+.item.lead { display: flow-root; padding-top: var(--space-4); padding-bottom: var(--space-4); }
+.item.lead .headline { font-size: 20px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; }
+.locator { float: right; width: 84px; height: 84px; margin: 0 0 var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--color-sea); }
+.locator path { fill: var(--color-land); stroke: var(--color-land-edge); stroke-width: 0.6; vector-effect: non-scaling-stroke; }
+.locator path.here.flash { fill: var(--color-land-flash); stroke: var(--color-land-flash-edge); }
+.locator path.here.priority { fill: var(--color-land-priority); stroke: var(--color-land-priority-edge); }
+/* Opened: the time there, and Wikipedia's notice. */
+.facts { display: none; margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--color-text-muted); }
+.item.open .facts { display: block; }
 /* How a running story has moved on: its newest development, under the headline. */
 .latest-line { margin: var(--space-2) 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.4; }
-.latest-tag { font: var(--text-xs) var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-accent); margin-right: var(--space-1); }
+.latest-tag { font: 600 10.5px var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); margin-right: var(--space-1); }
 /* A running story: its events as developments under the headline, each with its outlets. */
-.run { color: var(--color-accent); }
 /* New, or moved on, since your last visit. */
-.fresh { color: var(--color-accent); font-weight: 600; }
+.fresh { color: var(--color-accent); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px; }
 .developments { margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--text-sm); line-height: 1.4; color: var(--color-text-secondary); }
 .developments li { display: flex; gap: var(--space-2); padding: 2px 0; }
-.developments .n { flex: none; min-width: 6ch; font: var(--text-xs)/20px var(--font-mono); color: var(--color-text-muted); }
+.developments .n { flex: none; min-width: 5.5ch; font: var(--text-xs)/20px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--color-text-muted); }
 .developments li.more { display: none; }
 .item.open .developments li.more { display: flex; }
-.developments-rest { margin: 2px 0 0; font: var(--text-xs) var(--font-mono); color: var(--color-text-muted); padding-left: calc(6ch + var(--space-2)); }
+.developments-rest { margin: 2px 0 0; font: var(--text-xs) var(--font-sans); color: var(--color-text-muted); padding-left: calc(5.5ch + var(--space-2)); }
 .sources { display: none; margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--text-sm); }
 .item.open .sources { display: block; }
 .sources li { padding: var(--space-1) 0; border-top: 1px dashed var(--color-border-soft); }
@@ -162,13 +165,15 @@ body {
 .situations .topic { font: 600 var(--text-sm) var(--font-mono); color: var(--color-accent); letter-spacing: 0.06em; text-transform: uppercase; }
 .situations .latest { margin: var(--space-1) 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); }
 .situations .latest.quiet { color: var(--color-text-muted); }
+#feed.swap { animation: swap 0.22s ease-out; }
+@keyframes swap { from { opacity: 0; transform: translateY(4px); } }
 .empty { padding: var(--space-6) var(--space-4); color: var(--color-text-muted); font: var(--text-sm) var(--font-mono); }
 .empty .retry, .filter-clear { margin-left: var(--space-2); }
 
 /* What's on screen isn't current: say so above the list. */
 .notice {
     padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-flash-dim); background: var(--color-flash-wash);
-    color: var(--color-flash); font: var(--text-sm) var(--font-mono);
+    color: var(--color-flash); font: var(--text-xs)/1.45 var(--font-sans);
 }
 .filter {
     position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
@@ -206,12 +211,10 @@ body {
     .label-choices .k { display: none; }
     .bar { height: auto; min-height: 44px; gap: var(--space-3); padding: 0 var(--space-3); padding-top: env(safe-area-inset-top, 0px); }
     .brand { letter-spacing: 0.12em; }
-    .brand-sub, .brand-name, .readout.clock { display: none; }
+    .brand-sub, .brand-name { display: none; }
+    .readouts { gap: var(--space-3); font-size: var(--text-xs); }
     .tabs { margin-left: 0; gap: var(--space-3); }
     .tab { min-height: 44px; letter-spacing: 0.1em; }   /* the bar's full height, to be easy to tap */
-    .sync-button .k { display: none; }   /* the ↻ says it */
-    #sourcesReadout:not(.warn) { display: none; }   /* only worth the room when a feed has gone quiet */
-    .readouts { gap: var(--space-3); font-size: var(--text-xs); }
     .board { display: block; height: auto; }
     .theatre { height: 62vw; min-height: 230px; border-right: 0; border-bottom: 1px solid var(--color-border-soft); }
     .legend, .scanline { display: none; }   /* the map, nothing over it */
@@ -224,10 +227,10 @@ body {
     .section-head { top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .map .pin.flash .ring { animation: none; opacity: 0.6; }
+    #feed.swap { animation: none; }
 }
-/* Touch: Sync keeps its look in the bar, with a finger-sized target. */
+/* Touch: the status keeps its look in the bar, with a finger-sized target. */
 @media (hover: none) {
-    .sync-button { position: relative; }
-    .sync-button::after { content: ""; position: absolute; inset: -11px 0; }
+    .status { position: relative; }
+    .status::after { content: ""; position: absolute; inset: -11px 0; }
 }

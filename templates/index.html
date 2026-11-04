@@ -16,17 +16,11 @@
 </head>
 <body>
     <header class="bar">
-        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">SITUATION</span>{% include '_tabs.html' %}</div>
-        <div class="readouts">
-            <span class="readout clock"><span class="k">UTC</span> <span id="clockUtc">--:--</span></span>
-            <span class="readout clock"><span class="k" id="localZone">LOCAL</span> <span id="clockLocal">--:--</span></span>
-            <button type="button" class="readout btn btn-ghost sync-button" id="syncButton" title="Fetch the news now">
-                <span class="k">SYNC</span> <span id="sync">—</span> <span class="sync-icon" aria-hidden="true">↻</span>
-            </button>
-            <span class="readout" id="sourcesReadout"><span class="k">SRC</span> <span id="sources">—</span></span>
-            <span class="readout tally"><span class="k flash">FLASH</span> <span id="countMajor">0</span></span>
-            <span class="readout tally"><span class="k priority">PRIORITY</span> <span id="countHeadline">0</span></span>
-        </div>
+        <div class="brand"><span class="brand-name">SITUATION</span>{% include '_tabs.html' %}</div>
+        <!-- One status: how fresh the news is (tap to fetch now); amber when something's wrong, with what in its title. -->
+        <button type="button" class="btn btn-ghost status" id="syncButton" title="Fetch the news now">
+            <span class="status-dot" aria-hidden="true"></span><span id="sync">—</span>
+        </button>
     </header>
 
     <main class="board">
@@ -40,7 +34,6 @@
             <div class="legend" aria-hidden="true">
                 <span><i class="dot flash"></i>flash</span>
                 <span><i class="dot priority"></i>priority</span>
-                <span class="legend-note">numbers as in the list</span>
             </div>
             <div class="scanline" aria-hidden="true"></div>
         </section>
