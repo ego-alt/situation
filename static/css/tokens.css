@@ -24,48 +24,46 @@
     --radius-lg: 8px;     /* the labelling page's cards and choices */
 
     /* Surfaces */
-    --color-bg-base: #070a0b;
-    --color-bg-elevated: #0b1012;
-    --color-bg-inset: #0f1619;
-    --color-bg-overlay: rgba(7, 10, 11, 0.85);
-    --color-bg-chrome-top: #0a0f11;          /* the status bar's gradient */
-    --color-bg-chrome-bottom: #080c0d;
+    --color-bg-base: #0f1113;
+    --color-bg-elevated: #14171a;
+    --color-bg-inset: #1b1f23;
+    --color-bg-overlay: rgba(15, 17, 19, 0.88);
+    --color-bg-chrome-top: #16191c;          /* the status bar's gradient */
+    --color-bg-chrome-bottom: #121417;
 
     /* Borders */
-    --color-border: #22333b;
-    --color-border-soft: #18242a;
+    --color-border: #2c3238;
+    --color-border-soft: #21262b;
 
     /* Text */
-    --color-text-primary: #d3dedb;
-    --color-text-secondary: #9fb2ad;
-    --color-text-muted: #6e837d;
+    --color-text-primary: #e8eaec;
+    --color-text-secondary: #adb4bb;
+    --color-text-muted: #80898f;
 
     /* Accent: the phosphor green */
-    --color-accent: #5fd3a6;
-    --color-accent-haze: rgba(95, 211, 166, 0.05);   /* the glow behind the map */
+    --color-accent: #7bd389;
 
     /* Tiers */
     --color-flash: #ffb020;
     --color-flash-glow: rgba(255, 176, 32, 0.35);
     --color-flash-dim: #5a431a;                     /* a FLASH tag's border, the notice's edge */
-    --color-flash-wash: #1a140a;                    /* the "not current" notice */
-    --color-priority: #45c8e8;
+    --color-flash-wash: #211a0e;                    /* the "not current" notice */
+    --color-priority: #5aa9ff;
     --color-selected: #fff;
 
     /* The map */
-    --color-sea: #081012;
-    --color-grid: #10201f;
-    --color-land: #0f1a1c;
-    --color-land-edge: #1d3036;
-    --color-land-flash: #2a2112;
-    --color-land-flash-edge: #6b4f1c;
-    --color-land-priority: #10282d;
-    --color-land-priority-edge: #23515a;
-    --color-region: #1a2a2f;
+    --color-sea: #0c0e10;
+    --color-land: #2a2f35;
+    --color-land-edge: #3c434b;
+    --color-land-flash: #4f3713;
+    --color-land-flash-edge: #d89b36;
+    --color-land-priority: #1d3452;
+    --color-land-priority-edge: #4f88c8;
+    --color-region: #3a4148;
     --color-region-flash: rgba(255, 176, 32, 0.16);
     --color-region-flash-edge: #9a7024;
-    --color-region-priority: rgba(69, 200, 232, 0.16);
-    --color-region-priority-edge: #2f7f91;
+    --color-region-priority: rgba(90, 169, 255, 0.18);
+    --color-region-priority-edge: #4d86c4;
     --color-scanline: rgba(255, 255, 255, 0.012);
 
     color-scheme: dark;

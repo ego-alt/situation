@@ -10,7 +10,8 @@
     const narrow = window.matchMedia('(max-width: 860px)');
 
     const STALE_MS = 30 * 60 * 1000;   // older news than this gets a notice
-    const HIT_PX = 11;                 // pin tap radius on screen (22px across)
+    const HIT_PX = 22;                 // pin tap radius on screen (44px across: a fingertip)
+    const CLUSTER_PX = 26;             // at world scale, pins closer than this on screen are one
     const MIN_DOT_PX = 5;              // smallest pin radius drawn, on screen
 
     let world = null;
@@ -59,7 +60,6 @@
         svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
         svg.innerHTML = '';
         el('path', { d: world.outline, class: 'sphere' }, svg);
-        el('path', { d: world.graticule, class: 'grid' }, svg);
         const land = el('g', { id: 'land' }, svg);
         for (const c of world.countries) {
             const p = el('path', { d: c.d, class: 'land', 'data-iso': c.iso }, land);
@@ -85,19 +85,28 @@
         return { r, aspect: r.width ? r.height / r.width : world.height / world.width };
     }
 
-    /** The whole world, or on a phone the part of it with today's pins. */
+    /** The map filling its panel: the world cropped to the panel's shape (no empty
+     * bands), centred on today's pins, and wider only when they don't all fit. */
     function autoView() {
         const { aspect } = screen();
         const W = world.width;
-        // All of it: full width in a tall panel, full height in a wide one.
-        const whole = aspect >= world.height / W
-            ? { x: 0, y: (world.height - W * aspect) / 2, w: W, h: W * aspect }
-            : { x: (W - world.height / aspect) / 2, y: 0, w: world.height / aspect, h: world.height };
+        const H = world.height;
         const places = data ? countries() : [];
-        if (!narrow.matches || !places.length) return whole;
         const xs = places.map((c) => c.top.x);
         const ys = places.map((c) => c.top.y);
-        return fit([Math.min(...xs) - 60, Math.min(...ys) - 30, Math.max(...xs) + 60, Math.max(...ys) + 30], 560);
+        const mid = (v, lo, hi) => (v.length ? (Math.min(...v) + Math.max(...v)) / 2 : (lo + hi) / 2);
+        // As much of the world as fills the panel edge to edge.
+        let w = Math.min(W, H / aspect);
+        let h = w * aspect;
+        if (places.length) {
+            // ...or wider, to take in every pin with a margin.
+            // (a margin of an eighth of the view on each side: room for a pin's label and its country)
+            const need = Math.max((Math.max(...xs) - Math.min(...xs)) / 0.75, (Math.max(...ys) - Math.min(...ys)) / 0.75 / aspect);
+            if (need > w) { w = Math.min(need, W); h = w * aspect; }
+        }
+        const cx = mid(xs, 0, W);
+        const cy = places.length ? mid(ys, 0, H) : H * 0.42;   // land sits north of the middle
+        return { x: Math.min(Math.max(cx - w / 2, 0), Math.max(0, W - w)), y: Math.min(Math.max(cy - h / 2, 0), Math.max(0, H - h)), w, h };
     }
 
     const current = () => view || autoView();
@@ -371,7 +380,7 @@
         for (const c of countries()) {
             document.querySelectorAll(`.land[data-iso="${c.iso}"]`).forEach((p) => p.classList.add(`hot-${c.kind}`));
         }
-        const marks = close ? places() : countries();
+        const marks = close ? places() : cluster(countries(), upp);
         // Boxes labels must not cover: every dot, then each label placed (biggest stories first).
         const dot = MIN_DOT_PX * upp;
         const taken = marks.map((m) => [m.x - dot, m.y - dot, 2 * dot, 2 * dot]);
@@ -398,13 +407,15 @@
             const spot = spots[i];
             if (spot) {
                 const tag = el('text', { x: spot.x, y: spot.y, class: `tag ${m.kind}`, 'text-anchor': spot.anchor }, g);
-                tag.style.fontSize = `${10 * upp}px`;
-                tag.style.strokeWidth = `${3 * upp}px`;
+                tag.style.fontSize = `${(narrow.matches ? 11.5 : 10.5) * upp}px`;
+                tag.style.strokeWidth = `${4 * upp}px`;
                 tag.textContent = m.label;
             }
-            const pick = () => (m.name
-                ? showStories(m.name, ids)
-                : showPlace(m.place, [m.iso], { zoom: m.iso }));
+            const pick = () => {
+                if (m.name) return showStories(m.name, ids);
+                if (m.isos) { showPlace(m.place, m.isos); return zoomTo(m.isos); }   // a group: zoom to them all
+                return showPlace(m.place, [m.iso], { zoom: m.iso });
+            };
             g.addEventListener('click', (e) => { if (!dragged) pick(); e.stopPropagation(); });
             g.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
@@ -413,6 +424,25 @@
             g.addEventListener('mouseleave', () => highlight(m.iso, false));
         }
         return taken;
+    }
+
+    /** At world scale, pins that would touch are one: the biggest story's country
+     * leads it ("UA +4"), the list shows them all, and a tap zooms to them. */
+    function cluster(marks, upp) {
+        const out = [];
+        for (const m of marks) {                             // biggest first
+            const near = out.find((c) => Math.hypot(c.x - m.x, c.y - m.y) < CLUSTER_PX * upp);
+            if (!near) { out.push({ ...m, stories: [...m.stories], members: [m] }); continue; }
+            near.members.push(m);
+            near.stories.push(...m.stories);
+            if (m.kind === 'flash') near.kind = 'flash';
+        }
+        for (const c of out.filter((g) => g.members.length > 1)) {
+            c.isos = c.members.map((m) => m.iso);
+            c.label = `${c.iso} +${c.members.length - 1}`;
+            c.place = c.members.map((m) => m.place).join(', ');
+        }
+        return out;
     }
 
     /** Where a label goes: right of its point, else left, above or below, wherever

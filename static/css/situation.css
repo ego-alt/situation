@@ -51,8 +51,7 @@ body {
     height: calc(100vh - 44px);
     height: calc(100dvh - 44px - env(safe-area-inset-top, 0px));
 }
-.theatre { position: relative; overflow: hidden; border-right: 1px solid var(--color-border-soft); background:
-    radial-gradient(ellipse at 50% 45%, var(--color-accent-haze), transparent 65%), var(--color-bg-base); }
+.theatre { position: relative; overflow: hidden; border-right: 1px solid var(--color-border-soft); background: var(--color-sea); }   /* the sea runs to the panel's edges */
 .map { width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
 .theatre.zoomed .map { touch-action: none; }
 .map:active { cursor: grabbing; }
@@ -71,8 +70,7 @@ body {
 .zoom .btn { min-width: 32px; height: 32px; padding: 0 var(--space-2); }
 .zoom .zoom-world { font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; display: none; }
 .theatre.zoomed .zoom .zoom-world { display: block; }
-.map .sphere { fill: var(--color-sea); stroke: var(--color-border); stroke-width: 0.6; }
-.map .grid { fill: none; stroke: var(--color-grid); stroke-width: 0.6; }
+.map .sphere { fill: var(--color-sea); stroke: none; }   /* no edge: the map has no frame */
 .map .land { fill: var(--color-land); stroke: var(--color-land-edge); stroke-width: 0.45; transition: fill 0.3s; }
 .map .land.hot-priority { fill: var(--color-land-priority); stroke: var(--color-land-priority-edge); }
 .map .land.hot-flash { fill: var(--color-land-flash); stroke: var(--color-land-flash-edge); }
@@ -91,7 +89,7 @@ body {
 .map .pin.priority .ring { stroke: var(--color-priority); opacity: 0.5; }
 .map .pin.flash .ring { animation: pulse 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 .map .pin.active .core { stroke: var(--color-selected); stroke-width: 1.4; }
-.map .tag { font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.08em; paint-order: stroke; stroke: var(--color-bg-base); pointer-events: none; }
+.map .tag { font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.06em; paint-order: stroke; stroke: var(--color-sea); stroke-linejoin: round; pointer-events: none; }
 .map .tag.flash { fill: var(--color-flash); }
 .map .tag.priority { fill: var(--color-priority); }
 .map-missing { margin: 0; padding: var(--space-6) var(--space-4); color: var(--color-text-muted); font: var(--text-sm) var(--font-mono); }
@@ -210,10 +208,13 @@ body {
     #sourcesReadout:not(.warn) { display: none; }   /* only worth the room when a feed has gone quiet */
     .readouts { gap: var(--space-3); font-size: var(--text-xs); }
     .board { display: block; height: auto; }
-    .theatre { height: 54vw; min-height: 200px; border-right: 0; border-bottom: 1px solid var(--color-border-soft); }
-    .legend { display: none; }
+    .theatre { height: 62vw; min-height: 230px; border-right: 0; border-bottom: 1px solid var(--color-border-soft); }
+    .legend, .scanline { display: none; }   /* the map, nothing over it */
+    /* Pinch and double-tap zoom: only the way back out is a button, once zoomed in. */
     .zoom { top: auto; bottom: 8px; right: 8px; flex-direction: row; }
-    .zoom .btn { min-width: 44px; height: 44px; }
+    .zoom [data-zoom="in"], .zoom [data-zoom="out"] { display: none; }
+    .zoom .btn { min-height: 32px; position: relative; }
+    .zoom .btn::after { content: ""; position: absolute; inset: -6px; }   /* a 44px target */
     .intel { overflow: visible; padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
     .section-head { top: 0; }
 }
