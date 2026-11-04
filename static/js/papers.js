@@ -85,7 +85,9 @@
     }
 
     function kicker(p) {
-        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span> ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}<span class="chev" aria-hidden="true">▾</span></p>`;
+        // An earlier paper, in this issue for the commentary on it that came out this week.
+        const earlier = p.earlier ? `<span>From ${esc(day(p.published, { day: 'numeric', month: 'short' }))}</span>` : '';
+        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span> ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}${earlier}<span class="chev" aria-hidden="true">▾</span></p>`;
     }
 
     /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module
@@ -213,24 +215,6 @@
         }
     }
 
-    function discussedHtml(items) {
-        if (!items?.length) return '';
-        const rows = items.map((p) => {
-            const c = p.commentary[0];
-            const back = p.edition ? `<a class="btn" href="${esc(url(`/papers/${p.edition}`))}" data-edition="${esc(p.edition)}">In No. ${Number(p.edition.slice(6))}</a>` : '';
-            return `<li class="discussed-item">
-                <p class="kicker"><span class="journal">${esc(c.journal)}</span> <span>${esc(c.label)}</span></p>
-                <p class="discussed-note">${marked(c.title)}</p>
-                ${summary(c)}
-                <p class="discussed-paper"><span class="standfirst-k">Paper</span> ${marked(p.title)}
-                    <span class="discussed-when">${esc(p.journal)}, ${day(p.published, { day: 'numeric', month: 'short', year: 'numeric' })}</span> ${back}</p>
-                ${links(p)}
-            </li>`;
-        }).join('');
-        return `<section class="discussed" aria-label="Commentary on earlier papers">
-            <h2 class="section-rule"><span>Commentary on earlier papers</span></h2><ul>${rows}</ul></section>`;
-    }
-
     function drawEdition() {
         const e = data.edition;
         const n = data.next_edition;
@@ -241,8 +225,7 @@
             $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(due)}. ${esc(sofar)}.</p>`;
         } else {
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.in_progress ? '<span>So far</span>' : ''}`;
-            $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>')
-                + discussedHtml(data.discussed);
+            $('edition').innerHTML = data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>';
             fit();
             // The lead's figure sets the front row's height once it's in.
             $('edition').querySelector('.s-lead img')?.addEventListener('load', fit);

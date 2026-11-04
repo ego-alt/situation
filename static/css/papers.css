@@ -127,22 +127,12 @@
     .bare .fig { display: none; }
 }
 
-/* ---- commentary out this week on earlier papers ---- */
-.discussed { margin-top: var(--space-8); }
 .section-rule {
     display: flex; justify-content: space-between; margin: 0; padding: var(--space-2) 0;
     border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border-soft);
     font: 600 var(--text-xs) var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
 }
 .section-rule .n { font-weight: 400; letter-spacing: 0.04em; }
-.discussed ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
-.discussed-item { padding: var(--space-4) var(--space-6) var(--space-4) 0; border-bottom: 1px solid var(--color-border-soft); }
-.discussed-item:only-child { grid-column: span 2; }
-.discussed-item:nth-child(even) { padding: var(--space-4) 0 var(--space-4) var(--space-6); border-left: 1px solid var(--color-border-soft); }
-.discussed-note { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); }
-.discussed-paper { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: 1.45; color: var(--color-text-secondary); }
-.discussed-when { display: block; margin-top: var(--space-1); font: var(--text-xs) var(--font-sans); color: var(--color-text-muted); }
-.discussed .btn { margin-top: var(--space-2); }
 
 .press-empty { margin: 0; padding: var(--space-8) 0; text-align: center; color: var(--color-text-muted); font: var(--text-sm) var(--font-mono); }
 .press-empty .retry { margin-left: var(--space-2); }
@@ -163,8 +153,7 @@
 .turn + .press-foot { margin-top: 0; }
 /* Touch: small links keep their look, with a finger-sized target. */
 @media (hover: none) {
-    .discussed .btn, .press-foot a { position: relative; }
-    .discussed .btn::after { content: ""; position: absolute; inset: -12px 0; }
+    .press-foot a { position: relative; }
     .press-foot a::after { content: ""; position: absolute; inset: -15px 0; }
 }
 
@@ -236,10 +225,8 @@
     .rail-cover { margin: 0; padding: var(--space-4) 0; }
     .rail-cover img { width: 40%; }
     .rest-list { columns: auto; }
-    .discussed ul { display: block; }
-    .discussed-item, .discussed-item:nth-child(even) { padding: var(--space-4) 0; border-left: 0; }
     /* One rule between sections: the last story or item before one goes without its own. */
-    .row:is(:has(+ section), :last-child) .story:last-child, .rest .s-line:last-child, .discussed-item:last-child { border-bottom: 0; }
+    .row:is(:has(+ section), :last-child) .story:last-child, .rest .s-line:last-child { border-bottom: 0; }
     /* The bar: the dot and the tabs, and SRC only when a journal didn't answer. */
     .papers-page #updatedReadout, .papers-page #journalsReadout:not(.warn) { display: none; }
 }

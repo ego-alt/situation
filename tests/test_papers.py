@@ -113,11 +113,29 @@ def test_an_edition_leads_with_the_cover_then_commentary(app, journals):
         assert e["edition"]["id"] == "2026-W44" and e["edition"]["start"] == "2026-10-26"
         order = [p["doi"] for p in e["papers"]]
         assert order[0] == "10.1038/s41586-1"                                   # the cover story
-        assert set(order[1:3]) == {"10.1038/s41586-2", "10.1126/science.brain"}    # with commentary
-        assert order[3:] == ["10.1016/j.neuron.1"]
-        assert e["papers"][1]["commentary"][0]["label"] == "News & Views"
-        assert e["papers"][1]["commentary"][0]["summary"] == "What the meta-study means."   # from its page
-        # The Preview came out this edition's week, on a paper from August.
-        [late] = e["discussed"]
-        assert late["doi"] == "10.1016/j.neuron.old" and late["commentary"][0]["label"] == "Preview"
-        assert late["edition"] is None                                         # before the weeks read in full
+        # with commentary: two of the week's papers, and one from August whose Preview came out this week
+        assert set(order[1:4]) == {"10.1038/s41586-2", "10.1126/science.brain", "10.1016/j.neuron.old"}
+        assert order[4:] == ["10.1016/j.neuron.1"]
+        by = {p["doi"]: p for p in e["papers"]}
+        assert by["10.1038/s41586-2"]["commentary"][0]["label"] == "News & Views"
+        assert by["10.1038/s41586-2"]["commentary"][0]["summary"] == "What the meta-study means."   # from its page
+        late = by["10.1016/j.neuron.old"]
+        assert late["earlier"] and late["commentary"][0]["label"] == "Preview"   # in the issue its commentary is in
+        assert not by["10.1038/s41586-2"]["earlier"]
+        assert "discussed" not in e
+
+
+def test_only_the_last_four_issues_are_kept(app, journals):
+    """Papers is a periodical, not an archive: older papers go, unless a commentary on
+    one is in an issue kept (that issue shows it)."""
+    from datetime import date
+    with app.app_context():
+        papers.fetch(NOW)
+        for doi, kind in (("10.1016/j.neuron.sept", "research"), ("10.1016/j.neuron.note", "other")):
+            db.session.add(Paper(doi=doi, journal="neuron", kind=kind, title="Old", published=date(2026, 9, 1)))
+        db.session.commit()
+        assert papers.prune(NOW.date()) == 2
+        db.session.commit()
+        assert db.session.get(Paper, "10.1016/j.neuron.sept") is None
+        assert db.session.get(Paper, "10.1016/j.neuron.old")             # from August, but its Preview is recent
+        assert all(papers.week_of(e) >= papers.kept_from(NOW.date()) for e in papers.editions(NOW.date()))

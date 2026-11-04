@@ -19,6 +19,7 @@ EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CROSSREF = "https://api.crossref.org/works/"
 WINDOW = timedelta(days=21)     # commentaries and free copies come later, so look back this far
 EVERY = timedelta(days=1)
+KEEP_WEEKS = 4                  # a periodical, not an archive: the last four issues, then they go
 TIMEOUT = 20
 NOT_RESEARCH = {"Review", "News", "Editorial", "Letter", "Published Erratum", "Retraction of Publication",
                 "Retracted Publication", "Expression of Concern", "Comment"}
@@ -219,6 +220,7 @@ def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
     covered.last_ok = min(covered.last_ok or start, start)    # where editions begin
     db.session.add(covered)
     _link_commentaries(since)
+    prune(now.date())
     _enrich()
     _covers()
     db.session.commit()
@@ -364,17 +366,36 @@ def week_of(edition: str) -> date | None:
         return None
 
 
+def kept_from(today: date) -> date:
+    """The first day of the oldest issue kept."""
+    return monday(today) - timedelta(weeks=KEEP_WEEKS)
+
+
 def editions(today: date) -> list[str]:
-    """Every week read in full that has a paper in it, oldest first: this week too, while it fills in."""
+    """The last KEEP_WEEKS weeks read in full that have a paper (or a commentary on an earlier
+    one) in them, oldest first: this week too, while it fills in."""
     covered = db.session.get(SourceStatus, "papers:since")
     if not covered or not covered.last_ok:
         return []
     first = covered.last_ok.date()
-    first = first if first.weekday() == 0 else monday(first) + timedelta(days=7)
+    first = max(first if first.weekday() == 0 else monday(first) + timedelta(days=7), kept_from(today))
     days = (db.session.query(Paper.published).distinct()
-            .filter(Paper.kind == "research", Paper.published >= first,
-                    Paper.published < monday(today) + timedelta(days=7)))
+            .filter(db.or_(Paper.kind == "research", db.and_(Paper.kind == "commentary", Paper.on.isnot(None))),
+                    Paper.published >= first, Paper.published < monday(today) + timedelta(days=7)))
     return sorted({edition_id(d) for (d,) in days})
+
+
+def prune(today: date) -> int:
+    """Forget what's older than the issues kept: papers, their commentaries and the rest.
+    A paper stays while a commentary on it is in a kept issue (that issue shows it)."""
+    cutoff = kept_from(today)
+    discussed = {on for (on,) in db.session.query(Paper.on).filter(Paper.kind == "commentary", Paper.on.isnot(None),
+                                                                    Paper.published >= cutoff)}
+    old = Paper.query.filter(Paper.published < cutoff).all()
+    gone = [p for p in old if p.doi not in discussed and (p.kind != "commentary" or p.on not in discussed)]
+    for p in gone:
+        db.session.delete(p)
+    return len(gone)
 
 
 def edition(which: str | None, today: date, fetched: datetime | None = None) -> dict:
@@ -389,10 +410,15 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
     base = {"editions": all_editions, "next_edition": upcoming, "fetched": fetched.isoformat() if fetched else None,
             "sources": status(), "journals": [j.name for j in JOURNALS]}
     if not which:
-        return {**base, "edition": None, "papers": [], "discussed": []}
+        return {**base, "edition": None, "papers": []}
     start = week_of(which)
-    papers = Paper.query.filter(Paper.kind == "research", Paper.published >= start,
-                                Paper.published < start + timedelta(days=7)).all()
+    in_week = (Paper.published >= start, Paper.published < start + timedelta(days=7))
+    # The week's papers, and earlier ones a commentary out this week is about (Neuron's Previews
+    # come with its print issue): a late commentary is news in its own issue, with its paper.
+    commentary = (Paper.kind == "commentary", Paper.on.isnot(None))
+    late = {on for (on,) in db.session.query(Paper.on).filter(*commentary, *in_week)}
+    papers = Paper.query.filter(Paper.kind == "research",
+                                db.or_(db.and_(*in_week), db.and_(Paper.doi.in_(late), Paper.published < start))).all()
     notes: dict[str, list[Paper]] = {}
     for n in Paper.query.filter(Paper.kind == "commentary", Paper.on.in_([p.doi for p in papers])):
         notes.setdefault(n.on, []).append(n)
@@ -407,23 +433,12 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
         papers.remove(lead)
         papers.insert(0, lead)
     at = all_editions.index(which)
-    # This week's commentaries on earlier papers (Neuron's Previews come with its print issue).
-    late = Paper.query.filter(Paper.kind == "commentary", Paper.published >= start,
-                              Paper.published < start + timedelta(days=7), Paper.on.isnot(None)).all()
-    earlier = {p.doi: p for p in Paper.query.filter(Paper.kind == "research", Paper.doi.in_([n.on for n in late]),
-                                                     Paper.published < start)}
-    discussed = []
-    for n in late:
-        if n.on in earlier:
-            week = edition_id(earlier[n.on].published)
-            discussed.append({**_paper(earlier[n.on], [n]),
-                              "edition": week if week in all_editions else None})
-    return {**base, "discussed": discussed, "edition": {"id": which, "number": int(which[6:8]),
+    return {**base, "edition": {"id": which, "number": int(which[6:8]),
                                 "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
                                 "in_progress": start >= this_week,
                                 "prev": all_editions[at - 1] if at else None,
                                 "next": all_editions[at + 1] if at + 1 < len(all_editions) else None},
-            "papers": [_paper(p, notes.get(p.doi, [])) for p in papers]}
+            "papers": [{**_paper(p, notes.get(p.doi, [])), "earlier": p.published < start} for p in papers]}
 
 
 def _paper(p: Paper, notes: list[Paper]) -> dict:
