@@ -225,7 +225,9 @@ body {
     .tabs { margin-left: 0; gap: var(--space-3); }
     .tab { min-height: 44px; letter-spacing: 0.1em; }   /* the bar's full height, to be easy to tap */
     .board { display: block; height: auto; }
-    .theatre { height: 62vw; min-height: 230px; border-right: 0; border-bottom: 1px solid var(--color-border-soft); }
+    /* The map stays on screen while the list scrolls under it (the bar scrolls away); never more than half a screen. */
+    .board { --map-h: min(max(62vw, 230px), 50vh); --map-top: env(safe-area-inset-top, 0px); }
+    .theatre { position: sticky; top: var(--map-top); z-index: 4; height: var(--map-h); border-right: 0; border-bottom: 1px solid var(--color-border-soft); }
     .legend, .scanline { display: none; }   /* the map, nothing over it */
     /* Pinch and double-tap zoom: only the way back out is a button, once zoomed in. */
     .zoom { top: auto; bottom: 8px; right: 8px; flex-direction: row; }
@@ -233,7 +235,9 @@ body {
     .zoom .btn { min-height: 32px; position: relative; }
     .zoom .btn::after { content: ""; position: absolute; inset: -6px; }   /* a 44px target */
     .intel { overflow: visible; padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
-    .section-head { top: 0; }
+    .section-head { top: calc(var(--map-top) + var(--map-h)); }   /* stuck under the map */
+    .filter { top: calc(var(--map-top) + var(--map-h)); }
+    .filter ~ .section-head { top: calc(var(--map-top) + var(--map-h) + 41px); }
 }
 @media (prefers-reduced-motion: reduce) {
     #feed.swap { animation: none; }

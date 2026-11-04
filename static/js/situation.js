@@ -855,7 +855,12 @@
     function showFiltered() {
         drawFeed();
         const intel = document.querySelector('.intel');
-        if (narrow.matches) intel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });   // the list is under the map
+        if (narrow.matches) {
+            // The map stays on top: bring the list's start up to just under it, if it's scrolled past.
+            const map = document.querySelector('.theatre');
+            const start = intel.getBoundingClientRect().top + window.scrollY - map.offsetHeight - (parseFloat(getComputedStyle(map).top) || 0);
+            if (window.scrollY > start) window.scrollTo({ top: start, behavior: 'smooth' });
+        }
         else intel.scrollTop = 0;
     }
 
