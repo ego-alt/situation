@@ -91,7 +91,8 @@ def clean_title(title: str) -> str:
     return re.sub(r"\s+", " ", title).strip(" -–—|:")
 
 
-HEADLINE_HOURS = 12   # a story's headline comes from its last half day, so it moves on
+HEADLINE_HOURS = 12   # a story's headline comes from its last half day, so it moves on,
+HEADLINE_OUTLETS = 2  # once that half day's news is carried by this many outlets (one late aside doesn't name it)
 
 
 def is_headline(title: str) -> bool:
@@ -198,8 +199,10 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     else:
         tier = BACKGROUND
     recent_articles = [a for a in articles if hours(when(a)) <= HEADLINE_HOURS]
+    if len({a.get("outlet") or a["source"] for a in recent_articles}) < HEADLINE_OUTLETS:
+        recent_articles = articles
     return {
-        "headline": pick_headline(recent_articles or articles, _main_country(articles)),
+        "headline": pick_headline(recent_articles, _main_country(articles)),
         "outlets": outlets, "breadth": breadth,
         "leads": len(leads), "home": home, "itn": itn_item, "score": round(score, 2), "tier": tier,
         "newest": newest, "parts": parts,

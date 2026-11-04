@@ -73,6 +73,16 @@ def _article(source, position, title="Huge blast hits port city of Odesa", hours
             "published": NOW - timedelta(hours=hours)}
 
 
+def test_one_late_report_does_not_rename_a_story():
+    """The headline moves on to the last half day's news only once two outlets carry it."""
+    vote = "Pope Leo becomes first pontiff to vote in a US election"
+    story = [_article(s, None, vote, hours=20) for s in ("ap", "bbc", "guardian")]
+    late = _article("reuters", None, "Pope Leo hopes the truce could spur peace efforts", hours=2)
+    assert assess([*story, late], None, None, NOW)["headline"] == vote
+    later = _article("nyt", None, "Pope Leo hopes the truce could spur peace efforts", hours=1)
+    assert assess([*story, late, later], None, None, NOW)["headline"] == late["title"]
+
+
 def test_only_front_page_feeds_can_lead():
     """Al Jazeera, DW and France 24 list newest first: their top spot means recent, not lead."""
     newest_first = [_article("aljazeera", 0), _article("dw", 0), _article("france24", 1)]
