@@ -270,7 +270,6 @@
                 if (!spot) continue;
                 const t = el('text', { x: spot.x, y: spot.y, class: 'city-label', 'text-anchor': spot.anchor, 'data-iso': iso }, layer);
                 t.style.fontSize = `${9.5 * upp}px`;
-                t.style.strokeWidth = `${2.5 * upp}px`;
                 t.textContent = c.name;
             }
         }
@@ -316,7 +315,6 @@
                 if (spot) {
                     const label = el('text', { x: spot.x, y: spot.y, class: 'track-label', 'text-anchor': spot.anchor }, g);
                     label.style.fontSize = `${10 * upp}px`;
-                    label.style.strokeWidth = `${3 * upp}px`;
                     label.textContent = t.name;
                 }
             }
@@ -334,7 +332,7 @@
         return [...byIso.entries()].map(([iso, stories]) => ({
             iso, stories, x: stories[0].x, y: stories[0].y, top: stories[0], place: stories[0].place || iso,
             kind: stories.some((s) => s.tier === 'major') ? 'flash' : 'priority',
-            label: `${countryName(iso).toUpperCase()}${stories.length > 1 ? ` +${stories.length - 1}` : ''}`,
+            label: `${countryName(iso)}${stories.length > 1 ? ` +${stories.length - 1}` : ''}`,
         }));
     }
 
@@ -415,7 +413,6 @@
             if (spot) {
                 const tag = el('text', { x: spot.x, y: spot.y, class: `tag ${m.kind}`, 'text-anchor': spot.anchor }, g);
                 tag.style.fontSize = `${(narrow.matches ? 7.5 : 9) * upp}px`;   // a phone's map is small: its names smaller
-                tag.style.strokeWidth = `${3 * upp}px`;
                 tag.textContent = m.label;
             }
             const pick = () => {
@@ -446,7 +443,7 @@
         }
         for (const c of out.filter((g) => g.members.length > 1)) {
             c.isos = c.members.map((m) => m.iso);
-            c.label = `${countryName(c.iso).toUpperCase()} +${c.members.length - 1}`;
+            c.label = `${countryName(c.iso)} +${c.members.length - 1}`;
             c.place = c.members.map((m) => m.place).join(', ');
         }
         return out;
@@ -455,7 +452,7 @@
     /** Where a label goes: right of its point, else left, above or below, wherever
      * it doesn't cover a label already placed; none if all are taken. */
     function labelSpot(x, y, text, taken, upp, gapPx = 9, centred = false) {
-        const w = text.length * (narrow.matches ? 5.8 : 6.8) * upp;   // the capitals' width, letter-spaced
+        const w = text.length * (narrow.matches ? 6.4 : 7.6) * upp;   // the capitals' width, widely spaced
         const h = 10 * upp;
         const gap = gapPx * upp;
         const options = [
