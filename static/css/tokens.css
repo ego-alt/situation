@@ -60,10 +60,6 @@
     --color-land-priority: #1d3452;
     --color-land-priority-edge: #4f88c8;
     --color-region: #3a4148;
-    --color-region-flash: rgba(255, 176, 32, 0.16);
-    --color-region-flash-edge: #9a7024;
-    --color-region-priority: rgba(90, 169, 255, 0.18);
-    --color-region-priority-edge: #4d86c4;
     --color-scanline: rgba(255, 255, 255, 0.012);
 
     color-scheme: dark;

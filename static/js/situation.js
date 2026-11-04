@@ -12,6 +12,9 @@
     const STALE_MS = 30 * 60 * 1000;   // older news than this gets a notice
     const HIT_PX = 22;                 // pin tap radius on screen (44px across: a fingertip)
     const CLUSTER_PX = 26;             // at world scale, pins closer than this on screen are one
+    // Map type, [desktop px, phone px, average letter width in ems]: areas in widely spaced
+    // capitals, cities in the news in plain type, reference cities smaller and grey.
+    const TYPE = { area: [9, 7.5, 0.84], city: [10.5, 9, 0.56], ref: [9, 7.5, 0.55] };
     const DOT_PX = 3;                  // close up, a city in the news: its dot's radius on screen
 
     let world = null;
@@ -255,30 +258,33 @@
         const layer = $('refs');
         layer.innerHTML = '';
         if (!close) return;
-        // Fewer, bigger cities the further out: enough to know where you are.
-        const minPop = v.w < 15 ? 0 : v.w < 60 ? 250000 : v.w < 120 ? 600000 : 1500000;
+        // Fewer, bigger cities the further out: enough to know where you are, and only
+        // in the countries in the news (the rest of the map stays quiet).
+        const minPop = v.w < 15 ? 100000 : v.w < 60 ? 500000 : v.w < 120 ? 1000000 : 3000000;
+        const hot = new Set(data ? countries().map((c) => c.iso) : []);
+        const named = new Set([...document.querySelectorAll('#pins .tag')].map((t) => t.textContent.toLowerCase()));
         const within = (x, y) => x > v.x && x < v.x + v.w && y > v.y && y < v.y + v.h;
         // Places the news or the week's track already name.
         const onMap = new Set([...document.querySelectorAll('#pins .tag, #track .track-label')].map((t) => t.textContent));
         for (const [iso, d] of details) {
-            if (!inView(d.bbox, v)) continue;
+            if (!inView(d.bbox, v) || (hot.size && !hot.has(iso))) continue;
             for (const c of d.cities) {
                 if (c.pop < minPop || !within(c.x, c.y) || onMap.has(c.name)) continue;
                 if (taken.some(([tx, ty, tw, th]) => c.x >= tx && c.x <= tx + tw && c.y >= ty && c.y <= ty + th)) continue;
+                const spot = labelSpot(c.x, c.y, c.name, taken, upp, 3, false, 'ref');
+                if (!spot) continue;                              // no room for its name: no dot either
                 el('circle', { cx: c.x, cy: c.y, r: 1.6 * upp, class: 'city' }, layer);
-                const spot = labelSpot(c.x, c.y, c.name, taken, upp, 3);
-                if (!spot) continue;
                 const t = el('text', { x: spot.x, y: spot.y, class: 'city-label', 'text-anchor': spot.anchor, 'data-iso': iso }, layer);
-                t.style.fontSize = `${9.5 * upp}px`;
+                t.style.fontSize = `${TYPE.ref[narrow.matches ? 1 : 0] * upp}px`;
                 t.textContent = c.name;
             }
         }
         if (v.w >= LABEL_W) return;
         // Region names after the cities, wherever they fit.
-        for (const [, d] of details) {
-            if (!inView(d.bbox, v)) continue;
+        for (const [iso, d] of details) {
+            if (!inView(d.bbox, v) || (hot.size && !hot.has(iso))) continue;
             for (const r of d.labels) {
-                if (!within(r.x, r.y)) continue;
+                if (!within(r.x, r.y) || named.has(r.name.toLowerCase())) continue;   // a region in the news is named already
                 const w = r.name.length * 6 * upp;
                 const h = 9 * upp;
                 const at = [r.x - w / 2, r.y - h / 2, w, h];
@@ -353,7 +359,8 @@
             ...p, place: p.name, label: p.name, top: p.stories[0], where: p.kind,   // city or region
             kind: p.stories.some((s) => s.tier === 'major') ? 'flash' : 'priority',
         }));
-        return [...spots, ...countries(unplaced)];
+        const placed = new Set(spots.map((p) => p.iso));
+        return [...spots, ...countries(unplaced).filter((c) => !placed.has(c.iso))];
     }
 
     // A region the news names, as its outline on the zoomed map ({ path, box }): the
@@ -390,16 +397,21 @@
         const marks = close ? places() : cluster(countries(), upp);
         // No pins: a country in the news is tinted and named on itself. Close up, a city
         // (which has no outline to tint) is a small dot with its name beside it.
-        const dotted = (m) => close && !areaFor(m);
+        // Areas (countries, regions) are named on themselves in spaced capitals; cities beside their dot.
+        const dotted = (m) => close && !!m.where && !areaFor(m);
+        const style = (m) => (dotted(m) ? 'city' : 'area');
         const dot = DOT_PX * upp;
-        const taken = marks.filter(dotted).map((m) => [m.x - dot, m.y - dot, 2 * dot, 2 * dot]);
-        const spots = marks.map((m) => labelSpot(m.x, m.y, m.label, taken, upp, dotted(m) ? DOT_PX + 4 : 0, !dotted(m)));
+        const taken = [...overlays(upp), ...marks.filter(dotted).map((m) => [m.x - dot, m.y - dot, 2 * dot, 2 * dot])];
+        const spots = marks.map((m) => labelSpot(m.x, m.y, m.label, taken, upp, dotted(m) ? DOT_PX + 4 : 0, !dotted(m), style(m)));
         for (const [i, m] of [...marks.entries()].reverse()) {     // biggest drawn last, on top
             const ids = m.stories.map((s) => s.id);
             const picked = filter && (filter.ids ? ids.some((id) => filter.ids.has(id)) : filter.isos?.has(m.iso));
             const selected = picked || ids.includes(openId) ? ' selected' : '';
             const area = close ? areaFor(m) : null;
-            if (area) area.path.classList.add(`hot-${m.kind}`, ...(selected ? ['selected'] : []));
+            if (area) {
+                area.path.classList.add(`hot-${m.kind}`, ...(selected ? ['selected'] : []));
+                area.path.parentNode.appendChild(area.path);   // drawn last: its neighbours' borders don't cover half its edge
+            }
             // picked or opened: the country itself is outlined (there's no pin to light up)
             if (selected && !close) (m.isos || [m.iso]).forEach((iso) => document.querySelectorAll(`.land[data-iso="${iso}"]`).forEach((p) => p.classList.add('selected')));
             const g = el('g', {
@@ -411,8 +423,8 @@
             el('title', {}, g).textContent = m.stories.map((s) => s.headline).join('\n');
             const spot = spots[i];
             if (spot) {
-                const tag = el('text', { x: spot.x, y: spot.y, class: `tag ${m.kind}`, 'text-anchor': spot.anchor }, g);
-                tag.style.fontSize = `${(narrow.matches ? 7.5 : 9) * upp}px`;   // a phone's map is small: its names smaller
+                const tag = el('text', { x: spot.x, y: spot.y, class: `tag ${m.kind} ${style(m)}`, 'text-anchor': spot.anchor }, g);
+                tag.style.fontSize = `${TYPE[style(m)][narrow.matches ? 1 : 0] * upp}px`;
                 tag.textContent = m.label;
             }
             const pick = () => {
@@ -451,9 +463,10 @@
 
     /** Where a label goes: right of its point, else left, above or below, wherever
      * it doesn't cover a label already placed; none if all are taken. */
-    function labelSpot(x, y, text, taken, upp, gapPx = 9, centred = false) {
-        const w = text.length * (narrow.matches ? 6.4 : 7.6) * upp;   // the capitals' width, widely spaced
-        const h = 10 * upp;
+    function labelSpot(x, y, text, taken, upp, gapPx = 9, centred = false, kind = 'area') {
+        const [size, width] = [TYPE[kind][narrow.matches ? 1 : 0], TYPE[kind][2]];
+        const w = text.length * size * width * upp;
+        const h = size * 1.15 * upp;
         const gap = gapPx * upp;
         const options = [
             ...(centred ? [{ x, y: y + h * 0.35, anchor: 'middle', box: [x - w / 2, y - h / 2] }] : []),   // on the place itself
@@ -470,6 +483,16 @@
         const spot = options.find((o) => clear(o.box) && inside(o.box)) || options.find((o) => clear(o.box));
         if (spot) taken.push([...spot.box, w, h]);
         return spot || null;
+    }
+
+    /** The map's buttons and legend, in map units: labels keep out from under them. */
+    function overlays(upp) {
+        const r = $('map').getBoundingClientRect();
+        if (!frame || !r.width) return [];
+        return [...document.querySelectorAll('.theatre .zoom .btn, .theatre .legend')]
+            .map((n) => n.getBoundingClientRect())
+            .filter((b) => b.width && b.height)
+            .map((b) => [frame.x + (b.left - r.left - 4) * upp, frame.y + (b.top - r.top - 4) * upp, (b.width + 8) * upp, (b.height + 8) * upp]);
     }
 
     function highlight(iso, on) {

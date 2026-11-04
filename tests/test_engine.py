@@ -236,3 +236,12 @@ def test_headline_names_the_story_country():
     arts = [{"title": "Italy deploys troops into Milan"}, {"title": "France extends curfews in Paris"}]
     assert pick_headline(arts, "FR") == "France extends curfews in Paris"
     assert pick_headline(arts) == "Italy deploys troops into Milan"
+
+
+def test_a_surname_is_not_a_small_town():
+    """"Mike Rogers" makes a bare "Rogers" a person, not Rogers, Arkansas; a big
+    city, a region or a place named in full never becomes a surname."""
+    from geo import surnames
+    texts = ["Republican Mike Rogers wins the Michigan Senate race", "Real Madrid beat Barcelona",
+             "Students at the University of Michigan vote", "New York City counts its ballots"]
+    assert surnames(texts) == {"Rogers"}

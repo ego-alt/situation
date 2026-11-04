@@ -410,7 +410,9 @@ def _story_spots(s: Story, limit: int = 8) -> list[dict]:
     for a in s.articles:
         for spot in a.spots or []:
             counts.setdefault((spot["name"], spot["iso"]), [spot, 0])[1] += 1
-    counts = {k: c for k, c in counts.items() if k[1] == s.iso or c[1] >= 2}
+    from geo import surnames
+    people = surnames(f"{a.title}. {a.summary or ''}" for a in s.articles)   # "Mike Rogers": a bare "Rogers" is him
+    counts = {k: c for k, c in counts.items() if (k[1] == s.iso or c[1] >= 2) and k[0] not in people}
     ranked = sorted(counts.values(), key=lambda c: -c[1])[:limit]
     return [_spot(spot, n=n) for spot, n in ranked]
 

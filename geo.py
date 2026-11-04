@@ -269,6 +269,26 @@ def spots(text: str) -> list[dict]:
     return found
 
 
+def surnames(texts) -> set[str]:
+    """Small places that are someone's surname in these texts: "Mike Rogers"
+    makes a later "Rogers runs" or "El-Sayed, Rogers hold rallies" a person,
+    not Rogers, Arkansas. Big cities are never taken for a surname (Real Madrid
+    doesn't make Madrid a person)."""
+    names = _gazetteer()
+    found = set()
+    for text in texts:
+        for m in _RUN.finditer(text or ""):
+            words = [w.rstrip(".").removesuffix("'s").removesuffix("’s") for w in m.group(0).split()]
+            if len(words) < 2 or " ".join(words) in names or words[-1] not in names:
+                continue
+            if _JOINERS & {w.lower() for w in words}:      # "University of Michigan": a name with a place in it
+                continue
+            options = names[words[-1]]
+            if all(o[4] == "city" for o in options) and max(o[3] for o in options) < BIG_CITY:
+                found.add(words[-1])
+    return found
+
+
 @lru_cache(maxsize=1)
 def _capitals() -> set[str]:
     return {n.strip() for v in CAPITALS.values() for n in v.split(",")} | {

@@ -59,10 +59,10 @@ body {
 .map path, .map circle { vector-effect: non-scaling-stroke; }
 .map .land.covered { display: none; }
 .map .region { fill: none; stroke: var(--color-region); stroke-width: 0.6; pointer-events: none; }
-.map .detail-land { stroke-width: 0.9; }
+.map .detail-land { stroke-width: 0.8; }
 .map .city { fill: var(--color-text-muted); pointer-events: none; }
 .map .city-label, .map .region-label { font-family: var(--font-sans); fill: var(--color-text-muted); pointer-events: none; }
-.map .city-label { fill: var(--color-text-secondary); letter-spacing: 0.02em; }
+.map .city-label { fill: var(--color-text-muted); letter-spacing: 0.02em; }
 .map .region-label { text-transform: uppercase; letter-spacing: 0.16em; opacity: 0.7; }
 .map .track-spot circle { fill: var(--color-flash); stroke: var(--color-flash); stroke-width: 1; }
 .map .track-label { font-family: var(--font-sans); font-weight: 500; letter-spacing: 0.02em; fill: var(--color-flash); pointer-events: none; }
@@ -75,9 +75,15 @@ body {
 .map .land.hot-priority { fill: var(--color-land-priority); stroke: var(--color-land-priority-edge); }
 .map .land.hot-flash { fill: var(--color-land-flash); stroke: var(--color-land-flash-edge); }
 .map .land { cursor: pointer; }
-.map .region.hot-priority { fill: var(--color-region-priority); stroke: var(--color-region-priority-edge); stroke-width: 1; }
-.map .region.hot-flash { fill: var(--color-region-flash); stroke: var(--color-region-flash-edge); stroke-width: 1; }
-.map .region.selected { stroke: var(--color-selected); }
+.map .region.hot-priority { fill: var(--color-land-priority); stroke: var(--color-land-priority-edge); stroke-width: 1; }
+.map .region.hot-flash { fill: var(--color-land-flash); stroke: var(--color-land-flash-edge); stroke-width: 1; }
+/* Close up, a country in the news is only washed with its colour: the regions the news names carry it. */
+.theatre.close .map .detail-land.hot-flash { fill: color-mix(in srgb, var(--color-land-flash) 35%, var(--color-land)); stroke: var(--color-land-edge); }
+.theatre.close .map .detail-land.hot-priority { fill: color-mix(in srgb, var(--color-land-priority) 35%, var(--color-land)); stroke: var(--color-land-edge); }
+/* Picked or opened: a brighter edge in its own colour, never white. */
+.map .region.selected, .map .land.selected { stroke-width: 1; }   /* the same width as any edge in the news: only its colour is brighter */
+.map .region.hot-flash.selected, .map .land.hot-flash.selected { stroke: color-mix(in srgb, var(--color-flash) 70%, var(--color-land-flash)); }
+.map .region.hot-priority.selected, .map .land.hot-priority.selected { stroke: color-mix(in srgb, var(--color-priority) 70%, var(--color-land-priority)); }
 .map .pin { cursor: pointer; outline: none; }
 .map .pin .hit { fill: transparent; stroke: none; }
 .map .pin:focus-visible .core, .map .pin.selected .core { stroke: var(--color-selected); }
@@ -85,10 +91,12 @@ body {
 .map .pin.flash .core { fill: var(--color-flash); }
 .map .pin.priority .core { fill: var(--color-priority); }
 .map .pin.active .core { stroke: var(--color-selected); }
-.map .land.selected { stroke: var(--color-selected); }
-.map .pin.selected .tag, .map .pin:focus-visible .tag, .map .pin.active .tag { fill: var(--color-selected); }
-/* Names on the map, atlas style: thin, widely spaced capitals in grey, no outline. */
-.map .tag { font-family: var(--font-sans); font-weight: 400; letter-spacing: 0.16em; text-transform: uppercase; fill: var(--color-text-secondary); pointer-events: none; }
+.map .pin.selected .tag.area, .map .pin:focus-visible .tag, .map .pin.active .tag { fill: var(--color-text-primary); }
+/* Names on the map, no outlines: places that are areas (countries, regions) in thin, widely
+   spaced grey capitals, atlas style; a city in the news in plain type beside its dot. */
+.map .tag { font-family: var(--font-sans); pointer-events: none; }
+.map .tag.area { font-weight: 400; letter-spacing: 0.16em; text-transform: uppercase; fill: var(--color-text-secondary); }
+.map .tag.city { font-weight: 500; letter-spacing: 0.01em; fill: var(--color-text-primary); }
 .map-missing { margin: 0; padding: var(--space-6) var(--space-4); color: var(--color-text-muted); font: var(--text-sm) var(--font-mono); }
 .legend {
     position: absolute; left: 10px; bottom: 10px; display: flex; gap: var(--space-4); align-items: center;
