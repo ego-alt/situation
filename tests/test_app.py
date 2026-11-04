@@ -324,5 +324,5 @@ def test_a_situation_takes_stories_about_it_wherever_they_are(app):
                    ["Nordic nations refuse to face Russia in ice hockey", "Russia ice hockey ban over Ukraine war"])
     vote = story("Democrats win the House", "US", ["Democrats win the House", "What the vote means for Ukraine aid"])
     assert about_situation(strike, war)
-    assert not about_situation(hockey, war)      # political, but not news of the war itself
+    assert not about_situation(hockey, war)      # not told in the war's words
     assert not about_situation(vote, war)        # one article's aside isn't what the story is about

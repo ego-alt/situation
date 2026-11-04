@@ -337,12 +337,6 @@ CONFLICT = re.compile(
     r"|battles?|siege|blockade|nuclear|navy|naval|warships?|shipping)\b", re.I)
 
 
-# Competitions and sports the main list's sport words (score.py) don't name. A story about
-# them can be political (a ban on Russia's team), but it isn't news of the war itself.
-SPORT = re.compile(r"\b(asian cup|africa cup|copa am[eé]rica|euro 20\d\d|ice hockey|hockey|basketball|baseball"
-                   r"|volleyball|athletics|world championships?|tournament)\b", re.I)
-
-
 def _about(text: str, isos: set[str]) -> bool:
     """A piece of text is about a situation: it names one of its countries and uses the words of conflict."""
     return bool(set(places(text)) & isos) and bool(CONFLICT.search(text))
@@ -351,25 +345,40 @@ def _about(text: str, isos: set[str]) -> bool:
 def about_situation(story: Story, isos: set[str]) -> bool:
     """A story is about a situation (the war, not just a place in it): its headline, or most of
     its articles, name one of the situation's countries in the words of conflict, wherever the
-    story is placed. Sport and entertainment never are: a ban on Russia's ice hockey team is
-    political, and stays in the news, but isn't a development in the war."""
+    story is placed: a Russian strike reported from Germany is the war; a ban on Russia's ice
+    hockey team, placed in Russia, mostly isn't told in the war's words. Sport and entertainment
+    (score.is_soft, as for the main list) never are."""
     articles = [{"title": a.title, "summary": a.summary} for a in story.articles]
-    if not articles or is_soft(articles) or sum(bool(SPORT.search(a["title"])) for a in articles) * 2 >= len(articles):
+    if not articles or is_soft(articles):
         return False
     if _about(story.headline, isos):
         return True
     return sum(_about(f"{a['title']}. {a['summary'] or ''}", isos) for a in articles) * 2 > len(articles)
 
 
+def _near(story: Story, core) -> bool:
+    """A story is near a situation's core in meaning (embed.py); anything is, without the model."""
+    if core is None:
+        return True
+    v = situations.meaning([{"title": a.title, "summary": a.summary} for a in story.articles])
+    return v is not None and float(v @ core) >= situations.NEAR
+
+
 def ongoing_situations(stories: list[Story], itn: dict, now: datetime | None = None) -> list[dict]:
     """Wikipedia's "Ongoing" topics, each with its latest development today: what most
     outlets carry about it (about_situation). A single outlet's piece isn't quoted (it's
     as often an essay as news), only counted."""
-    since = ((now or clock()) - SHOWN).replace(tzinfo=None)
+    now = (now or clock()).replace(tzinfo=None)
+    since = now - SHOWN
+    week = [{"title": a.title, "summary": a.summary} for a in Article.query.filter(Article.published >= now - TRACK)]
     out = []
     for topic in itn.get("ongoing", []):
         isos = set(places(topic.replace("Russo-Ukrainian", "Russian Ukrainian")))
-        here = [s for s in stories if not s.closed and s.newest and s.newest >= since and about_situation(s, isos)]
+        # ...and near, in meaning, to the week's coverage of it, as a running story's events are to
+        # its core (a hijacked Iranian fishing boat off Somalia names Iran, but isn't the Iran war)
+        core = situations.meaning([a for a in week if _about(f"{a['title']}. {a['summary'] or ''}", isos)])
+        here = [s for s in stories if not s.closed and s.newest and s.newest >= since and about_situation(s, isos)
+                and _near(s, core)]
         shared = sorted((s for s in here if s.outlets >= 2), key=lambda s: (-s.outlets, -s.score))   # what most carry
         out.append({"topic": topic, "isos": sorted(isos), "stories": shared[:4],
                     "latest": shared[0] if shared else None, "singles": len(here) - len(shared)})
