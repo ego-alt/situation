@@ -50,7 +50,6 @@
     --color-flash-dim: #5a431a;                     /* a FLASH tag's border, the notice's edge */
     --color-flash-wash: #1a140a;                    /* the "not current" notice */
     --color-priority: #45c8e8;
-    --color-priority-glow: rgba(69, 200, 232, 0.28);
     --color-selected: #fff;
 
     /* The map */
@@ -58,7 +57,6 @@
     --color-grid: #10201f;
     --color-land: #0f1a1c;
     --color-land-edge: #1d3036;
-    --color-land-lit: #173236;
     --color-land-flash: #2a2112;
     --color-land-flash-edge: #6b4f1c;
     --color-land-priority: #10282d;

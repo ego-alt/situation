@@ -83,17 +83,10 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
     first_seen = itn_first_seen()
     today = now - SHOWN
     active = len({i["outlet"] for i in items if i["published"] >= today})
-    old = {s.id: {a.id for a in s.articles} for s in Story.query.filter_by(closed=False, running=False)}
+    old = _open(running=False)
     claimed, keep = set(), []
     for k, group in enumerate(groups):
-        ids = {a["id"] for a in group}
-        best = max(((len(ids & arts), sid) for sid, arts in old.items() if sid not in claimed), default=(0, None))
-        story = db.session.get(Story, best[1]) if best[0] * 2 >= len(ids) else None
-        if story is None:
-            story = Story(headline="", tier="background", first_seen=now.replace(tzinfo=None))
-            db.session.add(story)
-        else:
-            claimed.add(story.id)
+        story = _carry_over(group, old, claimed, now, running=False)
         place = locate(group)
         item = matched.get(k)
         fresh = item is not None and now - first_seen.get(item, now) <= ITN_FRESH
@@ -101,18 +94,11 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
         story.headline, story.tier, story.score = a["headline"], a["tier"], a["score"]
         story.outlets, story.leads, story.itn = a["outlets"], a["leads"], a["itn"]
         story.newest = a["newest"].astimezone(UTC).replace(tzinfo=None)
-        if place:
-            story.iso, story.place, story.lat, story.lon = place["iso"], place["name"], place["lat"], place["lon"]
-            story.x, story.y = place["x"], place["y"]
+        _set_place(story, place)
         story.articles = [by_id[i["id"]] for i in group]
         story.run_id = None                 # (set again below if it's part of a running story)
         keep.append(story)
-    for sid in set(old) - claimed:
-        story = db.session.get(Story, sid)
-        if story.tier == BACKGROUND:
-            db.session.delete(story)        # never shown: nothing to remember
-        else:
-            story.closed = True
+    _close(set(old) - claimed)
     db.session.flush()
     runs = regroup_running(groups, keep, topics, by_id, now, active)
     db.session.commit()
@@ -126,40 +112,61 @@ def regroup_running(groups: list[list[dict]], events: list[Story], topics: list[
     story, named for the phrase its headlines use; its events point to it, and
     the page shows it in their place. A running story keeps its id while most
     of its articles do."""
-    found = situations.find(groups, topics)
-    old = {s.id: {a.id for a in s.articles} for s in Story.query.filter_by(closed=False, running=True)}
+    old = _open(running=True)
     claimed, out = set(), []
-    for f in found:
+    for f in situations.find(groups, topics):
         union = [a for k in f["events"] for a in groups[k]]
-        ids = {a["id"] for a in union}
-        best = max(((len(ids & arts), sid) for sid, arts in old.items() if sid not in claimed), default=(0, None))
-        story = db.session.get(Story, best[1]) if best[0] * 2 >= len(ids) else None
-        if story is None:
-            story = Story(headline="", tier=BACKGROUND, running=True, first_seen=now.replace(tzinfo=None))
-            db.session.add(story)
-        else:
-            claimed.add(story.id)
+        story = _carry_over(union, old, claimed, now, running=True)
         place = locate(union)
         a = assess(union, place, None, now, active=active)
         tier, score = running_tier(a, [groups[k] for k in f["events"]], now, active)
         story.headline, story.tier, story.score = f["name"], tier, score
         story.outlets, story.leads, story.itn = a["outlets"], a["leads"], None
         story.newest = a["newest"].astimezone(UTC).replace(tzinfo=None)
-        if place:
-            story.iso, story.place, story.lat, story.lon = place["iso"], place["name"], place["lat"], place["lon"]
-            story.x, story.y = place["x"], place["y"]
-        story.articles = [by_id[i] for i in ids]
+        _set_place(story, place)
+        story.articles = [by_id[a["id"]] for a in union]
         db.session.flush()
         for k in f["events"]:
             events[k].run_id = story.id
         out.append(story)
-    for sid in set(old) - claimed:
+    _close(set(old) - claimed)
+    return out
+
+
+def _open(running: bool) -> dict[int, set[int]]:
+    """Open stories (events, or running stories) and their articles' ids."""
+    return {s.id: {a.id for a in s.articles} for s in Story.query.filter_by(closed=False, running=running)}
+
+
+def _carry_over(group: list[dict], old: dict[int, set[int]], claimed: set[int], now: datetime,
+                running: bool) -> Story:
+    """The story a group continues (it has at least half of its articles), else a new one."""
+    ids = {a["id"] for a in group}
+    best = max(((len(ids & arts), sid) for sid, arts in old.items() if sid not in claimed), default=(0, None))
+    story = db.session.get(Story, best[1]) if best[0] * 2 >= len(ids) else None
+    if story is None:
+        story = Story(headline="", tier=BACKGROUND, running=running, first_seen=now.replace(tzinfo=None))
+        db.session.add(story)
+    else:
+        claimed.add(story.id)
+    return story
+
+
+def _set_place(story: Story, place: dict | None):
+    if place:
+        story.iso, story.place, story.lat, story.lon = place["iso"], place["name"], place["lat"], place["lon"]
+        story.x, story.y = place["x"], place["y"]
+
+
+def _close(ids: set[int]):
+    """Stories no longer in the window: closed if they were ever shown (kept for the
+    week and so nothing is pushed twice), else deleted: nothing to remember."""
+    for sid in ids:
         story = db.session.get(Story, sid)
         if story.tier == BACKGROUND:
             db.session.delete(story)
         else:
             story.closed = True
-    return out
 
 
 # A running story is FLASH while it's breaking: carried by this many outlets, with
@@ -174,9 +181,7 @@ def running_tier(a: dict, events: list[list[dict]], now: datetime, active: int) 
     (it began days ago, but it's news while it's moving), and FLASH while several
     of them are breaking at once, though the world desks rarely lead with a
     country's own election night."""
-    def outlets(g):
-        return len({x.get("outlet") or x["source"] for x in g})
-    moving = [g for g in events if outlets(g) >= 2 and now - max(x["published"] for x in g) <= RECENT]
+    moving = [g for g in events if situations.outlets(g) >= 2 and now - max(x["published"] for x in g) <= RECENT]
     parts = dict(a["parts"], freshness=1.0 if moving else a["parts"]["freshness"])
     score = round(sum(w * x for w, x in zip(weights().values(), rank_features(parts), strict=True)), 2)
     tier = a["tier"]

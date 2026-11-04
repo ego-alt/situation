@@ -349,7 +349,7 @@ DEVELOPMENTS = 5
 def _developments(s: Story) -> dict:
     """A running story's events, the most carried first: its developments."""
     events = (Story.query.filter(Story.run_id == s.id).order_by(Story.outlets.desc(), Story.newest.desc()).all())
-    # a headline that says what happened (not a results page); single-outlet reports
+    # a headline that says what happened (not a live blog); single-outlet reports
     # fill in after those carried by more (a race call is often one wire's)
     shown = [e for e in events if is_headline(e.headline)][:DEVELOPMENTS]
     return {"running": True, "events": len(events),

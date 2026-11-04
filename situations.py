@@ -9,17 +9,18 @@ the whole story has. Wikipedia's "Ongoing" list covers the long-running ones
 
 How: the coverage of a running story suddenly uses words it didn't use the
 fortnight before ("midterm" in 138 articles from 15 outlets in a day, five
-times its usual rate). Such bursting words that mostly appear together are one
-story; an event belongs to it when most of its articles use two of its words,
-one of them its own (mostly used alongside its main word, not "Trump" or
-"state", which a busy election also lifts). A story is kept only when several
-of its events are carried by more than one outlet (one big event, a train
-crash, is already a story), and it stays in one country (two elections in one
-week are two stories). It's named by the phrase its headlines use most.
+times its usual rate); a name that's always in the news ("Trump") doesn't
+count. Such bursting words that mostly appear together are one story (a
+topic). An event belongs to it when most of its articles use three of its
+words, or two with one of its own (mostly used alongside its main word), and
+it's near the story in meaning. A story is kept only when several of its
+events are carried by more than one outlet (one big event, a train crash, is
+already a story), and it stays in one country (two elections in one week are
+two stories). It's named by the phrase its headlines use most.
 """
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from geo import ALIASES, DEMONYMS, country, places
 from text import STOPWORDS, names, tokens, where
@@ -44,6 +45,14 @@ _CALENDAR = set("monday tuesday wednesday thursday friday saturday sunday tonigh
                 "weekend morning evening night week month".split())
 
 
+def _outlet(article: dict) -> str:
+    return article.get("outlet") or article["source"]
+
+
+def outlets(group: list[dict]) -> int:
+    return len({_outlet(a) for a in group})
+
+
 def words(article: dict) -> set[str]:
     """The terms an article uses: its title and the start of its summary."""
     return set(tokens(article["title"])) | set(tokens(" ".join((article.get("summary") or "").split()[:40])))
@@ -61,13 +70,13 @@ def bursting(day: list[dict], usual: Counter, days: int) -> dict[str, set[int]]:
     A name that's always in the news ("Trump") is left out even when it rises
     with a story: it's part of too many stories to define one."""
     common = {t for t in names(day) if usual[t] / days >= COMMON_NAME}
-    used, outlets = defaultdict(set), defaultdict(set)
+    used, carried = defaultdict(set), defaultdict(set)
     for k, a in enumerate(day):
         for t in words(a):
             used[t].add(k)
-            outlets[t].add(a.get("outlet") or a["source"])
+            carried[t].add(_outlet(a))
     return {t: arts for t, arts in used.items()
-            if len(arts) >= MIN_ARTICLES and len(outlets[t]) >= MIN_OUTLETS and not t.isdigit()
+            if len(arts) >= MIN_ARTICLES and len(carried[t]) >= MIN_OUTLETS and not t.isdigit()
             and t not in _CALENDAR and t.strip("'’") not in common
             and (len(arts) + 1) / (usual[t] / days + 1) >= MIN_LIFT}
 
@@ -77,17 +86,17 @@ def _together(burst: dict[str, set[int]]) -> list[set[str]]:
     terms = list(burst)
     parent = {t: t for t in terms}
 
-    def find(t):
+    def root(t):
         while parent[t] != t:
             t = parent[t]
         return t
     for i, t in enumerate(terms):
         for u in terms[i + 1:]:
             if len(burst[t] & burst[u]) >= TOGETHER * min(len(burst[t]), len(burst[u])):
-                parent[find(t)] = find(u)
+                parent[root(t)] = root(u)
     sets = defaultdict(set)
     for t in terms:
-        sets[find(t)].add(t)
+        sets[root(t)].add(t)
     return list(sets.values())
 
 
@@ -182,7 +191,7 @@ def find(groups: list[list[dict]], found_topics: list[dict]) -> list[dict]:
     event_words = [[words(a) for a in g] for g in groups]
     found = []
     for topic in found_topics:
-        story, main = topic["words"], topic["main"]
+        vocabulary, main = topic["words"], topic["main"]
         members = [k for k, ws in enumerate(event_words) if sum(matches(w, topic) for w in ws) > JOIN * len(ws)]
         # ...and is about the same thing: near, in meaning, to the articles using the main word
         # (shared words alone let in a markets licence on a busy election day)
@@ -194,26 +203,20 @@ def find(groups: list[list[dict]], found_topics: list[dict]) -> list[dict]:
         # One country to a story: the one most named; events naming another go to theirs.
         named = {k: _country(groups[k]) for k in members}
         total = sum(named.values(), Counter())
+        home = total.most_common(1)[0][0] if total else None
         by_country = defaultdict(list)
         for k in members:
-            home = total.most_common(1)[0][0] if total else None
             mine = named[k]
-            iso = home if not mine or home in mine else mine.most_common(1)[0][0]
-            by_country[iso].append(k)
+            by_country[home if not mine or home in mine else mine.most_common(1)[0][0]].append(k)
         for iso, events in by_country.items():
             # named by the main word when its headlines use it, else by what they mostly say
-            used = Counter(t for k in events for ws in event_words[k] for t in ws & story if not _is_place(t))
+            used = Counter(t for k in events for ws in event_words[k] for t in ws & vocabulary if not _is_place(t))
             arts = sum(len(groups[k]) for k in events)
             word = main if used[main] >= 0.3 * arts or not used else used.most_common(1)[0][0]
-            shared = sum(len({a.get("outlet") or a["source"] for a in groups[k]}) >= 2 for k in events)
+            shared = sum(outlets(groups[k]) >= 2 for k in events)
             if len(events) < MIN_EVENTS or shared < MIN_SHARED:
                 continue
             titles = [a["title"] for k in events for a in groups[k]]
-            found.append({"name": _name(titles, word, iso), "iso": iso, "events": events, "words": sorted(story)})
-    return sorted(found, key=lambda s: -len({a.get("outlet") or a["source"] for k in s["events"] for a in groups[k]}))
+            found.append({"name": _name(titles, word, iso), "iso": iso, "events": events, "words": sorted(vocabulary)})
+    return sorted(found, key=lambda s: -outlets([a for k in s["events"] for a in groups[k]]))
 
-
-def window_baseline(articles_before: list[dict], now: datetime) -> tuple[Counter, int]:
-    """The fortnight before the last day, from the articles given."""
-    start, end = now - DAY - timedelta(days=BASELINE_DAYS), now - DAY
-    return baseline([a for a in articles_before if start <= a["published"] < end])

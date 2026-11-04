@@ -80,8 +80,7 @@ DEVELOPING_FLOOR = 0.75
 # Titles that name a format, not the news: live blogs, galleries, explainers.
 _NOT_A_HEADLINE = re.compile(
     r"\b(live|watch|replay|in pictures|photos?|video|what to know|what we know|explainer|opinion|"
-    r"analysis|podcast|newsletter|quiz)\b|\?$|"
-    r"\bresults?(?:\s+20\d\d)?\s*$", re.I)   # a results page ("Michigan Governor Election Live Results 2026")
+    r"analysis|podcast|newsletter|quiz)\b|\?$", re.I)
 _EMOJI = re.compile(r"[\U0001F000-\U0001FAFF☀-➿️]+")
 
 
