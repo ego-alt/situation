@@ -85,6 +85,26 @@ class SourceStatus(db.Model):
     error = db.Column(db.String)
 
 
+class Signal(db.Model):
+    """What a monitoring service saw (signals.py): a disaster alert or a strong earthquake,
+    often before the news does. Kept while it's happening and for a while after."""
+    __tablename__ = "signals"
+    id = db.Column(db.String, primary_key=True)                 # "gdacs:TC:1001346", "usgs:us7000abcd"
+    source = db.Column(db.String, nullable=False)               # GDACS | USGS
+    kind = db.Column(db.String, nullable=False)                 # EQ earthquake, TC cyclone, VO eruption, FL flood
+    level = db.Column(db.String, nullable=False)                # orange | red (USGS: from its PAGER alert, else orange)
+    title = db.Column(db.String, nullable=False)                # "M7.0 earthquake", "Cyclone Murasu"
+    place = db.Column(db.String)                                # "China", "43 km ESE of Port-Olry, Vanuatu"
+    iso = db.Column(db.String, index=True)
+    lat = db.Column(db.Float, nullable=False)
+    lon = db.Column(db.Float, nullable=False)
+    magnitude = db.Column(db.Float)
+    started = db.Column(db.DateTime, nullable=False, index=True)
+    ended = db.Column(db.DateTime, nullable=False)              # an earthquake ends when it starts
+    url = db.Column(db.String)
+    seen = db.Column(db.DateTime, default=utcnow)               # when Situation first saw it
+
+
 class DayTally(db.Model):
     """The most stories shown at once on each day (UTC), to tune the bar."""
     __tablename__ = "day_tallies"

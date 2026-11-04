@@ -77,7 +77,7 @@
             const t = el('title', {}, p);
             t.textContent = c.name;
         }
-        for (const id of ['detail', 'refs', 'track', 'pins']) el('g', { id }, svg);
+        for (const id of ['detail', 'refs', 'track', 'signals', 'pins']) el('g', { id }, svg);
     }
 
     function box(iso) {
@@ -197,6 +197,7 @@
             drawDetail(v, close);
             // The news first, then the week's places, then cities for orientation: each gives way to the last.
             const taken = drawPins(upp, close);
+            drawSignals(upp, taken);
             drawTrack(upp, taken);
             drawRefs(v, upp, close, taken);
         });
@@ -661,7 +662,9 @@
         const top = data.stories.find((x) => x.tier === 'major') || data.stories[0];
         const lead = !filter && s.id === top?.id;
         // Kept for when it's opened: the time there, and Wikipedia's notice.
-        const facts = [localTime(s.newest, s.zone), s.itn ? '<span>In Wikipedia\'s In the news</span>' : ''].filter(Boolean);
+        const signal = (data.signals || []).find((g) => g.story_id === s.id);
+        const facts = [localTime(s.newest, s.zone), s.itn ? '<span>In Wikipedia\'s In the news</span>' : '',
+            signal?.lead ? `<span>${esc(signal.source)} saw it ${signal.lead < 90 ? `${signal.lead} min` : `${Math.round(signal.lead / 60)}h`} before the first report</span>` : ''].filter(Boolean);
         return `
             <article class="item ${kind}${lead ? ' lead' : ''}${openId === s.id ? ' open' : ''}" data-id="${s.id}" data-iso="${esc(s.iso || '')}" tabindex="0">
                 ${lead ? locatorHtml(s, kind) : ''}
@@ -704,6 +707,72 @@
         }).join('');
         return `<div class="section-head"><span>Active situations</span><span class="n">${situations.length}</span></div>
             <div class="situations">${rows}</div>`;
+    }
+
+    // ---------- signals: disaster alerts and strong earthquakes (signals.py) ----------
+
+    const KIND = { EQ: 'Earthquake', TC: 'Cyclone', VO: 'Eruption', FL: 'Flood' };
+    const shortDay = (iso) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+    /** When: an earthquake's or eruption's moment; a cyclone's or flood's span. */
+    function signalWhen(g) {
+        if (g.kind === 'EQ' || g.kind === 'VO') return `${ago(g.started)} ago`;
+        return new Date(g.ended) > Date.now() ? `since ${shortDay(g.started)}` : `${shortDay(g.started)}–${shortDay(g.ended)}`;
+    }
+
+    function signalsHtml(list) {
+        if (!list.length) return '';
+        const rows = list.map((g) => {
+            const story = g.story_id != null && data.stories.find((s) => s.id === g.story_id);
+            const news = story ? `<p class="signal-news">In the news: <span>${esc(story.headline)}</span></p>` : '';
+            const lead = g.lead ? `<span class="sep">seen ${g.lead < 90 ? `${g.lead} min` : `${Math.round(g.lead / 60)}h`} before the news</span>` : '';
+            return `<article class="item signal ${g.level}" data-signal="${esc(g.id)}" tabindex="0" role="button">
+                <div class="meta">
+                    <span class="kind">${KIND[g.kind]}</span>
+                    ${g.iso ? `<span class="where">${esc(countryName(g.iso, g.place || g.iso))}</span>` : ''}
+                    <span class="sep">${signalWhen(g)}</span>
+                    <span class="sep">${esc(g.source)} ${g.level}</span>
+                    ${lead}
+                </div>
+                <h3 class="headline">${esc(g.title)}</h3>
+                ${g.place && g.place !== countryName(g.iso || '', '') ? `<p class="facts-line">${esc(g.place)}</p>` : ''}
+                ${news}
+                ${g.url ? `<p class="signal-link"><a href="${esc(g.url)}" target="_blank" rel="noopener">${esc(g.source)} report</a></p>` : ''}
+            </article>`;
+        }).join('');
+        return `<div class="section-head signal"><span>Signals</span><span class="n">${list.length}</span></div>${rows}`;
+    }
+
+    /** Signals on the map: a thin double ring where it is, its short name beside it, quieter than the news. */
+    function drawSignals(upp, taken = []) {
+        const layer = $('signals');
+        if (!layer) return;
+        layer.innerHTML = '';
+        for (const g of data?.signals || []) {
+            const node = el('g', { class: `signal-mark ${g.level}`, 'data-signal': g.id, role: 'button', tabindex: 0,
+                'aria-label': `${g.title}${g.place ? `, ${g.place}` : ''}` }, layer);
+            el('circle', { cx: g.x, cy: g.y, r: HIT_PX * upp, class: 'hit' }, node);
+            el('circle', { cx: g.x, cy: g.y, r: 3 * upp, class: 'ring' }, node);
+            el('circle', { cx: g.x, cy: g.y, r: 7 * upp, class: 'ring outer' }, node);
+            el('title', {}, node).textContent = `${g.title}${g.place ? ` · ${g.place}` : ''}`;
+            const name = g.kind === 'EQ' && g.magnitude ? `M${g.magnitude.toFixed(1)}` : g.title.replace(/^Cyclone /, '').replace(/ eruption$/, '');
+            const spot = labelSpot(g.x, g.y, name, taken, upp, 11);
+            if (spot) {
+                const t = el('text', { x: spot.x, y: spot.y, class: 'tag area signal-tag', 'text-anchor': spot.anchor }, node);
+                t.style.fontSize = `${TYPE.area[narrow.matches ? 1 : 0] * upp}px`;
+                t.textContent = name;
+            }
+            node.addEventListener('click', (e) => { if (!dragged) showSignal(g.id); e.stopPropagation(); });
+        }
+    }
+
+    /** A signal picked, on the map or in the list: the map goes to it, and its story opens if the news has one. */
+    function showSignal(id) {
+        const g = data.signals.find((x) => x.id === id);
+        if (!g) return;
+        setView(fit([g.x, g.y, g.x, g.y], STORY_W), true);
+        if (g.story_id != null && data.stories.some((s) => s.id === g.story_id)) toggle(g.story_id, g.story_id);
+        else document.querySelector(`.item[data-signal="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     // ---------- a country's card ----------
@@ -758,6 +827,7 @@
         if (!filter && data.cleared > data.stories.length) {
             html += `<div class="capped">${data.cleared - data.stories.length} more cleared the bar today; showing the top ${data.stories.length}.</div>`;
         }
+        html += signalsHtml((data.signals || []).filter((g) => !filter || (!filter.ids && filter.isos.has(g.iso))));
         if (!filter) html += situationsHtml(data.ongoing.filter((o) => o.topic));
         const shown = filter ? filter.label : '';
         if (shown !== lastShown) {
@@ -876,6 +946,8 @@
         if (e.target.closest('a')) return;
         if (e.target.closest('.filter-clear')) return clearFilter();
         if (e.target.closest('.retry')) return refresh();
+        const signal = e.target.closest('.item[data-signal]');
+        if (signal) return showSignal(signal.dataset.signal);
         const situation = e.target.closest('.item[data-situation]');
         if (situation) {
             const o = data.ongoing.filter((x) => x.topic)[Number(situation.dataset.situation)];
@@ -887,7 +959,7 @@
     });
     $('feed').addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
-        const item = e.target.closest('.item[data-id], .item[data-situation]');
+        const item = e.target.closest('.item[data-id], .item[data-situation], .item[data-signal]');
         if (!item) return;
         e.preventDefault();
         item.click();

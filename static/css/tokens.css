@@ -49,6 +49,7 @@
     --color-flash-dim: #5a431a;                     /* a FLASH tag's border, the notice's edge */
     --color-flash-wash: #211a0e;                    /* the "not current" notice */
     --color-priority: #5aa9ff;
+    --color-signal: #ff7b6b;               /* a disaster alert or strong earthquake (signals.py): neither tier */
     --color-selected: #fff;
 
     /* The map */

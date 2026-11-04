@@ -280,6 +280,11 @@ def fetch_once(now=None) -> dict:
     report: dict = {}
     result = run(lambda: fetch_all(report=report), fetch_itn, now)
     record_sources(report, now)
+    try:
+        import signals
+        signals.fetch(now)
+    except Exception:  # noqa: BLE001 — the disaster services are extra: the news goes on without them
+        db.session.rollback()
     prune()
     from labels import prune_snapshots
     prune_snapshots()
@@ -417,6 +422,25 @@ def _story_spots(s: Story, limit: int = 8) -> list[dict]:
     return [_spot(spot, n=n) for spot, n in ranked]
 
 
+def _signals(now, shown: list[Story]) -> list[dict]:
+    """The disaster alerts and strong earthquakes happening now (signals.py), each with the
+    story about it when the news has one, and, for an earthquake or eruption, how long
+    before the first report it was seen."""
+    import signals
+    out = []
+    for g in signals.current(now):
+        story = next((s for s in shown if s.iso == g.iso and signals.about(g, " ".join(
+            [s.headline, *(a.title for a in s.articles)]))), None)
+        first = min((a.published for a in story.articles if a.published), default=None) if story else None
+        lead = round((first - g.started).total_seconds() / 60) if first and g.kind in ("EQ", "VO") else None
+        x, y = project(g.lon, g.lat)
+        out.append({"id": g.id, "source": g.source, "kind": g.kind, "level": g.level, "title": g.title,
+                    "place": g.place, "iso": g.iso, "x": x, "y": y, "magnitude": g.magnitude,
+                    "started": _iso(g.started), "ended": _iso(g.ended), "url": g.url,
+                    "story_id": story.id if story else None, "lead": lead if lead and lead > 0 else None})
+    return out
+
+
 def snapshot() -> dict:
     from pipeline import clock, last_fetch_ok, latest_itn, on_screen, ongoing_situations, source_health, tracks
     now = clock()
@@ -435,6 +459,7 @@ def snapshot() -> dict:
                      "track": [_spot(t, n=t["n"], last=_iso(t["last"])) for t in week]}
                     for o, week in zip(ongoing, weeks, strict=True)],
         "itn": itn.get("items", []),
+        "signals": _signals(now, shown),
         "sources": source_health(SOURCES, now),
         "counts": {"major": sum(s.tier == "major" for s in shown),
                    "headline": sum(s.tier == "headline" for s in shown),
