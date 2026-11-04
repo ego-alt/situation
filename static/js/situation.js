@@ -564,12 +564,22 @@
                     <span>${ago(s.newest)}</span>
                     ${localTime(s.newest, s.zone)}
                     <span>${s.outlets} src</span>
+                    ${s.running ? `<span class="run" title="A running story: many events that are part of one thing">running · ${s.events} ${s.events === 1 ? 'event' : 'events'}</span>` : ''}
                     ${s.itn ? '<span class="wiki" title="In Wikipedia\'s In the news">wiki itn</span>' : ''}
                 </div>
                 <h3 class="headline">${esc(s.headline)}</h3>
                 ${s.latest ? `<p class="latest-line"><span class="latest-tag">Latest · ${esc(ago(s.latest.at))} · ${esc(s.latest.outlet)}</span> ${esc(s.latest.title)}</p>` : ''}
+                ${s.running ? developmentsHtml(s) : ''}
                 <ul class="sources">${sources}</ul>
             </article>`;
+    }
+
+    /** A running story's biggest developments, the most carried first: three
+     * at a glance, all five once it's open. */
+    function developmentsHtml(s) {
+        const rows = (s.developments || []).map((d, i) => `<li${i >= 3 ? ' class="more"' : ''}><span class="n">${d.outlets} src</span>${esc(d.headline)}</li>`).join('');
+        const rest = s.events - (s.developments || []).length;
+        return rows ? `<ol class="developments">${rows}</ol>${rest > 0 ? `<p class="developments-rest">and ${rest} smaller ${rest === 1 ? 'report' : 'reports'}</p>` : ''}` : '';
     }
 
     function section(kind, label, stories) {

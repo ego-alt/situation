@@ -54,7 +54,17 @@ def url_says_not_news(article: dict) -> bool:
 
 def is_news(article: dict) -> bool:
     """A report of something happening, as far as the cheap evidence tells."""
-    return not (headline_says_not_news(article) or url_says_not_news(article))
+    return not (headline_says_not_news(article) or url_says_not_news(article) or results_page(article))
+
+
+# An election night's results pages (AP's "Ohio Governor Election Live Results 2026",
+# dozens of them) are data, not reports: never news, whatever the model makes of them.
+_RESULTS = re.compile(r"\b(?:election|primary|midterm|referendum|race)s?\b.*\bresults?(?:\s+20\d\d)?\s*$|"
+                      r"^20\d\d\b.*\bresults?\s*$", re.I)
+
+
+def results_page(article: dict) -> bool:
+    return bool(_RESULTS.search(article["title"].strip()))
 
 
 # A video page is not news, whatever its caption says: the rule, and the labels follow it.
@@ -195,4 +205,4 @@ def news_only(items: list[dict]) -> list[dict]:
     p = chances(items, model) if model and items else None
     if p is None:
         return [a for a in items if is_news(a)]
-    return [a for a, chance in zip(items, p, strict=True) if chance < model["threshold"]]
+    return [a for a, chance in zip(items, p, strict=True) if chance < model["threshold"] and not results_page(a)]

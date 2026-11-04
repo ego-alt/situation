@@ -143,6 +143,14 @@ body {
 /* How a running story has moved on: its newest development, under the headline. */
 .latest-line { margin: var(--space-2) 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.4; }
 .latest-tag { font: var(--text-xs) var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-accent); margin-right: var(--space-1); }
+/* A running story: its events as developments under the headline, each with its outlets. */
+.run { color: var(--color-accent); }
+.developments { margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--text-sm); line-height: 1.4; color: var(--color-text-secondary); }
+.developments li { display: flex; gap: var(--space-2); padding: 2px 0; }
+.developments .n { flex: none; min-width: 6ch; font: var(--text-xs)/20px var(--font-mono); color: var(--color-text-muted); }
+.developments li.more { display: none; }
+.item.open .developments li.more { display: flex; }
+.developments-rest { margin: 2px 0 0; font: var(--text-xs) var(--font-mono); color: var(--color-text-muted); padding-left: calc(6ch + var(--space-2)); }
 .sources { display: none; margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--text-sm); }
 .item.open .sources { display: block; }
 .sources li { padding: var(--space-1) 0; border-top: 1px dashed var(--color-border-soft); }

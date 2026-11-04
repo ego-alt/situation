@@ -334,10 +334,27 @@ def _story(s: Story) -> dict:
                         "title": clean_title(a.title), "url": a.url,
                         "published": _iso(a.published or a.fetched), "updated": _iso(revised)})
     spots = _story_spots(s)
-    return {"id": s.id, "headline": s.headline, "tier": s.tier, "score": s.score, "outlets": s.outlets,
-            "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, "x": s.x, "y": s.y,
-            "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources,
-            "spots": spots, "zone": _zone(s, spots), "latest": _latest(s, sources)}
+    out = {"id": s.id, "headline": s.headline, "tier": s.tier, "score": s.score, "outlets": s.outlets,
+           "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, "x": s.x, "y": s.y,
+           "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources,
+           "spots": spots, "zone": _zone(s, spots), "latest": _latest(s, sources)}
+    if s.running:
+        out |= _developments(s)
+    return out
+
+
+DEVELOPMENTS = 5
+
+
+def _developments(s: Story) -> dict:
+    """A running story's events, the most carried first: its developments."""
+    events = (Story.query.filter(Story.run_id == s.id).order_by(Story.outlets.desc(), Story.newest.desc()).all())
+    # a headline that says what happened (not a results page); single-outlet reports
+    # fill in after those carried by more (a race call is often one wire's)
+    shown = [e for e in events if is_headline(e.headline)][:DEVELOPMENTS]
+    return {"running": True, "events": len(events),
+            "developments": [{"id": e.id, "headline": e.headline, "outlets": e.outlets, "newest": _iso(e.newest)}
+                             for e in shown]}
 
 
 def _zone(s: Story, spots: list[dict]) -> str | None:
@@ -399,7 +416,8 @@ def snapshot() -> dict:
     shown, cleared = on_screen(now)
     day_ago, week_ago = (now - SHOWN).replace(tzinfo=None), (now - EARLIER).replace(tzinfo=None)
     # The week before today, newest first: stories that cleared the bar, open or closed.
-    earlier = (Story.query.filter(Story.tier != "background", Story.newest < day_ago, Story.newest >= week_ago)
+    earlier = (Story.query.filter(Story.tier != "background", Story.newest < day_ago, Story.newest >= week_ago,
+                                  Story.run_id.is_(None))
                .order_by(Story.newest.desc()).limit(15).all())
     itn = latest_itn()
     current = Story.query.filter_by(closed=False).all()

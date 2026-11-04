@@ -59,6 +59,10 @@ class Story(db.Model):
     # Closed once none of its articles are in the regrouping window any more;
     # kept (with its id) for "Earlier this week" and so nothing is pushed twice.
     closed = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    # A running story (situations.py) is a story too: all its events' articles, its
+    # own tier and place, and its name as the headline. Its events point to it.
+    running = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    run_id = db.Column(db.Integer, index=True)                  # an event: the running story it's part of
     articles = db.relationship("Article", secondary=story_articles, lazy="selectin")
 
 
@@ -138,4 +142,10 @@ def migrate():
         db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_labels_source ON labels (source)"))
     if articles and "updated" not in articles:
         db.session.execute(db.text("ALTER TABLE articles ADD COLUMN updated DATETIME"))
+    if stories and "running" not in stories:
+        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN running BOOLEAN NOT NULL DEFAULT 0"))
+        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_running ON stories (running)"))
+    if stories and "run_id" not in stories:
+        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN run_id INTEGER"))
+        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_run_id ON stories (run_id)"))
     db.session.commit()

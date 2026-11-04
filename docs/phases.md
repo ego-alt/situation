@@ -10,7 +10,7 @@ Every article goes through four decisions, in order. Each has its own ground tru
 |---|---|---|---|---|---|
 | **1. News** | Is this a report of something happening? | objective | Claude | precision and recall of what's dropped (dropping real news costs more than letting cruft through) | headline rule + `/opinion/` URLs (`score.is_news`) |
 | **2. Event** | Do these articles report one thing that happened? | objective | Claude, weekly (`evaluation/groundtruth.py`) | B-cubed, over all articles and headline-size events (`evaluation/metrics.py`) | hand rules (`cluster.by_rules`) |
-| **3. Situation** | Are these events part of one running story? | mixed: wars are objective, how wide is taste | Claude with your rubric, plus your checks | is each headline event under the right situation | Wikipedia's "Ongoing" list, matched by country, display only |
+| **3. Situation** | Are these events part of one running story? | mixed: wars are objective, how wide is taste | Claude with your rubric, plus your checks | is each headline event under the right situation | running stories from bursting words (`situations.py`), and Wikipedia's "Ongoing" list matched by country |
 | **4. Tier** | Flash, priority or below, and in what order? | taste | you, on `/label` (rankings, "would you show it?") | ranking and bar agreement; is the top 10 right | hand-set score and thresholds (`score.assess`) |
 
 On the side: **where** each event happens (`geo.locate`, or a place model trained on Claude's places).
@@ -94,7 +94,12 @@ Ordered by what matters most now.
 - [ ] Report results by stratum (event size, region, topic), so we see where a method fails and whether the set covers enough of each.
 - [ ] Study the hand rules' mistakes on headline-size events, and fix what's systematic.
 
-**Stage 3, situation** (once events hold up)
+**Stage 3, situation**
+- [x] Running stories from the news itself (4 Nov 2026, tuned on the US midterms): bursting words, joined by co-occurrence, events by words and meaning, one country each. Checked by hand on every day from 26 Oct to 4 Nov: it found the Brazilian and Israeli elections, the Spanish train crash's aftermath and the midterms, and nothing on the quiet days. No labelled ground truth yet.
+- [ ] Label running stories (Claude, a week at a time) and measure membership, rather than eyeballing ten days.
+- [ ] Join Wikipedia's "Ongoing" list and running stories into one list of situations.
+
+(once events hold up)
 - [ ] Situations as a layer over events (shown together, not merged), anchored on Wikipedia's "Ongoing" list.
 
 **Later**
