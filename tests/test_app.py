@@ -303,3 +303,26 @@ def test_only_the_server_runs_the_fetch_loop(monkeypatch):
     assert not app_module._serving()                               # a one-off command
     monkeypatch.setattr("sys.argv", ["flask", "--app", "app:create_app", "run", "--port", "8000"])
     assert app_module._serving()                                   # the dev server
+
+
+def test_a_situation_takes_stories_about_it_wherever_they_are(app):
+    """By subject, not by place: a Russian strike reported from Germany is the war;
+    a ban on Russia's ice hockey team, placed in Russia, isn't."""
+    from models import Article, db
+    from pipeline import about_situation
+
+    def story(headline, iso, titles):
+        s = Story(headline=headline, tier="headline", iso=iso, outlets=len(titles), first_seen=NOW.replace(tzinfo=None))
+        s.articles = [Article(url=f"https://x.example/{headline[:9]}{i}", source="ap", outlet=f"o{i}", title=t)
+                      for i, t in enumerate(titles)]
+        db.session.add(s)
+        return s
+    war = {"RU", "UA"}
+    strike = story("More than 50 trapped after Russian strike on school, Zelenskyy says", "DE",
+                   ["Russian strike hits school in Ukraine", "Dozens trapped after strike, Zelenskyy says"])
+    hockey = story("Opposition growing to Russia ice hockey reinstatement", "RU",
+                   ["Nordic nations refuse to face Russia in ice hockey", "Russia ice hockey ban over Ukraine war"])
+    vote = story("Democrats win the House", "US", ["Democrats win the House", "What the vote means for Ukraine aid"])
+    assert about_situation(strike, war)
+    assert not about_situation(hockey, war)      # political, but not news of the war itself
+    assert not about_situation(vote, war)        # one article's aside isn't what the story is about

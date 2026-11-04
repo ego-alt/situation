@@ -4,6 +4,7 @@ Every run re-clusters the whole window, which keeps grouping simple and
 consistent; a story keeps its id when most of its articles are the same as
 last time. A story whose articles have all left the window is closed, not
 deleted, so it keeps its id for the weekly view and the notifications."""
+import re
 from datetime import UTC, datetime, timedelta
 
 import situations
@@ -11,7 +12,7 @@ from cluster import cluster
 from geo import locate, places, spots
 from models import Article, DayTally, ItnSnapshot, SourceStatus, Story, db, story_articles
 from news import is_news, news_only
-from score import BACKGROUND, HEADLINE, MAJOR, assess, match_itn, need, rank_features, weights
+from score import BACKGROUND, HEADLINE, MAJOR, assess, is_soft, match_itn, need, rank_features, weights
 
 WINDOW = timedelta(hours=48)
 ITN_FRESH = timedelta(hours=24)     # how long an "In the news" match makes a story FLASH
@@ -308,15 +309,18 @@ TRACK = timedelta(days=7)
 
 
 def tracks(areas: list[set[str]], now: datetime | None = None, limit: int = 40) -> list[list[dict]]:
-    """For each set of countries, where its reporting has been over the past
-    week: every city or region named there, how many articles named it and
-    when last. One pass over the week's articles for all of them."""
+    """For each situation's countries, where its reporting has been over the past
+    week: every city or region named there in an article about it (about_situation),
+    how many articles named it and when last. One pass over the week's articles."""
     since = ((now or clock()) - TRACK).replace(tzinfo=None)
     seen: list[dict[tuple, dict]] = [{} for _ in areas]
     for a in Article.query.filter(Article.published >= since, Article.spots.isnot(None)):
         when = a.published.replace(tzinfo=UTC)
-        for s in a.spots:
-            for isos, found in zip(areas, seen, strict=True):
+        text = f"{a.title}. {a.summary or ''}"
+        for isos, found in zip(areas, seen, strict=True):
+            if not _about(text, isos):
+                continue
+            for s in a.spots:
                 if s["iso"] in isos:
                     spot = found.setdefault((s["name"], s["iso"]), {**s, "n": 0, "last": when})
                     spot["n"] += 1
@@ -324,16 +328,49 @@ def tracks(areas: list[set[str]], now: datetime | None = None, limit: int = 40) 
     return [sorted(found.values(), key=lambda s: -s["n"])[:limit] for found in seen]
 
 
+# The words of a war or a crisis being fought: a situation's news uses them.
+CONFLICT = re.compile(
+    r"\b(wars?|strikes?|struck|attacks?|attacked|drones?|missiles?|rockets?|shell(?:s|ing|ed)|bomb\w*|air ?strikes?"
+    r"|troops|soldiers|army|military|forces|front ?lines?|offensives?|counteroffensive|ceasefire|truce"
+    r"|peace (?:talks|deal|plan|process)|killed|dead|deaths|casualties|wounded|invasion|invaded|occupied"
+    r"|occupation|captured|seized|hostages?|prisoners?|militants?|rebels?|insurgents?|fighting|clashes"
+    r"|battles?|siege|blockade|nuclear|navy|naval|warships?|shipping)\b", re.I)
+
+
+# Competitions and sports the main list's sport words (score.py) don't name. A story about
+# them can be political (a ban on Russia's team), but it isn't news of the war itself.
+SPORT = re.compile(r"\b(asian cup|africa cup|copa am[eé]rica|euro 20\d\d|ice hockey|hockey|basketball|baseball"
+                   r"|volleyball|athletics|world championships?|tournament)\b", re.I)
+
+
+def _about(text: str, isos: set[str]) -> bool:
+    """A piece of text is about a situation: it names one of its countries and uses the words of conflict."""
+    return bool(set(places(text)) & isos) and bool(CONFLICT.search(text))
+
+
+def about_situation(story: Story, isos: set[str]) -> bool:
+    """A story is about a situation (the war, not just a place in it): its headline, or most of
+    its articles, name one of the situation's countries in the words of conflict, wherever the
+    story is placed. Sport and entertainment never are: a ban on Russia's ice hockey team is
+    political, and stays in the news, but isn't a development in the war."""
+    articles = [{"title": a.title, "summary": a.summary} for a in story.articles]
+    if not articles or is_soft(articles) or sum(bool(SPORT.search(a["title"])) for a in articles) * 2 >= len(articles):
+        return False
+    if _about(story.headline, isos):
+        return True
+    return sum(_about(f"{a['title']}. {a['summary'] or ''}", isos) for a in articles) * 2 > len(articles)
+
+
 def ongoing_situations(stories: list[Story], itn: dict, now: datetime | None = None) -> list[dict]:
-    """Wikipedia's "Ongoing" topics, each with its latest development today:
-    what most outlets carry. A single outlet's piece isn't quoted (it's as
-    often an essay as news), only counted."""
+    """Wikipedia's "Ongoing" topics, each with its latest development today: what most
+    outlets carry about it (about_situation). A single outlet's piece isn't quoted (it's
+    as often an essay as news), only counted."""
     since = ((now or clock()) - SHOWN).replace(tzinfo=None)
     out = []
     for topic in itn.get("ongoing", []):
         isos = set(places(topic.replace("Russo-Ukrainian", "Russian Ukrainian")))
-        here = [s for s in stories if s.iso in isos and not s.closed and s.newest and s.newest >= since]
-        shared = sorted((s for s in here if s.outlets >= 2), key=lambda s: -s.score)
+        here = [s for s in stories if not s.closed and s.newest and s.newest >= since and about_situation(s, isos)]
+        shared = sorted((s for s in here if s.outlets >= 2), key=lambda s: (-s.outlets, -s.score))   # what most carry
         out.append({"topic": topic, "isos": sorted(isos), "stories": shared[:4],
                     "latest": shared[0] if shared else None, "singles": len(here) - len(shared)})
     return out
