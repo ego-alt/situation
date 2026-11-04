@@ -56,8 +56,6 @@
 .kicker .journal { color: var(--color-text-secondary); font-weight: 600; }
 .mark-cover { color: var(--color-flash); }
 /* Says the story opens, and turns over once it has. */
-.chev { margin-left: auto; color: var(--color-text-muted); transition: transform 0.2s; }
-.story.open .chev { transform: rotate(180deg); }
 .story-title { margin: 0; font: 600 var(--text-base)/1.3 var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
 :is(.w6, .w7, .w8, .w12) .story-title { font-size: var(--text-lg); line-height: 1.25; }
@@ -94,8 +92,9 @@
 .s-mod .fig { aspect-ratio: 4 / 3; }
 .w3 .fig { aspect-ratio: 1; }
 .w5 .fig, .w6 .fig { aspect-ratio: 16 / 9; }
-.story.open .fig { aspect-ratio: auto; }
-.story.open .fig img { max-height: 520px; object-fit: contain; }
+/* Opened, a cropped figure is shown whole; the lead's already is, so it stays as it was. */
+.story.open:not(.s-lead) .fig { aspect-ratio: auto; }
+.story.open:not(.s-lead) .fig img { max-height: 520px; object-fit: contain; }
 /* The lead and a wide module set the figure in the corner and wrap the text around and under it. */
 .s-lead .story-head { margin-bottom: var(--space-4); }
 .s-lead .fig { float: left; width: calc(50% - var(--space-3)); margin: var(--space-1) var(--space-6) var(--space-3) 0; }
@@ -203,7 +202,6 @@
     .s-lead .fig img { max-height: 280px; object-fit: contain; }
     /* The lead's figure keeps its shape while it loads, so nothing under it jumps. */
     .s-lead .fig[style] { aspect-ratio: var(--r); width: min(100%, calc(280px * var(--r))); margin-inline: auto; }
-    .s-lead.open .fig[style] { width: 100%; }
     .s-lead .fig[style] img { max-height: none; }
     .story:not(.s-lead) .flow { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head fig" "abs abs"; }
     .story:not(.s-lead) .story-head { grid-area: head; }
@@ -232,5 +230,4 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .chev { transition: none; }
 }
