@@ -269,18 +269,18 @@
     }
 
     function drawStatus() {
-        $('updated').textContent = failure === 'signed-out' ? 'signed out' : failure ? 'offline' : ago(data?.fetched);
-        const s = data?.sources;
-        if (s) {
-            $('journals').textContent = `${s.ok}/${s.total}`;
-            $('journalsReadout').classList.toggle('warn', s.failing.length > 0);
-            $('journalsReadout').title = s.failing.length ? `Couldn’t read: ${s.failing.join(', ')}` : 'Every journal answered';
-        }
+        const fresh = data?.fetched ? ago(data.fetched) : null;
+        $('updated').textContent = failure === 'signed-out' ? 'Signed out' : failure ? 'Offline'
+            : fresh ? `Updated ${fresh}` : 'Not updated yet';
+        const failing = data?.sources?.failing || [];
+        $('paperStatus').classList.toggle('warn', !!failure || failing.length > 0);
+        $('paperStatus').title = failing.length ? `Couldn’t read: ${failing.join(', ')}`
+            : data?.sources ? `All ${data.sources.total} journals answered` : '';
         // Said once: with nothing to show, the page itself says it (and the sign-in bar, when there is one).
         let notice = '';
         if (data && failure === 'signed-out') notice = document.querySelector('.signed-out-bar') ? '' : 'Signed out, so this isn’t updating.';
         else if (data && failure) notice = 'Can’t reach the server, so this isn’t updating.';
-        else if (s?.failing.length) notice = `Couldn’t read ${s.failing.join(' or ')} this time, so a paper or two may be missing.`;
+        else if (failing.length) notice = `Couldn’t read ${failing.join(' or ')} this time, so a paper or two may be missing.`;
         $('notice').textContent = notice;
         $('notice').hidden = !notice;
     }

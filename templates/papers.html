@@ -18,10 +18,8 @@
 <body class="papers-page">
     <header class="bar">
         <div class="brand"><span class="brand-name">SITUATION</span>{% include '_tabs.html' %}</div>
-        <div class="readouts">
-            <span class="readout" id="updatedReadout"><span class="k">UPDATED</span> <span id="updated">—</span></span>
-            <span class="readout" id="journalsReadout"><span class="k">SRC</span> <span id="journals">—</span></span>
-        </div>
+        <!-- One status, as on News: how fresh the papers are; amber when a journal couldn't be read. -->
+        <span class="status" id="paperStatus"><span class="status-dot" aria-hidden="true"></span><span id="updated">—</span></span>
     </header>
 
     <main class="press">
