@@ -48,11 +48,9 @@ def main(src):
     def line(points):
         return "M" + "L".join(f"{x:g},{y:g}" for x, y in (project(lon, lat) for lon, lat in points))
 
-    graticule = "".join(line([(lon, lat) for lat in range(-60, 91, 2)]) for lon in range(-180, 181, 30))
-    graticule += "".join(line([(lon, lat) for lon in range(-180, 181, 2)]) for lat in (-30, 0, 30, 60))
     outline = line([(-180, lat) for lat in range(-60, 91, 2)] + [(180, lat) for lat in range(90, -61, -2)]) + "Z"
     (ROOT / "static/map/world.json").write_text(json.dumps(
-        {"width": WIDTH, "height": HEIGHT, "outline": outline, "graticule": graticule, "countries": shapes},
+        {"width": WIDTH, "height": HEIGHT, "outline": outline, "countries": shapes},
         separators=(",", ":")))
     (ROOT / "data/countries.json").write_text(json.dumps(countries, ensure_ascii=False, indent=0))
     print(len(shapes), "shapes;", round((ROOT / "static/map/world.json").stat().st_size / 1024), "KB")

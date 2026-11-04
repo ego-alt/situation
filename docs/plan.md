@@ -65,7 +65,7 @@ Rules tuned by eye only go so far, so decisions are measured, and where it helps
 
 An operations-room wall: open-source intelligence, not a newspaper.
 
-- **The world map is the centrepiece.** It uses the Equal Earth projection, drawn from Natural Earth's public-domain countries with Antarctica dropped. Each story is pinned where it happens (`geo.py`: an offline lookup of country names, demonyms, capitals and newsworthy cities). Pin size is the number of outlets.
+- **The world map is the centrepiece.** It uses the Patterson cylindrical projection (true to shape where most news happens, and rectangular, so it fills the screen), drawn from Natural Earth's public-domain countries with Antarctica dropped. Each story is pinned where it happens (`geo.py`: an offline lookup of country names, demonyms, capitals and newsworthy cities). Pin size is the number of outlets.
 - **Precedence, borrowed from military messaging.** Major stories are **FLASH** (amber, pulsing) and Headline stories are **PRIORITY** (cyan); their countries are tinted.
 - **A status bar** with UTC and local clocks, time since the last sync, and counts per tier.
 - **Type:** facts (codes, times, counts, outlet names) in IBM Plex Mono, headlines in Inter so they read at a glance.

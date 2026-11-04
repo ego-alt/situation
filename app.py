@@ -319,6 +319,14 @@ def _iso(dt):
     return (dt if dt.tzinfo else dt.replace(tzinfo=UTC)).isoformat() if dt else None
 
 
+def _xy(s: Story) -> dict:
+    """Where a story goes on the map, from its place (the stored x and y wait for the next regroup)."""
+    if s.lat is None or s.lon is None:
+        return {"x": s.x, "y": s.y}
+    x, y = project(s.lon, s.lat)
+    return {"x": x, "y": y}
+
+
 def _story(s: Story) -> dict:
     seen = set()
     sources = []
@@ -335,7 +343,7 @@ def _story(s: Story) -> dict:
                         "published": _iso(a.published or a.fetched), "updated": _iso(revised)})
     spots = _story_spots(s)
     out = {"id": s.id, "headline": s.headline, "tier": s.tier, "score": s.score, "outlets": s.outlets,
-           "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, "x": s.x, "y": s.y,
+           "leads": s.leads, "itn": s.itn, "iso": s.iso, "place": s.place, **_xy(s),
            "newest": _iso(s.newest), "first_seen": _iso(s.first_seen), "sources": sources,
            "spots": spots, "zone": _zone(s, spots), "latest": _latest(s, sources)}
     if s.running:
