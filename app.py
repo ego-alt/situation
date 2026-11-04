@@ -407,18 +407,10 @@ def _story_spots(s: Story, limit: int = 8) -> list[dict]:
     return [_spot(spot, n=n) for spot, n in ranked]
 
 
-EARLIER = timedelta(days=7)
-
-
 def snapshot() -> dict:
-    from pipeline import SHOWN, clock, last_fetch_ok, latest_itn, on_screen, ongoing_situations, source_health, tracks
+    from pipeline import clock, last_fetch_ok, latest_itn, on_screen, ongoing_situations, source_health, tracks
     now = clock()
     shown, cleared = on_screen(now)
-    day_ago, week_ago = (now - SHOWN).replace(tzinfo=None), (now - EARLIER).replace(tzinfo=None)
-    # The week before today, newest first: stories that cleared the bar, open or closed.
-    earlier = (Story.query.filter(Story.tier != "background", Story.newest < day_ago, Story.newest >= week_ago,
-                                  Story.run_id.is_(None))
-               .order_by(Story.newest.desc()).limit(15).all())
     itn = latest_itn()
     current = Story.query.filter_by(closed=False).all()
     ongoing = ongoing_situations(current, itn, now)
@@ -428,7 +420,6 @@ def snapshot() -> dict:
         "fetched": _iso(last_fetch_ok()),
         "stories": [_story(s) for s in shown],
         "cleared": cleared,
-        "earlier": [_story(s) for s in earlier],
         "ongoing": [{"topic": o["topic"], "isos": o["isos"], "story_ids": [s.id for s in o["stories"]],
                      "latest": o["latest"].headline if o["latest"] else None, "singles": o["singles"],
                      "track": [_spot(t, n=t["n"], last=_iso(t["last"])) for t in week]}

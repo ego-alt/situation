@@ -78,7 +78,7 @@ def test_in_the_news_is_kept_only_when_it_changes(app):
 
 
 def test_stories_close_instead_of_vanishing(loaded, monkeypatch):
-    """Two days later, today's stories are closed with their ids, and shown under "Earlier this week"."""
+    """Two days later, today's stories are closed with their ids, and off the list."""
     from datetime import timedelta
 
     import pipeline
@@ -88,11 +88,8 @@ def test_stories_close_instead_of_vanishing(loaded, monkeypatch):
     regroup(later)
     assert Story.query.filter_by(closed=False).count() == 0
     assert Story.query.filter_by(tier="background").count() == 0      # never shown: not kept
-    snap = snapshot()
-    assert snap["stories"] == []
-    assert {s["id"]: s["headline"] for s in snap["earlier"]} == shown
-    monkeypatch.setattr(pipeline, "clock", lambda: NOW + timedelta(days=9))
-    assert snapshot()["earlier"] == []                                 # a week on, out of view
+    assert snapshot()["stories"] == []
+    assert {s.id: s.headline for s in Story.query.filter(Story.id.in_(shown))} == shown
 
 
 def test_a_silent_feed_is_flagged(app):

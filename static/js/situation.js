@@ -680,10 +680,7 @@
         if (!filter && data.cleared > data.stories.length) {
             html += `<div class="capped">${data.cleared - data.stories.length} more cleared the bar today; showing the top ${data.stories.length}.</div>`;
         }
-        if (!filter) {
-            html += situationsHtml(data.ongoing.filter((o) => o.topic));
-            if (data.earlier.length) html += section('', 'Earlier this week', data.earlier);
-        }
+        if (!filter) html += situationsHtml(data.ongoing.filter((o) => o.topic));
         $('feed').innerHTML = html;
         render();
         $('countMajor').textContent = data.counts.major;
@@ -720,7 +717,7 @@
     function toggle(id, open) {
         openId = open ?? openId !== id ? id : null;
         document.querySelectorAll('.item[data-id]').forEach((n) => n.classList.toggle('open', Number(n.dataset.id) === openId));
-        const story = openId != null && [...data.stories, ...data.earlier].find((s) => s.id === openId);
+        const story = openId != null && data.stories.find((s) => s.id === openId);
         if (story) {
             following ??= { view: goal };                        // keep the first view, across several headlines
             showOnMap(story);

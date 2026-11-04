@@ -57,7 +57,7 @@ class Story(db.Model):
     first_seen = db.Column(db.DateTime, default=utcnow)
     newest = db.Column(db.DateTime)
     # Closed once none of its articles are in the regrouping window any more;
-    # kept (with its id) for "Earlier this week" and so nothing is pushed twice.
+    # kept (with its id) so nothing is pushed twice.
     closed = db.Column(db.Boolean, nullable=False, default=False, index=True)
     # A running story (situations.py) is a story too: all its events' articles, its
     # own tier and place, and its name as the headline. Its events point to it.
