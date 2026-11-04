@@ -142,6 +142,8 @@ body {
 .latest-tag { font: var(--text-xs) var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-accent); margin-right: var(--space-1); }
 /* A running story: its events as developments under the headline, each with its outlets. */
 .run { color: var(--color-accent); }
+/* New, or moved on, since your last visit. */
+.fresh { color: var(--color-accent); font-weight: 600; }
 .developments { margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--text-sm); line-height: 1.4; color: var(--color-text-secondary); }
 .developments li { display: flex; gap: var(--space-2); padding: 2px 0; }
 .developments .n { flex: none; min-width: 6ch; font: var(--text-xs)/20px var(--font-mono); color: var(--color-text-muted); }

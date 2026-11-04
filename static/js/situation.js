@@ -16,6 +16,12 @@
 
     let world = null;
     let data = null;
+    // What you saw last time, on this device: {story id: its headline}. A story you
+    // haven't seen is new, one whose headline has moved on since is updated. The
+    // marks hold for the visit; leaving the page (or opening the story) clears them.
+    const SEEN_KEY = 'situation.seen';
+    const store = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch (_) { return null; } };
+    let before = store(SEEN_KEY);       // null: the first visit, when nothing is marked
     let openId = null;
     let filter = null;                 // { label, isos?: Set, ids?: Set, track?: [] } when the list shows one place
     let failure = null;                // 'offline' | 'signed-out' while refreshes fail
@@ -50,6 +56,7 @@
     const LABEL_W = 30;                // closer still: region names
     const MIN_W = 6;                   // the closest zoom (a few hundred km across)
     let view = null;                   // the user's { x, y, w, h }; null = the automatic view
+    let frame = null;                  // the view being drawn: labels stay inside it
     const details = new Map();         // iso → the country's region file once loaded
     const loading = new Set();
     const boxes = new Map();           // iso → [x0, y0, x1, y1] of its outline on the world map
@@ -176,6 +183,7 @@
         requestAnimationFrame(() => {
             drawing = false;
             const v = current();
+            frame = v;
             $('map').setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
             const upp = v.w / (screen().r.width || 1);            // map units per screen pixel
             const close = v.w < DETAIL_W;
@@ -458,7 +466,11 @@
             { x, y: y + gap + h * 0.8, anchor: 'middle', box: [x - w / 2, y + gap] },
         ];
         const clear = ([bx, by]) => !taken.some(([tx, ty, tw, th]) => bx < tx + tw && tx < bx + w && by < ty + th && ty < by + h);
-        const spot = options.find((o) => clear(o.box));
+        // inside the map, clear of its edges, if any side allows it (Greenland's label goes below, not off the top)
+        const pad = 4 * upp;
+        const inside = ([bx, by]) => !frame || (bx >= frame.x + pad && by >= frame.y + pad
+            && bx + w <= frame.x + frame.w - pad && by + h <= frame.y + frame.h - pad);
+        const spot = options.find((o) => clear(o.box) && inside(o.box)) || options.find((o) => clear(o.box));
         if (spot) taken.push([...spot.box, w, h]);
         return spot || null;
     }
@@ -587,9 +599,11 @@
             const times = [stamp(a.published), stamp(a.updated, 'Updated')].filter(Boolean).join(' · ');
             return `<li><span class="outlet">${esc(a.outlet)}${times ? ` · ${times}` : ''}</span>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</li>`;
         }).join('');
+        const fresh = before && !(s.id in before) ? 'new' : before && before[s.id] !== s.headline ? 'updated' : '';
         return `
             <article class="item ${kind}${openId === s.id ? ' open' : ''}" data-id="${s.id}" data-iso="${esc(s.iso || '')}" tabindex="0">
                 <div class="meta">
+                    ${fresh ? `<span class="fresh" title="Since your last visit">${fresh}</span>` : ''}
                     ${s.iso ? `<span class="place" title="${esc(s.place)}">${esc(s.iso)}</span>` : ''}
                     <span>${ago(s.newest)}</span>
                     ${localTime(s.newest, s.zone)}
@@ -718,6 +732,10 @@
         openId = open ?? openId !== id ? id : null;
         document.querySelectorAll('.item[data-id]').forEach((n) => n.classList.toggle('open', Number(n.dataset.id) === openId));
         const story = openId != null && data.stories.find((s) => s.id === openId);
+        if (story && before) {                                   // read now: not new any more
+            before[story.id] = story.headline;
+            document.querySelector(`.item[data-id="${story.id}"] .fresh`)?.remove();
+        }
         if (story) {
             following ??= { view: goal };                        // keep the first view, across several headlines
             showOnMap(story);
@@ -817,6 +835,17 @@
         if (data || failure) drawStatus();
     }
 
+    /** Save what's on screen as seen, for the next visit (only today's stories are kept). */
+    function remember() {
+        if (data) store(SEEN_KEY, Object.fromEntries(data.stories.map((s) => [s.id, s.headline])));
+    }
+
+    // Leaving the page ends the visit: what was on screen is no longer news when you come back.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && data) before = store(SEEN_KEY);
+        else if (data) drawFeed();
+    });
+
     async function refresh() {
         try {
             const res = await fetch(url('/api/situation'), { credentials: 'same-origin' });
@@ -827,6 +856,7 @@
             } else {
                 data = await res.json();
                 failure = null;
+                remember();
                 drawFeed();
             }
         } catch (_) {
