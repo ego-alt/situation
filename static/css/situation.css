@@ -81,17 +81,16 @@ body {
 .map .ring { fill: none; stroke-width: 1; }
 .map .pin { cursor: pointer; outline: none; }
 .map .pin .hit { fill: transparent; stroke: none; }
-.map .pin:focus-visible .ring, .map .pin.selected .ring { stroke: var(--color-selected); opacity: 1; animation: none; }
-.map .pin .core { stroke: var(--color-bg-base); stroke-width: 1; }
+.map .pin:focus-visible .core, .map .pin.selected .core { stroke: var(--color-selected); }
+.map .pin .core { stroke: var(--color-sea); }   /* edged in the sea's colour: clear on its own country's tint */
+.map .pin .no { font-family: var(--font-mono); font-weight: 700; fill: var(--color-sea); pointer-events: none; }
 .map .pin.flash .core { fill: var(--color-flash); }
 .map .pin.priority .core { fill: var(--color-priority); }
 .map .pin.flash .ring { stroke: var(--color-flash); }
-.map .pin.priority .ring { stroke: var(--color-priority); opacity: 0.5; }
 .map .pin.flash .ring { animation: pulse 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
-.map .pin.active .core { stroke: var(--color-selected); stroke-width: 1.4; }
-.map .tag { font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.06em; paint-order: stroke; stroke: var(--color-sea); stroke-linejoin: round; pointer-events: none; }
-.map .tag.flash { fill: var(--color-flash); }
-.map .tag.priority { fill: var(--color-priority); }
+.map .pin.selected .ring { animation: none; opacity: 0; }
+.map .pin.active .core { stroke: var(--color-selected); }
+.map .tag { font-family: var(--font-mono); font-weight: 500; letter-spacing: 0.04em; fill: var(--color-text-primary); paint-order: stroke; stroke: var(--color-sea); stroke-linejoin: round; pointer-events: none; }
 .map-missing { margin: 0; padding: var(--space-6) var(--space-4); color: var(--color-text-muted); font: var(--text-sm) var(--font-mono); }
 @keyframes pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3.2); opacity: 0; } }
 .legend {
@@ -131,7 +130,11 @@ body {
 .country-card dt { color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--text-xs); line-height: 18px; }
 .country-card dd { margin: 0; color: var(--color-text-primary); }
 .country-card .muted { color: var(--color-text-muted); }
-.meta { display: flex; gap: var(--space-3); align-items: center; font: var(--text-xs) var(--font-mono); color: var(--color-text-muted); letter-spacing: 0.03em; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: center; font: var(--text-xs) var(--font-mono); color: var(--color-text-muted); letter-spacing: 0.03em; }
+/* A story's number in the list, as on its pin; each fact wraps whole, never mid-way. */
+.meta > * { white-space: nowrap; }
+.meta .no { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; font-weight: 700; color: var(--color-bg-base); background: var(--color-priority); }
+.flash .meta .no { background: var(--color-flash); }
 .place { color: var(--color-text-secondary); border: 1px solid var(--color-border); padding: 0 var(--space-1); border-radius: var(--radius-sm); }
 .flash .place { color: var(--color-flash); border-color: var(--color-flash-dim); }
 .wiki { color: var(--color-accent); }

@@ -12,7 +12,7 @@
     const STALE_MS = 30 * 60 * 1000;   // older news than this gets a notice
     const HIT_PX = 22;                 // pin tap radius on screen (44px across: a fingertip)
     const CLUSTER_PX = 26;             // at world scale, pins closer than this on screen are one
-    const MIN_DOT_PX = 5;              // smallest pin radius drawn, on screen
+    const DISC_PX = 9;                 // a story's numbered pin: its radius on screen
 
     let world = null;
     let data = null;
@@ -54,6 +54,7 @@
 
     const DETAIL_W = 260;              // closer than this: regions, cities, places in the news
     const LABEL_W = 30;                // closer still: region names
+    const STORY_W = 60;                // an opened story's places are shown at least this wide: in their country, with its neighbours
     const MIN_W = 6;                   // the closest zoom (a few hundred km across)
     let view = null;                   // the user's { x, y, w, h }; null = the automatic view
     let frame = null;                  // the view being drawn: labels stay inside it
@@ -323,6 +324,12 @@
     }
 
     /** Today's stories grouped by country, biggest first: one pin each. */
+    /** Each story's number in the list (FLASH first, then PRIORITY): the same number marks its pin. */
+    function numbers() {
+        const order = [...data.stories.filter((s) => s.tier === 'major'), ...data.stories.filter((s) => s.tier !== 'major')];
+        return new Map(order.map((s, i) => [s.id, i + 1]));
+    }
+
     function countries(stories = data.stories) {
         const byIso = new Map();
         for (const s of stories) {
@@ -333,7 +340,7 @@
         return [...byIso.entries()].map(([iso, stories]) => ({
             iso, stories, x: stories[0].x, y: stories[0].y, top: stories[0], place: stories[0].place || iso,
             kind: stories.some((s) => s.tier === 'major') ? 'flash' : 'priority',
-            label: `${iso} ${stories.length > 1 ? `· ${stories.length}` : ''}`.trim(),
+            label: `${iso}${stories.length > 1 ? ` +${stories.length - 1}` : ''}`,
         }));
     }
 
@@ -389,14 +396,15 @@
             document.querySelectorAll(`.land[data-iso="${c.iso}"]`).forEach((p) => p.classList.add(`hot-${c.kind}`));
         }
         const marks = close ? places() : cluster(countries(), upp);
+        const nos = numbers();
+        for (const m of marks) m.no = Math.min(...m.stories.map((s) => nos.get(s.id)));
         // Boxes labels must not cover: every dot, then each label placed (biggest stories first).
-        const dot = MIN_DOT_PX * upp;
+        const dot = DISC_PX * upp;
         const taken = marks.map((m) => [m.x - dot, m.y - dot, 2 * dot, 2 * dot]);
         const spots = marks.map((m) => (narrow.matches || close || m.kind === 'flash' || m.stories.length > 1
-            ? labelSpot(m.x, m.y, m.label, taken, upp) : null));
+            ? labelSpot(m.x, m.y, m.label, taken, upp, DISC_PX + 4) : null));
         for (const [i, m] of [...marks.entries()].reverse()) {     // biggest drawn last, on top
-            const r = close ? MIN_DOT_PX * upp * (m.stories.length > 1 ? 1.3 : 1)
-                : Math.max(Math.min(9, 2.5 + m.top.outlets * 0.6), MIN_DOT_PX * upp);
+            const r = (narrow.matches ? DISC_PX - 1 : DISC_PX) * upp;
             const ids = m.stories.map((s) => s.id);
             const picked = filter && (filter.ids ? ids.some((id) => filter.ids.has(id)) : filter.isos?.has(m.iso));
             const selected = picked || ids.includes(openId) ? ' selected' : '';
@@ -407,16 +415,18 @@
                 'aria-label': `${m.place}: ${m.stories.length} ${m.stories.length > 1 ? 'stories' : 'story'}`,
             }, pins);
             el('circle', { cx: m.x, cy: m.y, r: Math.max(HIT_PX * upp, r), class: 'hit' }, g);
-            if (!area) {
-                el('circle', { cx: m.x, cy: m.y, r, class: 'ring' }, g);
-                el('circle', { cx: m.x, cy: m.y, r: r * 0.55, class: 'core' }, g);
-            }
+            // a region in the news is tinted too, and keeps its number
+            if (m.kind === 'flash') el('circle', { cx: m.x, cy: m.y, r, class: 'ring' }, g);
+            el('circle', { cx: m.x, cy: m.y, r, class: 'core' }, g).style.strokeWidth = `${2 * upp}px`;
+            const no = el('text', { x: m.x, y: m.y, class: 'no', 'text-anchor': 'middle', 'dominant-baseline': 'central' }, g);
+            no.style.fontSize = `${(m.no > 9 ? 8.5 : 10) * upp}px`;
+            no.textContent = m.no;
             el('title', {}, g).textContent = m.stories.map((s) => s.headline).join('\n');
             const spot = spots[i];
             if (spot) {
                 const tag = el('text', { x: spot.x, y: spot.y, class: `tag ${m.kind}`, 'text-anchor': spot.anchor }, g);
-                tag.style.fontSize = `${(narrow.matches ? 11.5 : 10.5) * upp}px`;
-                tag.style.strokeWidth = `${4 * upp}px`;
+                tag.style.fontSize = `${9.5 * upp}px`;
+                tag.style.strokeWidth = `${3 * upp}px`;
                 tag.textContent = m.label;
             }
             const pick = () => {
@@ -599,11 +609,13 @@
             const times = [stamp(a.published), stamp(a.updated, 'Updated')].filter(Boolean).join(' · ');
             return `<li><span class="outlet">${esc(a.outlet)}${times ? ` · ${times}` : ''}</span>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${title}</a>` : title}</li>`;
         }).join('');
+        const no = numbers().get(s.id);
         const fresh = before && !(s.id in before) ? 'new' : before && before[s.id] !== s.headline ? 'updated' : '';
         return `
             <article class="item ${kind}${openId === s.id ? ' open' : ''}" data-id="${s.id}" data-iso="${esc(s.iso || '')}" tabindex="0">
                 <div class="meta">
                     ${fresh ? `<span class="fresh" title="Since your last visit">${fresh}</span>` : ''}
+                    ${no ? `<span class="no">${no}</span>` : ''}
                     ${s.iso ? `<span class="place" title="${esc(s.place)}">${esc(s.iso)}</span>` : ''}
                     <span>${ago(s.newest)}</span>
                     ${localTime(s.newest, s.zone)}
@@ -758,7 +770,7 @@
                 return area ? area.box : [p.x, p.y, p.x, p.y];
             });
             setView(fit([Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])),
-                Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))], 12), true);
+                Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))], STORY_W), true);
         } else if (story.iso) {
             zoomTo([story.iso]);
         }

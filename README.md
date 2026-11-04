@@ -13,7 +13,7 @@ An open-source intelligence wall for the home stack: the world map with today's 
 
 ## Features
 
-- **The map** is the centrepiece. Each country with news gets one pin, sized by how many outlets carry its biggest story; FLASH pulses amber, PRIORITY is cyan. Tap a pin to see that country's stories.
+- **The map** is the centrepiece. Each country with news gets one pin, numbered as its story is in the list; FLASH pulses amber, PRIORITY is blue. Tap a pin to see that country's stories. The map uses the Patterson projection, so countries keep their familiar shapes, and fills the screen edge to edge.
 - **Zoom in on a place.** Pinch, scroll or tap a country to zoom: regions and cities appear, and stories show as the places they name, such as the cities of the French riots. Tap an active situation to see every place named there in the past week, bigger the more often and fading with age. That shows where the reporting is, which isn't a verified front line.
 - **The map follows what you pick.** A country, a place or an active situation filters the list and zooms the map to it; *Show all* brings back both. Moving the map yourself never changes the list, and *World* only zooms out.
 - **A high bar.** Sixteen newsrooms on four continents, the AP and Reuters wires among them, are read every 15 minutes and grouped by event. A story is shown only when several independent newsrooms carry it, or Wikipedia's editors put it "In the news", which catches what these outlets under-cover. A normal day shows five to ten stories out of several hundred, and never more than ten.
