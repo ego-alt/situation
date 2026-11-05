@@ -97,27 +97,31 @@
     }
 
     /** The map filling its panel: the world cropped to the panel's shape (no empty
-     * bands), centred on today's pins, and wider only when they don't all fit. */
+     * bands), over the stretch of it with the most news (a FLASH country counts
+     * three times). Zooming out shows the rest, up to the whole world. */
     function autoView() {
         const { aspect } = screen();
         const W = world.width;
         const H = world.height;
         const places = data ? countries() : [];
-        const xs = places.map((c) => c.top.x);
-        const ys = places.map((c) => c.top.y);
-        const mid = (v, lo, hi) => (v.length ? (Math.min(...v) + Math.max(...v)) / 2 : (lo + hi) / 2);
-        // As much of the world as fills the panel edge to edge.
-        let w = Math.min(W, H / aspect);
-        let h = w * aspect;
-        if (places.length) {
-            // ...or wider, to take in every pin with a margin.
-            // (a margin of an eighth of the view on each side: room for a pin's label and its country)
-            const need = Math.max((Math.max(...xs) - Math.min(...xs)) / 0.75, (Math.max(...ys) - Math.min(...ys)) / 0.75 / aspect);
-            if (need > w) { w = Math.min(need, W); h = w * aspect; }
+        const w = Math.min(W, H / aspect);
+        const h = w * aspect;
+        const weight = (c) => (c.kind === 'flash' ? 3 : 1);
+        // Each place in turn at the view's left, a tenth in: the stretch taking in the most news
+        // wins, and the view centres on the places in it.
+        let x = (W - w) / 2;
+        let best = 0;
+        for (const left of places.map((c) => c.top.x - w * 0.1)) {
+            const inside = places.filter((c) => c.top.x >= left + w * 0.05 && c.top.x <= left + w * 0.95);
+            const score = inside.reduce((n, c) => n + weight(c), 0);
+            if (score > best) {
+                best = score;
+                x = (Math.min(...inside.map((c) => c.top.x)) + Math.max(...inside.map((c) => c.top.x))) / 2 - w / 2;
+            }
         }
-        const cx = mid(xs, 0, W);
-        const cy = places.length ? mid(ys, 0, H) : H * 0.42;   // land sits north of the middle
-        return { x: Math.min(Math.max(cx - w / 2, 0), Math.max(0, W - w)), y: Math.min(Math.max(cy - h / 2, 0), Math.max(0, H - h)), w, h };
+        const shown = places.filter((c) => c.top.x >= x && c.top.x <= x + w).map((c) => c.top.y);
+        const cy = shown.length ? (Math.min(...shown) + Math.max(...shown)) / 2 : H * 0.42;   // land sits north of the middle
+        return { x: Math.min(Math.max(x, 0), W - w), y: h > H ? (H - h) / 2 : Math.min(Math.max(cy - h / 2, 0), H - h), w, h };
     }
 
     const current = () => view || autoView();
@@ -135,8 +139,9 @@
         const { aspect } = screen();
         const w = Math.min(Math.max(v.w, MIN_W), world.width);
         const h = w * aspect;
-        const x = Math.min(Math.max(v.x, -w * 0.25), world.width - w * 0.75);
-        const y = Math.min(Math.max(v.y, -h * 0.25), world.height - h * 0.75);
+        // Zoomed out past the world's width or height, it sits in the middle of the panel.
+        const x = w >= world.width ? 0 : Math.min(Math.max(v.x, -w * 0.25), world.width - w * 0.75);
+        const y = h >= world.height ? (world.height - h) / 2 : Math.min(Math.max(v.y, -h * 0.25), world.height - h * 0.75);
         return { x, y, w, h };
     }
 
