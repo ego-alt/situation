@@ -23,11 +23,11 @@ body {
 .tabs { display: flex; align-self: stretch; gap: var(--space-4); margin-left: var(--space-3); }
 .brand { align-self: stretch; }
 .tab {
-    display: flex; align-items: center; padding-top: 2px; border-bottom: 2px solid transparent;
+    display: flex; align-items: center;
     color: var(--color-text-muted); font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none;
 }
 @media (hover: hover) { .tab:hover { color: var(--color-text-secondary); } }
-.tab[aria-current="page"] { color: var(--color-text-primary); border-bottom-color: var(--color-accent); }
+.tab[aria-current="page"] { color: var(--color-text-primary); }   /* brighter, no underline */
 .tab:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .brand-sub { color: var(--color-text-muted); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; font-size: var(--text-xs); }
 /* Papers and the labelling page: their facts as readouts. */
@@ -71,7 +71,7 @@ body {
 .zoom .zoom-world { font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; display: none; }
 .theatre.zoomed .zoom .zoom-world { display: block; }
 .map .sphere { fill: var(--color-sea); stroke: none; }   /* no edge: the map has no frame */
-.map .land { fill: var(--color-land); stroke: var(--color-land-edge); stroke-width: 0.45; transition: fill 0.3s; }
+.map .land { fill: var(--color-land); stroke: var(--color-land-edge); stroke-width: 0.7; transition: fill 0.3s; }
 .map .land.hot-priority { fill: var(--color-land-priority); stroke: var(--color-land-priority-edge); }
 .map .land.hot-flash { fill: var(--color-land-flash); stroke: var(--color-land-flash-edge); }
 .map .land { cursor: pointer; }

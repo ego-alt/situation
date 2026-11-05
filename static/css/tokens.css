@@ -55,7 +55,7 @@
     /* The map */
     --color-sea: #0c0e10;
     --color-land: #2a2f35;
-    --color-land-edge: #32383e;          /* quiet: the countries in the news carry the stronger edges */
+    --color-land-edge: #4a525b;          /* borders you can follow at any zoom; the countries in the news carry the stronger edges */
     --color-land-flash: #4f3713;
     --color-land-flash-edge: #d89b36;
     --color-land-priority: #1d3452;
