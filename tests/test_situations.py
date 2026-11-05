@@ -93,3 +93,12 @@ def test_results_pages_are_not_news():
         assert results_page({"title": title}) and not is_news({"title": title, "url": "https://ap.example/x"})
     for title in ["Election results show Democrats win the House", "Democrat Ossoff wins Georgia Senate race"]:
         assert not results_page({"title": title})
+
+
+def test_an_event_mostly_about_another_country_goes_to_its_own():
+    """Naming the US in passing doesn't make South Africa's election part of the midterms;
+    an event that names the US at least half as often as anything stays."""
+    from collections import Counter
+    assert situations._home(Counter({"ZA": 17, "US": 3}), "US") == "ZA"
+    assert situations._home(Counter({"IL": 4, "US": 3}), "US") == "US"
+    assert situations._home(Counter(), "US") == "US"

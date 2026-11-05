@@ -124,6 +124,15 @@ def _country(group: list[dict]) -> Counter:
     return sum((where(a) for a in group), Counter())
 
 
+def _home(mine: Counter, home: str | None) -> str | None:
+    """The country an event belongs to: the story's own, unless the event is mostly about
+    another (names it more than twice as often as the story's)."""
+    if not mine:
+        return home
+    top, n = mine.most_common(1)[0]
+    return home if mine.get(home, 0) * 2 >= n else top
+
+
 def _name(titles: list[str], main: str, iso: str | None) -> str:
     """The phrase the headlines use most for the story (two or three words with
     its main word), led by its country when the phrase doesn't name it."""
@@ -200,14 +209,14 @@ def find(groups: list[list[dict]], found_topics: list[dict]) -> list[dict]:
             members = [k for k in members if float(meaning(groups[k]) @ core) >= NEAR]
         if len(members) < MIN_EVENTS:
             continue
-        # One country to a story: the one most named; events naming another go to theirs.
+        # One country to a story: the one most named. An event mostly about another country goes
+        # to that one, even when it names this one in passing ("South Africans vote", after the US's).
         named = {k: _country(groups[k]) for k in members}
         total = sum(named.values(), Counter())
         home = total.most_common(1)[0][0] if total else None
         by_country = defaultdict(list)
         for k in members:
-            mine = named[k]
-            by_country[home if not mine or home in mine else mine.most_common(1)[0][0]].append(k)
+            by_country[_home(named[k], home)].append(k)
         for iso, events in by_country.items():
             # named by the main word when its headlines use it, else by what they mostly say
             used = Counter(t for k in events for ws in event_words[k] for t in ws & vocabulary if not _is_place(t))
