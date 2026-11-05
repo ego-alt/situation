@@ -198,6 +198,7 @@
             // The news first, then the week's places, then cities for orientation: each gives way to the last.
             const taken = drawPins(upp, close);
             drawSignals(upp, taken);
+            drawLegend();
             drawTrack(upp, taken);
             drawRefs(v, upp, close, taken);
         });
@@ -375,7 +376,9 @@
         if (!g) return null;                                 // not loaded yet: ask again next time
         const hidden = g.style.display === 'none';
         g.style.display = '';                                // laid out, to measure
-        const point = new DOMPoint(m.x, m.y);
+        const point = $('map').createSVGPoint();             // not a DOMPoint: Brave takes only an SVGPoint here
+        point.x = m.x;
+        point.y = m.y;
         const path = [...g.querySelectorAll('.region')].find((p) => p.isPointInFill?.(point));
         const b = path?.getBBox();
         if (hidden) g.style.display = 'none';
@@ -501,12 +504,14 @@
     }
 
     /** Zoom to a country's mainland (not its far-off islands and territories). */
-    async function zoomTo(isos) {
+    async function zoomTo(isos, still = () => true) {
+        const go = (bs) => setView(fit([Math.min(...bs.map((b) => b[0])), Math.min(...bs.map((b) => b[1])),
+            Math.max(...bs.map((b) => b[2])), Math.max(...bs.map((b) => b[3]))]), true);
+        const outlines = isos.map(box).filter(Boolean);
+        if (outlines.length) go(outlines);                    // there at once, on the world map's outline...
         const d = await Promise.all(isos.map(loadDetail));
         const bs = d.map((x, i) => x?.focus || box(isos[i])).filter(Boolean);
-        if (!bs.length) return;
-        setView(fit([Math.min(...bs.map((b) => b[0])), Math.min(...bs.map((b) => b[1])),
-            Math.max(...bs.map((b) => b[2])), Math.max(...bs.map((b) => b[3]))]), true);
+        if (bs.length && still()) go(bs);                     // ...then on the mainland, once its detail is in
     }
 
     // Gestures: drag to pan, pinch or scroll to zoom, double-tap to zoom in.
@@ -744,6 +749,15 @@
     }
 
     /** Signals on the map: a thin double ring where it is, its short name beside it, quieter than the news. */
+    /** The legend names only what's on the map: no signal swatch on a day without signals. */
+    function drawLegend() {
+        const shown = new Set(data ? countries().map((c) => c.kind) : []);
+        if (data?.signals?.length) shown.add('signal');
+        const legend = document.querySelector('.theatre .legend');
+        legend.querySelectorAll('[data-kind]').forEach((n) => { n.hidden = !shown.has(n.dataset.kind); });
+        legend.hidden = !shown.size;
+    }
+
     function drawSignals(upp, taken = []) {
         const layer = $('signals');
         if (!layer) return;
@@ -886,20 +900,30 @@
         }
     }
 
-    /** The places a story names in its country, or else the country itself. */
+    /** The places a story names in its country, or else the country itself. It goes there at
+     * once, and takes in the regions' whole outlines when the country's detail has loaded. */
     async function showOnMap(story) {
         const here = (story.spots || []).filter((p) => p.iso === story.iso);
-        if (here.some((p) => p.kind === 'region')) await loadDetail(story.iso);
+        const still = () => openId === story.id;              // not closed or changed while loading
         if (here.length) {
-            // A region's whole outline, a city's point.
-            const boxes = here.map((p) => {
-                const area = areaFor(p);
-                return area ? area.box : [p.x, p.y, p.x, p.y];
-            });
-            setView(fit([Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])),
-                Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))], STORY_W), true);
+            const go = () => {
+                // A region's whole outline, a city's point.
+                const boxes = here.map((p) => {
+                    const area = areaFor(p);
+                    return area ? area.box : [p.x, p.y, p.x, p.y];
+                });
+                setView(fit([Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])),
+                    Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))], STORY_W), true);
+            };
+            go();
+            if (here.some((p) => p.kind === 'region' && !areaFor(p))) {
+                await loadDetail(story.iso);
+                if (still()) go();
+            }
         } else if (story.iso) {
-            zoomTo([story.iso]);
+            // too small for the world map's outlines (Hong Kong, the Vatican): its point first
+            if (!box(story.iso) && story.x != null) setView(fit([story.x, story.y, story.x, story.y], STORY_W), true);
+            zoomTo([story.iso], still);
         }
     }
 
