@@ -353,7 +353,7 @@ def _capital_at(iso: str) -> tuple[float, float]:
 
 def country(iso: str) -> dict | None:
     """What a country card says: its name, where it is, capital, leader and time zone, and its
-    population, area, currency and main language (codes, named by the browser)."""
+    population, area and main language (a code, named by the browser)."""
     c = _table()[0].get(iso)
     if c is None:
         return None
@@ -365,6 +365,6 @@ def country(iso: str) -> dict | None:
 
 @lru_cache(maxsize=1)
 def _facts() -> dict:
-    """{iso: population, area, currency, languages} (tools/add_country_facts.py)."""
+    """{iso: population, area, languages} (tools/add_country_facts.py)."""
     path = _DATA.parent / "country_facts.json"
     return json.loads(path.read_text()) if path.exists() else {}

@@ -132,12 +132,12 @@ body {
 @media (hover: hover) { .item:hover { background: var(--color-bg-inset); } }
 .item:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .country-card { margin: 0 0 var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border-soft); border-radius: var(--radius-md); background: var(--color-bg-inset); }
-.country-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.country-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); }
 .country-head .flag { width: 56px; height: 42px; flex: none; border-radius: 2px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border-soft); }   /* static/flags: flag-icons, MIT */
 .country-name { font: 600 var(--text-lg)/1.3 var(--font-sans); }
 .country-region { font: var(--text-xs) var(--font-sans); color: var(--color-text-muted); }
-.country-card dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font: var(--text-sm)/1.5 var(--font-mono); }
-.country-card dt { color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--text-xs); line-height: 18px; }
+.country-card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-4); margin: 0; font: var(--text-sm)/1.35 var(--font-mono); }
+.country-card dt { color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--text-xs); line-height: 17.5px; }
 .country-card dd { margin: 0; color: var(--color-text-primary); }
 .country-card .muted { color: var(--color-text-muted); }
 /* A story's line of facts, quiet: where, how long ago, how many outlets.

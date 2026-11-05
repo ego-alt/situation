@@ -1,4 +1,4 @@
-"""Write data/country_facts.json: each country's population, area, currency and main
+"""Write data/country_facts.json: each country's population, area and main
 language, from GeoNames' countryInfo.txt (CC BY 4.0, download.geonames.org/export/dump):
 
     python -I tools/add_country_facts.py countryInfo.txt
@@ -19,7 +19,7 @@ def main(src):
         f = line.rstrip("\n").split("\t")
         codes = [code.split("-")[0] for code in f[15].split(",") if code]
         facts[f[0]] = {"population": int(f[7] or 0) or None, "area": round(float(f[6] or 0)) or None,
-                       "currency": f[10] or None, "languages": list(dict.fromkeys(codes))[:LANGUAGES]}
+                       "languages": list(dict.fromkeys(codes))[:LANGUAGES]}
     (ROOT / "data" / "country_facts.json").write_text(json.dumps(facts, ensure_ascii=False, indent=0), encoding="utf-8")
     print(f"{len(facts)} countries")
 
