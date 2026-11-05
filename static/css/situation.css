@@ -82,6 +82,8 @@ body {
 .theatre.close .map .detail-land.hot-priority { fill: color-mix(in srgb, var(--color-land-priority) 35%, var(--color-land)); stroke: var(--color-land-edge); }
 /* Picked or opened: a brighter edge in its own colour, never white. */
 .map .region.selected, .map .land.selected { stroke-width: 1; }   /* the same width as any edge in the news: only its colour is brighter */
+/* A country picked on the map that isn't in the news: lifted out of the grey, with a light edge. */
+.map .land.selected:not(.hot-flash):not(.hot-priority) { fill: var(--color-land-picked); stroke: var(--color-land-picked-edge); }
 .map .region.hot-flash.selected, .map .land.hot-flash.selected { stroke: color-mix(in srgb, var(--color-flash) 70%, var(--color-land-flash)); }
 .map .region.hot-priority.selected, .map .land.hot-priority.selected { stroke: color-mix(in srgb, var(--color-priority) 70%, var(--color-land-priority)); }
 .map .pin { cursor: pointer; outline: none; }
@@ -130,7 +132,10 @@ body {
 @media (hover: hover) { .item:hover { background: var(--color-bg-inset); } }
 .item:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .country-card { margin: 0 0 var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border-soft); border-radius: var(--radius-md); background: var(--color-bg-inset); }
-.country-name { font: 600 var(--text-lg)/1.3 var(--font-sans); margin-bottom: var(--space-2); }
+.country-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.country-head .flag { width: 56px; height: 42px; flex: none; border-radius: 2px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border-soft); }   /* static/flags: flag-icons, MIT */
+.country-name { font: 600 var(--text-lg)/1.3 var(--font-sans); }
+.country-region { font: var(--text-xs) var(--font-sans); color: var(--color-text-muted); }
 .country-card dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font: var(--text-sm)/1.5 var(--font-mono); }
 .country-card dt { color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--text-xs); line-height: 18px; }
 .country-card dd { margin: 0; color: var(--color-text-primary); }

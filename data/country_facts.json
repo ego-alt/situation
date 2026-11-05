@@ -1,0 +1,2012 @@
+{
+"AD": {
+"population": 82904,
+"area": 468,
+"currency": "EUR",
+"languages": [
+"ca"
+]
+},
+"AE": {
+"population": 11513149,
+"area": 82880,
+"currency": "AED",
+"languages": [
+"ar"
+]
+},
+"AF": {
+"population": 43844111,
+"area": 647500,
+"currency": "AFN",
+"languages": [
+"fa"
+]
+},
+"AG": {
+"population": 94209,
+"area": 443,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"AI": {
+"population": 13254,
+"area": 102,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"AL": {
+"population": 2349580,
+"area": 28748,
+"currency": "ALL",
+"languages": [
+"sq"
+]
+},
+"AM": {
+"population": 3086700,
+"area": 29800,
+"currency": "AMD",
+"languages": [
+"hy"
+]
+},
+"AO": {
+"population": 39040039,
+"area": 1246700,
+"currency": "AOA",
+"languages": [
+"pt"
+]
+},
+"AQ": {
+"population": null,
+"area": 14000000,
+"currency": null,
+"languages": []
+},
+"AR": {
+"population": 45851378,
+"area": 2766890,
+"currency": "ARS",
+"languages": [
+"es"
+]
+},
+"AS": {
+"population": 46029,
+"area": 199,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"AT": {
+"population": 9208163,
+"area": 83858,
+"currency": "EUR",
+"languages": [
+"de"
+]
+},
+"AU": {
+"population": 27614411,
+"area": 7686850,
+"currency": "AUD",
+"languages": [
+"en"
+]
+},
+"AW": {
+"population": 108785,
+"area": 180,
+"currency": "AWG",
+"languages": [
+"nl"
+]
+},
+"AX": {
+"population": 26711,
+"area": 1580,
+"currency": "EUR",
+"languages": [
+"sv"
+]
+},
+"AZ": {
+"population": 10246996,
+"area": 86600,
+"currency": "AZN",
+"languages": [
+"az"
+]
+},
+"BA": {
+"population": 3140095,
+"area": 51129,
+"currency": "BAM",
+"languages": [
+"bs"
+]
+},
+"BB": {
+"population": 282623,
+"area": 431,
+"currency": "BBD",
+"languages": [
+"en"
+]
+},
+"BD": {
+"population": 175686899,
+"area": 144000,
+"currency": "BDT",
+"languages": [
+"bn"
+]
+},
+"BE": {
+"population": 11941781,
+"area": 30510,
+"currency": "EUR",
+"languages": [
+"nl"
+]
+},
+"BF": {
+"population": 24074580,
+"area": 274200,
+"currency": "XOF",
+"languages": [
+"fr"
+]
+},
+"BG": {
+"population": 6433302,
+"area": 110910,
+"currency": "BGN",
+"languages": [
+"bg"
+]
+},
+"BH": {
+"population": 1600366,
+"area": 800,
+"currency": "BHD",
+"languages": [
+"ar"
+]
+},
+"BI": {
+"population": 14390003,
+"area": 27830,
+"currency": "BIF",
+"languages": [
+"fr"
+]
+},
+"BJ": {
+"population": 14814460,
+"area": 112620,
+"currency": "XOF",
+"languages": [
+"fr"
+]
+},
+"BL": {
+"population": 8450,
+"area": 21,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"BM": {
+"population": 64555,
+"area": 53,
+"currency": "BMD",
+"languages": [
+"en"
+]
+},
+"BN": {
+"population": 466330,
+"area": 5770,
+"currency": "BND",
+"languages": [
+"ms"
+]
+},
+"BO": {
+"population": 12581843,
+"area": 1098580,
+"currency": "BOB",
+"languages": [
+"es"
+]
+},
+"BQ": {
+"population": 18012,
+"area": 328,
+"currency": "USD",
+"languages": [
+"nl"
+]
+},
+"BR": {
+"population": 212812405,
+"area": 8511965,
+"currency": "BRL",
+"languages": [
+"pt"
+]
+},
+"BS": {
+"population": 403033,
+"area": 13940,
+"currency": "BSD",
+"languages": [
+"en"
+]
+},
+"BT": {
+"population": 796682,
+"area": 38390,
+"currency": "BTN",
+"languages": [
+"dz"
+]
+},
+"BV": {
+"population": null,
+"area": 49,
+"currency": "NOK",
+"languages": []
+},
+"BW": {
+"population": 2562122,
+"area": 600370,
+"currency": "BWP",
+"languages": [
+"en"
+]
+},
+"BY": {
+"population": 9085991,
+"area": 207600,
+"currency": "BYN",
+"languages": [
+"be"
+]
+},
+"BZ": {
+"population": 422924,
+"area": 22966,
+"currency": "BZD",
+"languages": [
+"en"
+]
+},
+"CA": {
+"population": 41651653,
+"area": 9984670,
+"currency": "CAD",
+"languages": [
+"en"
+]
+},
+"CC": {
+"population": 628,
+"area": 14,
+"currency": "AUD",
+"languages": [
+"ms"
+]
+},
+"CD": {
+"population": 112832473,
+"area": 2345410,
+"currency": "CDF",
+"languages": [
+"fr"
+]
+},
+"CF": {
+"population": 5513282,
+"area": 622984,
+"currency": "XAF",
+"languages": [
+"fr"
+]
+},
+"CG": {
+"population": 6484437,
+"area": 342000,
+"currency": "XAF",
+"languages": [
+"fr"
+]
+},
+"CH": {
+"population": 9092436,
+"area": 41290,
+"currency": "CHF",
+"languages": [
+"de"
+]
+},
+"CI": {
+"population": 32711547,
+"area": 322460,
+"currency": "XOF",
+"languages": [
+"fr"
+]
+},
+"CK": {
+"population": 21388,
+"area": 240,
+"currency": "NZD",
+"languages": [
+"en"
+]
+},
+"CL": {
+"population": 19859921,
+"area": 756950,
+"currency": "CLP",
+"languages": [
+"es"
+]
+},
+"CM": {
+"population": 29879337,
+"area": 475440,
+"currency": "XAF",
+"languages": [
+"en"
+]
+},
+"CN": {
+"population": 1406585000,
+"area": 9596960,
+"currency": "CNY",
+"languages": [
+"zh"
+]
+},
+"CO": {
+"population": 53425635,
+"area": 1138910,
+"currency": "COP",
+"languages": [
+"es"
+]
+},
+"CR": {
+"population": 5152950,
+"area": 51100,
+"currency": "CRC",
+"languages": [
+"es"
+]
+},
+"CU": {
+"population": 10937203,
+"area": 110860,
+"currency": "CUP",
+"languages": [
+"es"
+]
+},
+"CV": {
+"population": 527326,
+"area": 4033,
+"currency": "CVE",
+"languages": [
+"pt"
+]
+},
+"CW": {
+"population": 156263,
+"area": 444,
+"currency": "XCG",
+"languages": [
+"nl"
+]
+},
+"CX": {
+"population": 1500,
+"area": 135,
+"currency": "AUD",
+"languages": [
+"en"
+]
+},
+"CY": {
+"population": 1370754,
+"area": 9250,
+"currency": "EUR",
+"languages": [
+"el"
+]
+},
+"CZ": {
+"population": 10886878,
+"area": 78866,
+"currency": "CZK",
+"languages": [
+"cs"
+]
+},
+"DE": {
+"population": 83491249,
+"area": 357021,
+"currency": "EUR",
+"languages": [
+"de"
+]
+},
+"DJ": {
+"population": 1184076,
+"area": 23000,
+"currency": "DJF",
+"languages": [
+"fr"
+]
+},
+"DK": {
+"population": 6009169,
+"area": 43094,
+"currency": "DKK",
+"languages": [
+"da"
+]
+},
+"DM": {
+"population": 65871,
+"area": 754,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"DO": {
+"population": 11520487,
+"area": 48730,
+"currency": "DOP",
+"languages": [
+"es"
+]
+},
+"DZ": {
+"population": 47435312,
+"area": 2381740,
+"currency": "DZD",
+"languages": [
+"ar"
+]
+},
+"EC": {
+"population": 18289896,
+"area": 256370,
+"currency": "USD",
+"languages": [
+"es"
+]
+},
+"EE": {
+"population": 1366475,
+"area": 45226,
+"currency": "EUR",
+"languages": [
+"et"
+]
+},
+"EG": {
+"population": 118365995,
+"area": 1001450,
+"currency": "EGP",
+"languages": [
+"ar"
+]
+},
+"EH": {
+"population": 273008,
+"area": 266000,
+"currency": "MAD",
+"languages": [
+"ar"
+]
+},
+"ER": {
+"population": 3607003,
+"area": 121320,
+"currency": "ERN",
+"languages": [
+"aa"
+]
+},
+"ES": {
+"population": 49355143,
+"area": 504782,
+"currency": "EUR",
+"languages": [
+"es"
+]
+},
+"ET": {
+"population": 135472051,
+"area": 1127127,
+"currency": "ETB",
+"languages": [
+"am"
+]
+},
+"FI": {
+"population": 5646436,
+"area": 337030,
+"currency": "EUR",
+"languages": [
+"fi"
+]
+},
+"FJ": {
+"population": 933154,
+"area": 18270,
+"currency": "FJD",
+"languages": [
+"en"
+]
+},
+"FK": {
+"population": 2638,
+"area": 12173,
+"currency": "FKP",
+"languages": [
+"en"
+]
+},
+"FM": {
+"population": 113683,
+"area": 702,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"FO": {
+"population": 54900,
+"area": 1399,
+"currency": "DKK",
+"languages": [
+"fo"
+]
+},
+"FR": {
+"population": 68720337,
+"area": 547030,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"GA": {
+"population": 2593130,
+"area": 267667,
+"currency": "XAF",
+"languages": [
+"fr"
+]
+},
+"GB": {
+"population": 69487000,
+"area": 244820,
+"currency": "GBP",
+"languages": [
+"en"
+]
+},
+"GD": {
+"population": 117303,
+"area": 344,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"GE": {
+"population": 3935766,
+"area": 69700,
+"currency": "GEL",
+"languages": [
+"ka"
+]
+},
+"GF": {
+"population": 195506,
+"area": 91000,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"GG": {
+"population": 65228,
+"area": 78,
+"currency": "GBP",
+"languages": [
+"en"
+]
+},
+"GH": {
+"population": 35064272,
+"area": 239460,
+"currency": "GHS",
+"languages": [
+"en"
+]
+},
+"GI": {
+"population": 40126,
+"area": 6,
+"currency": "GIP",
+"languages": [
+"en"
+]
+},
+"GL": {
+"population": 56831,
+"area": 2166086,
+"currency": "DKK",
+"languages": [
+"kl"
+]
+},
+"GM": {
+"population": 2822093,
+"area": 11300,
+"currency": "GMD",
+"languages": [
+"en"
+]
+},
+"GN": {
+"population": 15099727,
+"area": 245857,
+"currency": "GNF",
+"languages": [
+"fr"
+]
+},
+"GP": {
+"population": 443000,
+"area": 1780,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"GQ": {
+"population": 1938431,
+"area": 28051,
+"currency": "XAF",
+"languages": [
+"es"
+]
+},
+"GR": {
+"population": 10413962,
+"area": 131940,
+"currency": "EUR",
+"languages": [
+"el"
+]
+},
+"GS": {
+"population": 30,
+"area": 3903,
+"currency": "GBP",
+"languages": [
+"en"
+]
+},
+"GT": {
+"population": 18687881,
+"area": 108890,
+"currency": "GTQ",
+"languages": [
+"es"
+]
+},
+"GU": {
+"population": 168999,
+"area": 549,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"GW": {
+"population": 2249515,
+"area": 36120,
+"currency": "XOF",
+"languages": [
+"pt"
+]
+},
+"GY": {
+"population": 835986,
+"area": 214970,
+"currency": "GYD",
+"languages": [
+"en"
+]
+},
+"HK": {
+"population": 7498900,
+"area": 1092,
+"currency": "HKD",
+"languages": [
+"zh"
+]
+},
+"HM": {
+"population": null,
+"area": 412,
+"currency": "AUD",
+"languages": []
+},
+"HN": {
+"population": 11005850,
+"area": 112090,
+"currency": "HNL",
+"languages": [
+"es"
+]
+},
+"HR": {
+"population": 3876200,
+"area": 56542,
+"currency": "EUR",
+"languages": [
+"hr"
+]
+},
+"HT": {
+"population": 11906095,
+"area": 27750,
+"currency": "HTG",
+"languages": [
+"ht"
+]
+},
+"HU": {
+"population": 9514251,
+"area": 93030,
+"currency": "HUF",
+"languages": [
+"hu"
+]
+},
+"ID": {
+"population": 285721236,
+"area": 1919440,
+"currency": "IDR",
+"languages": [
+"id"
+]
+},
+"IE": {
+"population": 5484367,
+"area": 70280,
+"currency": "EUR",
+"languages": [
+"en"
+]
+},
+"IL": {
+"population": 10122800,
+"area": 20770,
+"currency": "ILS",
+"languages": [
+"he"
+]
+},
+"IM": {
+"population": 84118,
+"area": 572,
+"currency": "GBP",
+"languages": [
+"en"
+]
+},
+"IN": {
+"population": 1463865525,
+"area": 3287590,
+"currency": "INR",
+"languages": [
+"en"
+]
+},
+"IO": {
+"population": 4000,
+"area": 60,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"IQ": {
+"population": 47020774,
+"area": 437072,
+"currency": "IQD",
+"languages": [
+"ar"
+]
+},
+"IR": {
+"population": 92417681,
+"area": 1648000,
+"currency": "IRR",
+"languages": [
+"fa"
+]
+},
+"IS": {
+"population": 392404,
+"area": 103000,
+"currency": "ISK",
+"languages": [
+"is"
+]
+},
+"IT": {
+"population": 58915656,
+"area": 301230,
+"currency": "EUR",
+"languages": [
+"it"
+]
+},
+"JE": {
+"population": 90812,
+"area": 116,
+"currency": "GBP",
+"languages": [
+"en"
+]
+},
+"JM": {
+"population": 2837077,
+"area": 10991,
+"currency": "JMD",
+"languages": [
+"en"
+]
+},
+"JO": {
+"population": 11520684,
+"area": 92300,
+"currency": "JOD",
+"languages": [
+"ar"
+]
+},
+"JP": {
+"population": 123366734,
+"area": 377835,
+"currency": "JPY",
+"languages": [
+"ja"
+]
+},
+"KE": {
+"population": 57532493,
+"area": 582650,
+"currency": "KES",
+"languages": [
+"en"
+]
+},
+"KG": {
+"population": 7343064,
+"area": 198500,
+"currency": "KGS",
+"languages": [
+"ky"
+]
+},
+"KH": {
+"population": 17847982,
+"area": 181040,
+"currency": "KHR",
+"languages": [
+"km"
+]
+},
+"KI": {
+"population": 136488,
+"area": 811,
+"currency": "AUD",
+"languages": [
+"en"
+]
+},
+"KM": {
+"population": 882847,
+"area": 2170,
+"currency": "KMF",
+"languages": [
+"ar"
+]
+},
+"KN": {
+"population": 46922,
+"area": 261,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"KP": {
+"population": 26571036,
+"area": 120540,
+"currency": "KPW",
+"languages": [
+"ko"
+]
+},
+"KR": {
+"population": 51684564,
+"area": 98480,
+"currency": "KRW",
+"languages": [
+"ko"
+]
+},
+"XK": {
+"population": 1576876,
+"area": 10908,
+"currency": "EUR",
+"languages": [
+"sq"
+]
+},
+"KW": {
+"population": 4865298,
+"area": 17820,
+"currency": "KWD",
+"languages": [
+"ar"
+]
+},
+"KY": {
+"population": 75844,
+"area": 262,
+"currency": "KYD",
+"languages": [
+"en"
+]
+},
+"KZ": {
+"population": 20843754,
+"area": 2717300,
+"currency": "KZT",
+"languages": [
+"kk"
+]
+},
+"LA": {
+"population": 7873046,
+"area": 236800,
+"currency": "LAK",
+"languages": [
+"lo"
+]
+},
+"LB": {
+"population": 5849421,
+"area": 10400,
+"currency": "LBP",
+"languages": [
+"ar"
+]
+},
+"LC": {
+"population": 180149,
+"area": 616,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"LI": {
+"population": 41024,
+"area": 160,
+"currency": "CHF",
+"languages": [
+"de"
+]
+},
+"LK": {
+"population": 21756000,
+"area": 65610,
+"currency": "LKR",
+"languages": [
+"si"
+]
+},
+"LR": {
+"population": 5731206,
+"area": 111370,
+"currency": "LRD",
+"languages": [
+"en"
+]
+},
+"LS": {
+"population": 2363325,
+"area": 30355,
+"currency": "LSL",
+"languages": [
+"en"
+]
+},
+"LT": {
+"population": 2888774,
+"area": 65200,
+"currency": "EUR",
+"languages": [
+"lt"
+]
+},
+"LU": {
+"population": 686970,
+"area": 2586,
+"currency": "EUR",
+"languages": [
+"lb"
+]
+},
+"LV": {
+"population": 1847785,
+"area": 64589,
+"currency": "EUR",
+"languages": [
+"lv"
+]
+},
+"LY": {
+"population": 7458555,
+"area": 1759540,
+"currency": "LYD",
+"languages": [
+"ar"
+]
+},
+"MA": {
+"population": 38430770,
+"area": 446550,
+"currency": "MAD",
+"languages": [
+"ar"
+]
+},
+"MC": {
+"population": 38341,
+"area": 2,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"MD": {
+"population": 2360527,
+"area": 33843,
+"currency": "MDL",
+"languages": [
+"ro"
+]
+},
+"ME": {
+"population": 623129,
+"area": 14026,
+"currency": "EUR",
+"languages": [
+"sr"
+]
+},
+"MF": {
+"population": 24941,
+"area": 53,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"MG": {
+"population": 32740678,
+"area": 587040,
+"currency": "MGA",
+"languages": [
+"fr"
+]
+},
+"MH": {
+"population": 36282,
+"area": 181,
+"currency": "USD",
+"languages": [
+"mh"
+]
+},
+"MK": {
+"population": 1820909,
+"area": 25333,
+"currency": "MKD",
+"languages": [
+"mk"
+]
+},
+"ML": {
+"population": 25198821,
+"area": 1240000,
+"currency": "XOF",
+"languages": [
+"fr"
+]
+},
+"MM": {
+"population": 54850648,
+"area": 678500,
+"currency": "MMK",
+"languages": [
+"my"
+]
+},
+"MN": {
+"population": 3568978,
+"area": 1565000,
+"currency": "MNT",
+"languages": [
+"mn"
+]
+},
+"MO": {
+"population": 685900,
+"area": 33,
+"currency": "MOP",
+"languages": [
+"zh"
+]
+},
+"MP": {
+"population": 43541,
+"area": 477,
+"currency": "USD",
+"languages": [
+"fil"
+]
+},
+"MQ": {
+"population": 432900,
+"area": 1100,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"MR": {
+"population": 5315065,
+"area": 1030700,
+"currency": "MRU",
+"languages": [
+"ar"
+]
+},
+"MS": {
+"population": 9341,
+"area": 102,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"MT": {
+"population": 579704,
+"area": 316,
+"currency": "EUR",
+"languages": [
+"mt"
+]
+},
+"MU": {
+"population": 1243741,
+"area": 2040,
+"currency": "MUR",
+"languages": [
+"en"
+]
+},
+"MV": {
+"population": 529676,
+"area": 300,
+"currency": "MVR",
+"languages": [
+"dv"
+]
+},
+"MW": {
+"population": 22216120,
+"area": 118480,
+"currency": "MWK",
+"languages": [
+"ny"
+]
+},
+"MX": {
+"population": 131946900,
+"area": 1972550,
+"currency": "MXN",
+"languages": [
+"es"
+]
+},
+"MY": {
+"population": 35977838,
+"area": 329750,
+"currency": "MYR",
+"languages": [
+"ms"
+]
+},
+"MZ": {
+"population": 35631653,
+"area": 801590,
+"currency": "MZN",
+"languages": [
+"pt"
+]
+},
+"NA": {
+"population": 3092816,
+"area": 825418,
+"currency": "NAD",
+"languages": [
+"en"
+]
+},
+"NC": {
+"population": 295333,
+"area": 19060,
+"currency": "XPF",
+"languages": [
+"fr"
+]
+},
+"NE": {
+"population": 27917831,
+"area": 1267000,
+"currency": "XOF",
+"languages": [
+"fr"
+]
+},
+"NF": {
+"population": 1828,
+"area": 35,
+"currency": "AUD",
+"languages": [
+"en"
+]
+},
+"NG": {
+"population": 237527782,
+"area": 923768,
+"currency": "NGN",
+"languages": [
+"en"
+]
+},
+"NI": {
+"population": 7007502,
+"area": 129494,
+"currency": "NIO",
+"languages": [
+"es"
+]
+},
+"NL": {
+"population": 18087633,
+"area": 41526,
+"currency": "EUR",
+"languages": [
+"nl"
+]
+},
+"NO": {
+"population": 5610870,
+"area": 324220,
+"currency": "NOK",
+"languages": [
+"no"
+]
+},
+"NP": {
+"population": 29618118,
+"area": 140800,
+"currency": "NPR",
+"languages": [
+"ne"
+]
+},
+"NR": {
+"population": 12025,
+"area": 21,
+"currency": "AUD",
+"languages": [
+"na"
+]
+},
+"NU": {
+"population": 2166,
+"area": 260,
+"currency": "NZD",
+"languages": [
+"niu"
+]
+},
+"NZ": {
+"population": 5324700,
+"area": 268680,
+"currency": "NZD",
+"languages": [
+"en"
+]
+},
+"OM": {
+"population": 5494691,
+"area": 309500,
+"currency": "OMR",
+"languages": [
+"ar"
+]
+},
+"PA": {
+"population": 4571189,
+"area": 78200,
+"currency": "PAB",
+"languages": [
+"es"
+]
+},
+"PE": {
+"population": 34576665,
+"area": 1285220,
+"currency": "PEN",
+"languages": [
+"es"
+]
+},
+"PF": {
+"population": 282465,
+"area": 4167,
+"currency": "XPF",
+"languages": [
+"fr"
+]
+},
+"PG": {
+"population": 10762817,
+"area": 462840,
+"currency": "PGK",
+"languages": [
+"en"
+]
+},
+"PH": {
+"population": 116786962,
+"area": 300000,
+"currency": "PHP",
+"languages": [
+"tl"
+]
+},
+"PK": {
+"population": 255219554,
+"area": 803940,
+"currency": "PKR",
+"languages": [
+"ur"
+]
+},
+"PL": {
+"population": 36435861,
+"area": 312685,
+"currency": "PLN",
+"languages": [
+"pl"
+]
+},
+"PM": {
+"population": 7012,
+"area": 242,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"PN": {
+"population": 46,
+"area": 47,
+"currency": "NZD",
+"languages": [
+"en"
+]
+},
+"PR": {
+"population": 3184835,
+"area": 9104,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"PS": {
+"population": 5413596,
+"area": 5970,
+"currency": "ILS",
+"languages": [
+"ar"
+]
+},
+"PT": {
+"population": 10804871,
+"area": 92391,
+"currency": "EUR",
+"languages": [
+"pt"
+]
+},
+"PW": {
+"population": 17663,
+"area": 458,
+"currency": "USD",
+"languages": [
+"pau"
+]
+},
+"PY": {
+"population": 7013078,
+"area": 406750,
+"currency": "PYG",
+"languages": [
+"es"
+]
+},
+"QA": {
+"population": 2972215,
+"area": 11437,
+"currency": "QAR",
+"languages": [
+"ar"
+]
+},
+"RE": {
+"population": 776948,
+"area": 2517,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"RO": {
+"population": 19020271,
+"area": 237500,
+"currency": "RON",
+"languages": [
+"ro"
+]
+},
+"RS": {
+"population": 6549143,
+"area": 88361,
+"currency": "RSD",
+"languages": [
+"sr"
+]
+},
+"RU": {
+"population": 143513328,
+"area": 17100000,
+"currency": "RUB",
+"languages": [
+"ru"
+]
+},
+"RW": {
+"population": 14569341,
+"area": 26338,
+"currency": "RWF",
+"languages": [
+"rw"
+]
+},
+"SA": {
+"population": 36973555,
+"area": 1960582,
+"currency": "SAR",
+"languages": [
+"ar"
+]
+},
+"SB": {
+"population": 838645,
+"area": 28450,
+"currency": "SBD",
+"languages": [
+"en"
+]
+},
+"SC": {
+"population": 122730,
+"area": 455,
+"currency": "SCR",
+"languages": [
+"en"
+]
+},
+"SD": {
+"population": 51662147,
+"area": 1861484,
+"currency": "SDG",
+"languages": [
+"ar"
+]
+},
+"SS": {
+"population": 12188788,
+"area": 644329,
+"currency": "SSP",
+"languages": [
+"en"
+]
+},
+"SE": {
+"population": 10596620,
+"area": 449964,
+"currency": "SEK",
+"languages": [
+"sv"
+]
+},
+"SG": {
+"population": 6111175,
+"area": 736,
+"currency": "SGD",
+"languages": [
+"cmn"
+]
+},
+"SH": {
+"population": 7460,
+"area": 410,
+"currency": "SHP",
+"languages": [
+"en"
+]
+},
+"SI": {
+"population": 2130986,
+"area": 20273,
+"currency": "EUR",
+"languages": [
+"sl"
+]
+},
+"SJ": {
+"population": 2550,
+"area": 62049,
+"currency": "NOK",
+"languages": [
+"no"
+]
+},
+"SK": {
+"population": 5413813,
+"area": 48845,
+"currency": "EUR",
+"languages": [
+"sk"
+]
+},
+"SL": {
+"population": 8819794,
+"area": 71740,
+"currency": "SLE",
+"languages": [
+"en"
+]
+},
+"SM": {
+"population": 34109,
+"area": 61,
+"currency": "EUR",
+"languages": [
+"it"
+]
+},
+"SN": {
+"population": 18931966,
+"area": 196190,
+"currency": "XOF",
+"languages": [
+"fr"
+]
+},
+"SO": {
+"population": 19654739,
+"area": 637657,
+"currency": "SOS",
+"languages": [
+"so"
+]
+},
+"SR": {
+"population": 639850,
+"area": 163270,
+"currency": "SRD",
+"languages": [
+"nl"
+]
+},
+"ST": {
+"population": 240254,
+"area": 1001,
+"currency": "STN",
+"languages": [
+"pt"
+]
+},
+"SV": {
+"population": 6365503,
+"area": 21040,
+"currency": "USD",
+"languages": [
+"es"
+]
+},
+"SX": {
+"population": 43923,
+"area": 34,
+"currency": "XCG",
+"languages": [
+"nl"
+]
+},
+"SY": {
+"population": 25620427,
+"area": 185180,
+"currency": "SYP",
+"languages": [
+"ar"
+]
+},
+"SZ": {
+"population": 1256174,
+"area": 17363,
+"currency": "SZL",
+"languages": [
+"en"
+]
+},
+"TC": {
+"population": 46855,
+"area": 948,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"TD": {
+"population": 21003705,
+"area": 1284000,
+"currency": "XAF",
+"languages": [
+"fr"
+]
+},
+"TF": {
+"population": 140,
+"area": 7829,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"TG": {
+"population": 8591626,
+"area": 56785,
+"currency": "XOF",
+"languages": [
+"fr"
+]
+},
+"TH": {
+"population": 71619863,
+"area": 514000,
+"currency": "THB",
+"languages": [
+"th"
+]
+},
+"TJ": {
+"population": 10786734,
+"area": 143100,
+"currency": "TJS",
+"languages": [
+"tg"
+]
+},
+"TK": {
+"population": 1466,
+"area": 10,
+"currency": "NZD",
+"languages": [
+"tkl"
+]
+},
+"TL": {
+"population": 1418517,
+"area": 15007,
+"currency": "USD",
+"languages": [
+"tet"
+]
+},
+"TM": {
+"population": 7618847,
+"area": 488100,
+"currency": "TMT",
+"languages": [
+"tk"
+]
+},
+"TN": {
+"population": 12348573,
+"area": 163610,
+"currency": "TND",
+"languages": [
+"ar"
+]
+},
+"TO": {
+"population": 103742,
+"area": 748,
+"currency": "TOP",
+"languages": [
+"to"
+]
+},
+"TR": {
+"population": 85878556,
+"area": 780580,
+"currency": "TRY",
+"languages": [
+"tr"
+]
+},
+"TT": {
+"population": 1367764,
+"area": 5128,
+"currency": "TTD",
+"languages": [
+"en"
+]
+},
+"TV": {
+"population": 9492,
+"area": 26,
+"currency": "AUD",
+"languages": [
+"tvl"
+]
+},
+"TW": {
+"population": 23451837,
+"area": 35980,
+"currency": "TWD",
+"languages": [
+"zh"
+]
+},
+"TZ": {
+"population": 70545865,
+"area": 945087,
+"currency": "TZS",
+"languages": [
+"sw"
+]
+},
+"UA": {
+"population": 38980376,
+"area": 603700,
+"currency": "UAH",
+"languages": [
+"uk"
+]
+},
+"UG": {
+"population": 51384894,
+"area": 236040,
+"currency": "UGX",
+"languages": [
+"en"
+]
+},
+"UM": {
+"population": null,
+"area": null,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"US": {
+"population": 341784857,
+"area": 9629091,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"UY": {
+"population": 3384688,
+"area": 176220,
+"currency": "UYU",
+"languages": [
+"es"
+]
+},
+"UZ": {
+"population": 37053428,
+"area": 447400,
+"currency": "UZS",
+"languages": [
+"uz"
+]
+},
+"VA": {
+"population": 921,
+"area": null,
+"currency": "EUR",
+"languages": [
+"la"
+]
+},
+"VC": {
+"population": 99924,
+"area": 389,
+"currency": "XCD",
+"languages": [
+"en"
+]
+},
+"VE": {
+"population": 28516896,
+"area": 912050,
+"currency": "VES",
+"languages": [
+"es"
+]
+},
+"VG": {
+"population": 39732,
+"area": 153,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"VI": {
+"population": 103792,
+"area": 352,
+"currency": "USD",
+"languages": [
+"en"
+]
+},
+"VN": {
+"population": 101598527,
+"area": 329560,
+"currency": "VND",
+"languages": [
+"vi"
+]
+},
+"VU": {
+"population": 335169,
+"area": 12200,
+"currency": "VUV",
+"languages": [
+"bi"
+]
+},
+"WF": {
+"population": 16025,
+"area": 274,
+"currency": "XPF",
+"languages": [
+"wls"
+]
+},
+"WS": {
+"population": 219306,
+"area": 2944,
+"currency": "WST",
+"languages": [
+"sm"
+]
+},
+"YE": {
+"population": 41773878,
+"area": 527970,
+"currency": "YER",
+"languages": [
+"ar"
+]
+},
+"YT": {
+"population": 279471,
+"area": 374,
+"currency": "EUR",
+"languages": [
+"fr"
+]
+},
+"ZA": {
+"population": 64747319,
+"area": 1219912,
+"currency": "ZAR",
+"languages": [
+"zu"
+]
+},
+"ZM": {
+"population": 21913874,
+"area": 752614,
+"currency": "ZMW",
+"languages": [
+"en"
+]
+},
+"ZW": {
+"population": 16950795,
+"area": 390580,
+"currency": "ZWG",
+"languages": [
+"en"
+]
+},
+"CS": {
+"population": 10829175,
+"area": 102350,
+"currency": "RSD",
+"languages": [
+"cu"
+]
+},
+"AN": {
+"population": 300000,
+"area": 960,
+"currency": "ANG",
+"languages": [
+"nl"
+]
+}
+}

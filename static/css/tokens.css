@@ -61,6 +61,8 @@
     --color-land-priority: #1d3452;
     --color-land-priority-edge: #4f88c8;
     --color-region: #3a4148;
+    --color-land-picked: #3d444c;        /* a country picked on the map, not in the news */
+    --color-land-picked-edge: #8a95a1;
     --color-scanline: rgba(255, 255, 255, 0.012);
 
     color-scheme: dark;

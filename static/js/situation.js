@@ -398,6 +398,13 @@
         for (const c of countries()) {
             document.querySelectorAll(`.land[data-iso="${c.iso}"]`).forEach((p) => p.classList.add(`hot-${c.kind}`));
         }
+        // The country picked on the map, in the news or not, is lit (and drawn last, so its whole edge shows).
+        if (filter?.country) {
+            document.querySelectorAll(`.land[data-iso="${filter.country}"]`).forEach((p) => {
+                p.classList.add('selected');
+                p.parentNode.appendChild(p);
+            });
+        }
         const marks = close ? places() : cluster(countries(), upp);
         // No pins: a country in the news is tinted and named on itself. Close up, a city
         // (which has no outline to tint) is a small dot with its name beside it.
@@ -807,17 +814,34 @@
         const card = cards.get(iso);
         if (!card || card instanceof Promise) return '';
         const now = card.zone ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: card.zone }) : '';
+        const languages = (card.languages || []).map((code) => named('language', code)).filter(Boolean);
         const facts = [
             card.capital && ['Capital', esc(card.capital)],
             card.leader && ['Leader', esc(card.leader)],
             now && ['Local time', `${now} <span class="muted">${esc(card.zone.split('/').pop().replace(/_/g, ' '))}</span>`],
+            card.population && ['Population', compact.format(card.population)],
+            card.area && ['Area', `${compact.format(card.area)} km²`],
+            languages.length && ['Language', esc(languages.join(', '))],
+            card.currency && ['Currency', `${esc(named('currency', card.currency) || card.currency)} <span class="muted">${esc(card.currency)}</span>`],
             ['In the news', card.last
                 ? `${card.stories_30d} ${card.stories_30d === 1 ? 'story' : 'stories'} in 30 days · last ${ago(card.last.at)} ago`
                 : 'Nothing at headline level in 30 days'],
         ].filter(Boolean);
-        return `<div class="country-card"><div class="country-name">${esc(card.name)}</div>
+        return `<div class="country-card"><div class="country-head">${card.flag ? `<img class="flag" src="${url(`/static/flags/${card.iso}.svg`)}" alt="">` : ''}
+                <div><div class="country-name">${esc(card.name)}</div>${card.region ? `<div class="country-region">${esc(card.region)}</div>` : ''}</div></div>
             <dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>`;
     }
+
+    const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+
+    /** A language's or currency's name from its code, in English ("yue" → "Cantonese"). */
+    function named(type, code) {
+        try {
+            const name = new Intl.DisplayNames(['en'], { type }).of(code);
+            return name && name !== code ? name : null;
+        } catch (_) { return null; }
+    }
+
 
     let lastShown = null;   // what the list showed last: a change fades it in
 
