@@ -96,6 +96,7 @@ Ordered by what matters most now.
 
 **Stage 3, situation**
 - [x] Running stories from the news itself (4 Nov 2026, tuned on the US midterms): bursting words, joined by co-occurrence, events by words and meaning, one country each. Checked by hand on every day from 26 Oct to 4 Nov: it found the Brazilian and Israeli elections, the Spanish train crash's aftermath and the midterms, and nothing on the quiet days. No labelled ground truth yet.
+- [x] Precision pass (6 Nov 2026), replayed every 12 hours from 20 Oct to 6 Nov: no running story where one event holds over 70% of the articles (a sentencing beside other court cases, the train crash), none made only of place words, and none without a phrase three of its events share ("White House", "US president", a day's Ukraine talks, campaign and riots chained into one). 44 detections became 16, all real; France's riots after 21 Oct and Italy's small protests were lost.
 - [ ] Label running stories (Claude, a week at a time) and measure membership, rather than eyeballing ten days.
 - [ ] Join Wikipedia's "Ongoing" list and running stories into one list of situations.
 

@@ -86,14 +86,14 @@ body {
 .map .land.selected:not(.hot-flash):not(.hot-priority) { fill: var(--color-land-picked); stroke: var(--color-land-picked-edge); }
 .map .region.hot-flash.selected, .map .land.hot-flash.selected { stroke: color-mix(in srgb, var(--color-flash) 70%, var(--color-land-flash)); }
 .map .region.hot-priority.selected, .map .land.hot-priority.selected { stroke: color-mix(in srgb, var(--color-priority) 70%, var(--color-land-priority)); }
-.map .pin { cursor: pointer; outline: none; }
-.map .pin .hit { fill: transparent; stroke: none; }
-.map .pin:focus-visible .core, .map .pin.selected .core { stroke: var(--color-selected); }
-.map .pin .core { stroke: var(--color-sea); stroke-width: 1; }   /* a city close up */
-.map .pin.flash .core { fill: var(--color-flash); }
-.map .pin.priority .core { fill: var(--color-priority); }
-.map .pin.active .core { stroke: var(--color-selected); }
-.map .pin.selected .tag.area, .map .pin:focus-visible .tag, .map .pin.active .tag { fill: var(--color-text-primary); }
+.map .news-mark { cursor: pointer; outline: none; }
+.map .news-mark .hit { fill: transparent; stroke: none; }
+.map .news-mark:focus-visible .core, .map .news-mark.selected .core { stroke: var(--color-selected); }
+.map .news-mark .core { stroke: var(--color-sea); stroke-width: 1; }   /* a city close up */
+.map .news-mark.flash .core { fill: var(--color-flash); }
+.map .news-mark.priority .core { fill: var(--color-priority); }
+.map .news-mark.active .core { stroke: var(--color-selected); }
+.map .news-mark.selected .tag.area, .map .news-mark:focus-visible .tag, .map .news-mark.active .tag { fill: var(--color-text-primary); }
 /* Names on the map, no outlines: places that are areas (countries, regions) in thin, widely
    spaced grey capitals, atlas style; a city in the news in plain type beside its dot. */
 .map .tag { font-family: var(--font-sans); pointer-events: none; }

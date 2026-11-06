@@ -13,10 +13,10 @@ LANGUAGES = 1          # the main language (later ones can be minor: Brazil list
 
 def main(src):
     facts = {}
-    for line in open(src, encoding="utf-8"):
+    for line in pathlib.Path(src).read_text(encoding="utf-8").splitlines():
         if line.startswith("#") or not line.strip():
             continue
-        f = line.rstrip("\n").split("\t")
+        f = line.split("\t")
         codes = [code.split("-")[0] for code in f[15].split(",") if code]
         facts[f[0]] = {"population": int(f[7] or 0) or None, "area": round(float(f[6] or 0)) or None,
                        "languages": list(dict.fromkeys(codes))[:LANGUAGES]}

@@ -1,4 +1,4 @@
-/* Situation: draw the world, pin today's stories on it, list them beside it. */
+/* Situation: draw the world, mark today's stories on it, list them beside it. */
 (() => {
     const ROOT = window.APP_ROOT || '';
     const url = (p) => `${ROOT}${p}`;
@@ -10,8 +10,8 @@
     const narrow = window.matchMedia('(max-width: 860px)');
 
     const STALE_MS = 30 * 60 * 1000;   // older news than this gets a notice
-    const HIT_PX = 22;                 // pin tap radius on screen (44px across: a fingertip)
-    const CLUSTER_PX = 26;             // at world scale, pins closer than this on screen are one
+    const HIT_PX = 22;                 // a mark's tap radius on screen (44px across: a fingertip)
+    const CLUSTER_PX = 26;             // at world scale, marks closer than this on screen are one
     // Map type, [desktop px, phone px, average letter width in ems]: areas in widely spaced
     // capitals, cities in the news in plain type, reference cities smaller and grey.
     const TYPE = { area: [9, 7.5, 0.84], city: [10.5, 9, 0.56], ref: [9, 7.5, 0.55] };
@@ -77,7 +77,7 @@
             const t = el('title', {}, p);
             t.textContent = c.name;
         }
-        for (const id of ['detail', 'refs', 'track', 'signals', 'pins']) el('g', { id }, svg);
+        for (const id of ['detail', 'refs', 'track', 'signals', 'marks']) el('g', { id }, svg);
     }
 
     function box(iso) {
@@ -201,7 +201,7 @@
             document.querySelector('.theatre').classList.toggle('close', close);
             drawDetail(v, close);
             // The news first, then the week's places, then cities for orientation: each gives way to the last.
-            const taken = drawPins(upp, close);
+            const taken = drawMarks(upp, close);
             drawSignals(upp, taken);
             drawLegend();
             drawTrack(upp, taken);
@@ -269,10 +269,10 @@
         // in the countries in the news (the rest of the map stays quiet).
         const minPop = v.w < 15 ? 100000 : v.w < 60 ? 500000 : v.w < 120 ? 1000000 : 3000000;
         const hot = new Set(data ? countries().map((c) => c.iso) : []);
-        const named = new Set([...document.querySelectorAll('#pins .tag')].map((t) => t.textContent.toLowerCase()));
+        const named = new Set([...document.querySelectorAll('#marks .tag')].map((t) => t.textContent.toLowerCase()));
         const within = (x, y) => x > v.x && x < v.x + v.w && y > v.y && y < v.y + v.h;
         // Places the news or the week's track already name.
-        const onMap = new Set([...document.querySelectorAll('#pins .tag, #track .track-label')].map((t) => t.textContent));
+        const onMap = new Set([...document.querySelectorAll('#marks .tag, #track .track-label')].map((t) => t.textContent));
         for (const [iso, d] of details) {
             if (!inView(d.bbox, v) || (hot.size && !hot.has(iso))) continue;
             for (const c of d.cities) {
@@ -323,7 +323,7 @@
             const g = el('g', { class: 'track-spot' }, layer);
             el('circle', { cx: t.x, cy: t.y, r, 'fill-opacity': 0.35 * fresh, 'stroke-opacity': fresh }, g);
             el('title', {}, g).textContent = `${t.name}: named in ${t.n} article${t.n > 1 ? 's' : ''} this week, last ${ago(t.last)} ago`;
-            if (i < 8 && !named.has(t.name)) {                  // today's pin already says its name
+            if (i < 8 && !named.has(t.name)) {                  // today's mark already says its name
                 const spot = labelSpot(t.x, t.y, t.name, taken, upp, r / upp + 3);
                 if (spot) {
                     const label = el('text', { x: spot.x, y: spot.y, class: 'track-label', 'text-anchor': spot.anchor }, g);
@@ -334,7 +334,7 @@
         }
     }
 
-    /** Today's stories grouped by country, biggest first: one pin each. */
+    /** Today's stories grouped by country, biggest first: one mark each. */
     function countries(stories = data.stories) {
         const byIso = new Map();
         for (const s of stories) {
@@ -350,7 +350,7 @@
     }
 
     /** Close up: the places today's stories name, each with its stories; stories that
-     * name no place inside a country keep their country pin. */
+     * name no place inside a country keep their country's mark. */
     function places() {
         const byPlace = new Map();
         const unplaced = [];
@@ -395,10 +395,10 @@
 
     /** Today's stories on the map; returns the room their dots and labels take.
      * Close up, a region in the news is tinted as an area and a city is a dot. */
-    function drawPins(upp, close) {
-        const pins = $('pins');
-        if (!pins || !data) return [];
-        pins.innerHTML = '';
+    function drawMarks(upp, close) {
+        const layer = $('marks');
+        if (!layer || !data) return [];
+        layer.innerHTML = '';
         document.querySelectorAll('.land, .region').forEach((p) => p.classList.remove('hot-flash', 'hot-priority', 'selected'));
         for (const c of countries()) {
             document.querySelectorAll(`.land[data-iso="${c.iso}"]`).forEach((p) => p.classList.add(`hot-${c.kind}`));
@@ -411,9 +411,8 @@
             });
         }
         const marks = close ? places() : cluster(countries(), upp);
-        // No pins: a country in the news is tinted and named on itself. Close up, a city
-        // (which has no outline to tint) is a small dot with its name beside it.
-        // Areas (countries, regions) are named on themselves in spaced capitals; cities beside their dot.
+        // A country in the news is tinted and named on itself in spaced capitals, as is a region
+        // close up; a city (which has no outline to tint) is a small dot with its name beside it.
         const dotted = (m) => close && !!m.where && !areaFor(m);
         const style = (m) => (dotted(m) ? 'city' : 'area');
         const dot = DOT_PX * upp;
@@ -428,12 +427,12 @@
                 area.path.classList.add(`hot-${m.kind}`, ...(selected ? ['selected'] : []));
                 area.path.parentNode.appendChild(area.path);   // drawn last: its neighbours' borders don't cover half its edge
             }
-            // picked or opened: the country itself is outlined (there's no pin to light up)
+            // picked or opened: the country itself is outlined
             if (selected && !close) (m.isos || [m.iso]).forEach((iso) => document.querySelectorAll(`.land[data-iso="${iso}"]`).forEach((p) => p.classList.add('selected')));
             const g = el('g', {
-                class: `pin ${m.kind}${selected}`, 'data-iso': m.iso, tabindex: 0, role: 'button',
+                class: `news-mark ${m.kind}${selected}`, 'data-iso': m.iso, tabindex: 0, role: 'button',
                 'aria-label': `${m.place}: ${m.stories.length} ${m.stories.length > 1 ? 'stories' : 'story'}`,
-            }, pins);
+            }, layer);
             el('circle', { cx: m.x, cy: m.y, r: HIT_PX * upp, class: 'hit' }, g);
             if (dotted(m)) el('circle', { cx: m.x, cy: m.y, r: dot, class: 'core' }, g);
             el('title', {}, g).textContent = m.stories.map((s) => s.headline).join('\n');
@@ -458,7 +457,7 @@
         return taken;
     }
 
-    /** At world scale, pins that would touch are one: the biggest story's country
+    /** At world scale, marks that would touch are one: the biggest story's country
      * leads it ("UA +4"), the list shows them all, and a tap zooms to them. */
     function cluster(marks, upp) {
         const out = [];
@@ -512,7 +511,7 @@
     }
 
     function highlight(iso, on) {
-        document.querySelectorAll(`.pin[data-iso="${iso}"], .item[data-iso="${iso}"]`).forEach((n) => n.classList.toggle('active', on));
+        document.querySelectorAll(`.news-mark[data-iso="${iso}"], .item[data-iso="${iso}"]`).forEach((n) => n.classList.toggle('active', on));
     }
 
     /** Zoom to a country's mainland (not its far-off islands and territories). */
@@ -547,7 +546,7 @@
         // Tapping a country (not a pin) shows its card and its stories, and goes to
         // it unless the map is already close.
         svg.addEventListener('click', (e) => {
-            if (dragged || e.target.closest('.pin')) return;
+            if (dragged || e.target.closest('.news-mark')) return;
             const land = e.target.closest('[data-iso]');
             const c = land && world.countries.find((x) => x.iso === land.dataset.iso);
             if (!c) return;
@@ -1018,8 +1017,8 @@
     });
     $('feed').addEventListener('mouseover', (e) => {
         const item = e.target.closest('.item[data-iso]');
-        document.querySelectorAll('.pin.active').forEach((n) => n.classList.remove('active'));
-        if (item?.dataset.iso) document.querySelector(`.pin[data-iso="${item.dataset.iso}"]`)?.classList.add('active');
+        document.querySelectorAll('.news-mark.active').forEach((n) => n.classList.remove('active'));
+        if (item?.dataset.iso) document.querySelector(`.news-mark[data-iso="${item.dataset.iso}"]`)?.classList.add('active');
     });
 
     // ---------- clocks + refresh ----------
