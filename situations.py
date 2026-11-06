@@ -17,13 +17,15 @@ it's near the story in meaning. A story is kept only when several of its
 events are carried by more than one outlet and no one event holds most of its
 articles (one big event, a train crash, is already a story), and it stays in one
 country (two elections in one week are two stories). It's named by the phrase
-its headlines use most, as they write it.
+most of its events use, as their headlines write it; without one, the words were
+only shared by the day's stories ("president"), and there's no running story.
 """
 import re
 from collections import Counter, defaultdict
 from datetime import timedelta
+from functools import lru_cache
 
-from geo import ALIASES, DEMONYMS, country, places
+from geo import ALIASES, DEMONYMS, country, place_names, places
 from text import STOPWORDS, names, tokens, where
 
 DAY = timedelta(hours=24)        # the burst: the last day...
@@ -102,6 +104,12 @@ def _together(burst: dict[str, set[int]]) -> list[set[str]]:
     return list(sets.values())
 
 
+@lru_cache(maxsize=1)
+def _place_words() -> frozenset[str]:
+    """The terms of every name that stands for a country ("north", "korea", "white", "house")."""
+    return frozenset(t for n in place_names() for t in tokens(n))
+
+
 def meaning(articles: list[dict]):
     """The articles' mean meaning vector (embed.py), unit length; None without the model."""
     import numpy as np
@@ -135,32 +143,36 @@ def _home(mine: Counter, home: str | None) -> str | None:
     return home if mine.get(home, 0) * 2 >= n else top
 
 
-def _name(titles: list[str], main: str, iso: str | None) -> str:
-    """The phrase the headlines use most for the story (two or three words with
-    its main word), led by its country when the phrase doesn't name it."""
+def _name(events: list[list[str]], main: str, iso: str | None) -> str | None:
+    """The phrase most of the story's events use for it (two or three words with its main
+    word and something besides a place), as their headlines write it, led by its country
+    when the phrase doesn't name it. None when no phrase is used by MIN_EVENTS events: what
+    remains is a word some of the day's stories share ("president"), not one story."""
     grams, forms = Counter(), defaultdict(Counter)
-    for title in titles:
-        w = re.findall(r"[A-Za-z][\w’'-]*", title)
-        for n in (2, 3):
-            for i in range(len(w) - n + 1):
-                g = w[i:i + n]
-                if g[0].lower() in _NOT_NAME or g[-1].lower() in _NOT_NAME:
-                    continue
-                if main in tokens(" ".join(g)):
-                    grams[" ".join(g).lower()] += 1
-                    forms[" ".join(g).lower()][" ".join(g)] += 1
-    if not grams:
-        phrase = main
-    else:
-        # the most used phrase, or a longer one that contains it and is used nearly as often
-        phrase, top = max(grams.items(), key=lambda kv: (kv[1], -len(kv[0])))
-        longer = [g for g, c in grams.items() if phrase in g and g != phrase and c >= 0.8 * top]
-        if longer:
-            phrase = max(longer, key=grams.get)
+    for titles in events:
+        used = set()
+        for title in titles:
+            w = re.findall(r"[A-Za-z][\w’'-]*", title)
+            for n in (2, 3):
+                for i in range(len(w) - n + 1):
+                    if w[i].lower() in _NOT_NAME or w[i + n - 1].lower() in _NOT_NAME:
+                        continue
+                    g = " ".join(w[i:i + n])
+                    terms = tokens(g)
+                    if main in terms and not set(terms) <= _place_words():
+                        used.add(g.lower())
+                        forms[g.lower()][g] += 1
+        grams.update(used)
+    if not grams or max(grams.values()) < MIN_EVENTS:
+        return None
+    # the most used phrase, or a longer one that contains it and is used nearly as often
+    phrase, top = max(grams.items(), key=lambda kv: (kv[1], -len(kv[0])))
+    longer = [g for g, c in grams.items() if phrase in g and g != phrase and c >= 0.8 * top]
+    if longer:
+        phrase = max(longer, key=grams.get)
     names = _country_names(iso)
     lead = not any(n.lower() in phrase for n in names)
-    if phrase in forms:                       # as the headlines write it ("Joshua Wong", not "joshua wong")
-        phrase = forms[phrase].most_common(1)[0][0]
+    phrase = forms[phrase].most_common(1)[0][0]
     if names and lead:
         phrase = f"{names[0]} {phrase}"
     return phrase[0].upper() + phrase[1:]
@@ -184,6 +196,8 @@ def topics(day: list[dict], usual: Counter, days: int) -> list[dict]:
     burst = bursting(day, usual, days)
     out = []
     for story in _together(burst):
+        if story <= _place_words():
+            continue          # only where ("White House", "North Korea"), not what's happening
         main = max(story, key=lambda t: len(burst[t]))
         own = {t for t in story if t == main or len(burst[t] & burst[main]) >= OWN * len(burst[t])}
         out.append({"words": story, "main": main, "own": own})
@@ -236,7 +250,9 @@ def find(groups: list[list[dict]], found_topics: list[dict]) -> list[dict]:
             sizes = [len(groups[k]) for k in events]
             if max(sizes) > DOMINANT * sum(sizes):
                 continue
-            titles = [a["title"] for k in events for a in groups[k]]
-            found.append({"name": _name(titles, word, iso), "iso": iso, "events": events, "words": sorted(vocabulary)})
+            name = _name([[a["title"] for a in groups[k]] for k in events], word, iso)
+            if name is None:
+                continue
+            found.append({"name": name, "iso": iso, "events": events, "words": sorted(vocabulary)})
     return sorted(found, key=lambda s: -outlets([a for k in s["events"] for a in groups[k]]))
 

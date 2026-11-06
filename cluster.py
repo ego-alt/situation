@@ -12,8 +12,11 @@ from collections import Counter
 
 from text import cosine, document, names, tfidf, where
 
-# How much two articles must resemble each other to be linked.
+# How much two articles must resemble each other to be linked...
 THRESHOLD = 0.26
+# ...sharing a name (a person, place, organisation) or at least this many terms: one shared
+# phrase ("cracks down") isn't one event.
+SHARED_TERMS = 3
 # How much a member must resemble its group's centroid to stay in it.
 CORE = 0.3
 # A linked group is first cut into tight cores: parts whose articles resemble
@@ -139,11 +142,18 @@ def by_meaning(articles: list[dict], cut: float) -> list[list[int]]:
     return sorted(out, key=len, reverse=True)
 
 
+def _shared_enough(a: dict, b: dict, named: set[str]) -> bool:
+    shared = a.keys() & b.keys()
+    return len(shared) >= SHARED_TERMS or bool(shared & named)
+
+
 def by_rules(articles: list[dict]) -> list[list[int]]:
     """The hand rules for stage 1. Two articles from the same outlet are never
     joined directly (an outlet's own follow-ups would otherwise chain unrelated
-    stories together); they can still meet through another outlet's article."""
+    stories together); they can still meet through another outlet's article.
+    Nor are two that share only a phrase (_shared_enough)."""
     vectors = tfidf([document(a) for a in articles])
+    named = names(articles)
     parent = list(range(len(articles)))
 
     def find(i):
@@ -161,7 +171,7 @@ def by_rules(articles: list[dict]) -> list[list[int]]:
         for j in candidates:
             if articles[i].get("outlet", articles[i]["source"]) == articles[j].get("outlet", articles[j]["source"]):
                 continue
-            if cosine(v, vectors[j]) >= THRESHOLD:
+            if cosine(v, vectors[j]) >= THRESHOLD and _shared_enough(v, vectors[j], named):
                 parent[find(i)] = find(j)
     groups: dict[int, list[int]] = {}
     for i in range(len(articles)):
@@ -169,7 +179,6 @@ def by_rules(articles: list[dict]) -> list[list[int]]:
     # Single links can chain: A~B and B~C put A and C together even when they
     # share nothing. Keep only members that resemble the group as a whole.
     out = []
-    named = names(articles)
     wheres = [where(a) for a in articles]
     for members in (part for group in groups.values() for part in split(group, vectors, named, wheres)):
         if len(members) < 3:

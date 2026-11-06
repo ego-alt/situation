@@ -97,9 +97,18 @@ def test_one_big_event_with_small_ones_sharing_its_words_is_that_event():
 
 
 def test_a_running_story_is_named_as_its_headlines_write_it():
-    titles = ["Hong Kong activist Joshua Wong sentenced to 10 years", "Joshua Wong jailed for 10 years",
-              "Hong Kong Sentences Activist Joshua Wong to 10 Years in Prison"]
-    assert "Joshua Wong" in situations._name(titles, "wong", "HK")
+    events = [["Hong Kong activist Joshua Wong sentenced to 10 years"], ["Joshua Wong jailed for 10 years"],
+              ["Hong Kong Sentences Activist Joshua Wong to 10 Years in Prison"]]
+    assert "Joshua Wong" in situations._name(events, "wong", "HK")
+
+
+def test_words_the_days_stories_only_share_are_no_running_story():
+    """"White House" names a place, and "president" no one story: no phrase of three events."""
+    white_house = [["Melania Trump hosts talks at the White House"], ["Trump shows off White House ballroom"],
+                   ["White House defiant after the midterms"]]
+    president = [["The president signs a bill"], ["Trump approval falls"], ["Poll shows president trailing"]]
+    assert situations._name(white_house, "white", "US") is None
+    assert situations._name(president, "president", "US") is None
 
 
 def test_results_pages_are_not_news():

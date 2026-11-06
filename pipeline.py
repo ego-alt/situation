@@ -343,13 +343,14 @@ def _about(text: str, isos: set[str]) -> bool:
 
 
 def about_situation(story: Story, isos: set[str]) -> bool:
-    """A story is about a situation (the war, not just a place in it): its headline, or most of
-    its articles, name one of the situation's countries in the words of conflict, wherever the
-    story is placed: a Russian strike reported from Germany is the war; a ban on Russia's ice
-    hockey team, placed in Russia, mostly isn't told in the war's words. Sport and entertainment
-    (score.is_soft, as for the main list) never are."""
+    """A story is about a situation (the war, not just a place in it): its headline names one of
+    the situation's countries, and it or most of the story's articles do so in the words of
+    conflict, wherever the story is placed: a Russian strike reported from Germany is the war;
+    a ban on Russia's ice hockey team, placed in Russia, mostly isn't told in the war's words,
+    and a vice president's frustration at the midterms whose articles blame the Iran war is
+    about the midterms. Sport and entertainment (score.is_soft, as for the main list) never are."""
     articles = [{"title": a.title, "summary": a.summary} for a in story.articles]
-    if not articles or is_soft(articles):
+    if not articles or is_soft(articles) or not set(places(story.headline)) & isos:
         return False
     if _about(story.headline, isos):
         return True

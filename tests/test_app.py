@@ -326,3 +326,6 @@ def test_a_situation_takes_stories_about_it_wherever_they_are(app):
     assert about_situation(strike, war)
     assert not about_situation(hockey, war)      # not told in the war's words
     assert not about_situation(vote, war)        # one article's aside isn't what the story is about
+    vance = story("JD Vance, frustrated by his party's defeat, sparks debate", "US",
+                  ["Vance frustrated as Iran war costs Republicans", "Republicans blame the Iran war for defeat"])
+    assert not about_situation(vance, {"IR"})    # its articles blame the war; it's about the midterms

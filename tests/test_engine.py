@@ -248,3 +248,16 @@ def test_a_surname_is_not_a_small_town():
     texts = ["Republican Mike Rogers wins the Michigan Senate race", "Real Madrid beat Barcelona",
              "Students at the University of Michigan vote", "New York City counts its ballots"]
     assert surnames(texts) == {"Rogers"}
+
+
+def test_one_shared_phrase_is_not_one_event():
+    """Taiwan's police cracking down on election meddling and Iran's authorities cracking
+    down on dissent, as they were grouped on 6 Nov 2026: alike in two words, nothing else."""
+    from cluster import by_rules
+    others = ["Floods force thousands from homes in Bangladesh", "Central bank holds rates steady",
+              "Parliament passes budget after late vote", "Typhoon Champi brushes past Taiwan",
+              "Wildfire spreads near Athens suburbs", "Train strike halts services in Germany"]
+    articles = [{"title": "NPA cracks down on meddling", "source": "taipeitimes"},
+                {"title": "Authorities crack down on dissent", "source": "ap"},
+                *({"title": t, "source": f"o{i}"} for i, t in enumerate(others))]
+    assert [0, 1] not in by_rules(articles) and [1, 0] not in by_rules(articles)

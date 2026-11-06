@@ -51,6 +51,7 @@ ALIASES = {
     "RU": "Kremlin",
     "PS": "Gaza, West Bank, Palestine, Hamas",
     "YE": "Houthi, Houthis",
+    "IR": "Hormuz",
     "LB": "Hezbollah",
     "AF": "Taliban",
     "VA": "Vatican, Pope",
@@ -148,6 +149,13 @@ def _table():
     lookup = {p[0]: p[1] for p in reversed(patterns)}
     kinds = {p[0]: p[2] for p in reversed(patterns)}
     return countries, regex, lookup, kinds
+
+
+def place_names() -> list[str]:
+    """Every name that stands for a country: its names, demonyms, aliases ("White House"),
+    capitals and cities (not its leaders)."""
+    _, _, lookup, kinds = _table()
+    return [n for n in lookup if kinds[n] != "leader"]
 
 
 @lru_cache(maxsize=50_000)        # every fetch re-reads the same articles
