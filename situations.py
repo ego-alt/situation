@@ -14,9 +14,10 @@ count. Such bursting words that mostly appear together are one story (a
 topic). An event belongs to it when most of its articles use three of its
 words, or two with one of its own (mostly used alongside its main word), and
 it's near the story in meaning. A story is kept only when several of its
-events are carried by more than one outlet (one big event, a train crash, is
-already a story), and it stays in one country (two elections in one week are
-two stories). It's named by the phrase its headlines use most.
+events are carried by more than one outlet and no one event holds most of its
+articles (one big event, a train crash, is already a story), and it stays in one
+country (two elections in one week are two stories). It's named by the phrase
+its headlines use most, as they write it.
 """
 import re
 from collections import Counter, defaultdict
@@ -36,7 +37,8 @@ TOGETHER = 0.4                   # two words are one story when this share of th
 OWN = 0.5                        # a story's own word: at least this share of its articles also use the main word
 JOIN = 0.5                       # an event joins when more than this share of its articles match
 MIN_EVENTS = 3                   # a story has at least this many events,
-MIN_SHARED = 2                   # this many of them carried by two or more outlets
+MIN_SHARED = 2                   # this many of them carried by two or more outlets,
+DOMINANT = 0.7                   # and no one event holds more than this share of its articles
 NEAR = 0.45                      # an event's likeness in meaning to the story's core (embed.py)
 # Words a story's name doesn't start or end on.
 _NOT_NAME = STOPWORDS | {"since", "ahead", "during", "until", "against", "despite", "via", "per"}
@@ -136,7 +138,7 @@ def _home(mine: Counter, home: str | None) -> str | None:
 def _name(titles: list[str], main: str, iso: str | None) -> str:
     """The phrase the headlines use most for the story (two or three words with
     its main word), led by its country when the phrase doesn't name it."""
-    grams = Counter()
+    grams, forms = Counter(), defaultdict(Counter)
     for title in titles:
         w = re.findall(r"[A-Za-z][\w’'-]*", title)
         for n in (2, 3):
@@ -146,6 +148,7 @@ def _name(titles: list[str], main: str, iso: str | None) -> str:
                     continue
                 if main in tokens(" ".join(g)):
                     grams[" ".join(g).lower()] += 1
+                    forms[" ".join(g).lower()][" ".join(g)] += 1
     if not grams:
         phrase = main
     else:
@@ -155,7 +158,10 @@ def _name(titles: list[str], main: str, iso: str | None) -> str:
         if longer:
             phrase = max(longer, key=grams.get)
     names = _country_names(iso)
-    if names and not any(n.lower() in phrase for n in names):
+    lead = not any(n.lower() in phrase for n in names)
+    if phrase in forms:                       # as the headlines write it ("Joshua Wong", not "joshua wong")
+        phrase = forms[phrase].most_common(1)[0][0]
+    if names and lead:
         phrase = f"{names[0]} {phrase}"
     return phrase[0].upper() + phrase[1:]
 
@@ -224,6 +230,11 @@ def find(groups: list[list[dict]], found_topics: list[dict]) -> list[dict]:
             word = main if used[main] >= 0.3 * arts or not used else used.most_common(1)[0][0]
             shared = sum(outlets(groups[k]) >= 2 for k in events)
             if len(events) < MIN_EVENTS or shared < MIN_SHARED:
+                continue
+            # One big event and a few small ones that share its words (a sentencing and other
+            # court cases, a train crash and other crashes) is that event, already a story.
+            sizes = [len(groups[k]) for k in events]
+            if max(sizes) > DOMINANT * sum(sizes):
                 continue
             titles = [a["title"] for k in events for a in groups[k]]
             found.append({"name": _name(titles, word, iso), "iso": iso, "events": events, "words": sorted(vocabulary)})

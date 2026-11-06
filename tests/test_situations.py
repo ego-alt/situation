@@ -87,6 +87,21 @@ def test_one_big_event_is_not_a_running_story():
     assert situations.find(single, situations.topics(day, usual, days)) == []
 
 
+def test_one_big_event_with_small_ones_sharing_its_words_is_that_event():
+    """A race call in twenty outlets beside a few small events is the race call, already a
+    story (as Joshua Wong's sentencing was beside other court cases, 6 Nov 2026)."""
+    groups, day = _night()
+    usual, days = situations.baseline(_fortnight())
+    big = [_article(f"{EVENTS[0][n % 3]} ({n})", OUTLETS[n % len(OUTLETS)]) for n in range(20)]
+    assert situations.find([big, *groups[1:5]], situations.topics(day + big, usual, days)) == []
+
+
+def test_a_running_story_is_named_as_its_headlines_write_it():
+    titles = ["Hong Kong activist Joshua Wong sentenced to 10 years", "Joshua Wong jailed for 10 years",
+              "Hong Kong Sentences Activist Joshua Wong to 10 Years in Prison"]
+    assert "Joshua Wong" in situations._name(titles, "wong", "HK")
+
+
 def test_results_pages_are_not_news():
     for title in ["Ohio Governor Election Live Results 2026", "2026 Kentucky Midterm Election Results",
                   "2026 U.S. House Election Results"]:

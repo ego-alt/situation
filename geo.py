@@ -46,8 +46,8 @@ DEMONYMS = {
 # Short or common forms the country table doesn't carry, and groups or
 # institutions that stand for one country (comma-separated).
 ALIASES = {
-    "US": "US, U.S., USA, America, Pentagon, White House",
-    "GB": "UK, U.K., Britain, Downing Street",
+    "US": "US, U.S., USA, America, Pentagon, White House, New England",
+    "GB": "UK, U.K., Britain, Downing Street, England, Scotland, Wales, Northern Ireland, Scottish, Welsh",
     "RU": "Kremlin",
     "PS": "Gaza, West Bank, Palestine, Hamas",
     "YE": "Houthi, Houthis",

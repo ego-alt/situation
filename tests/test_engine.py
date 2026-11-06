@@ -108,6 +108,9 @@ def test_places_from_leaders_capitals_and_cities():
     # "Georgia" is as often the US state: it counts for less than a clear place.
     assert places("Storm hits Georgia and Atlanta, US")["US"] > places("Storm hits Georgia and Atlanta, US")["GE"]
     assert "FR" not in places("Protests in Limoges")                   # cities from one day's news are gone
+    # The UK's nations are the UK (not Iran, in "Bank of England raises rates as the Iran war...").
+    assert all("GB" in places(t) for t in ("Bank of England raises rates", "Scottish MPs vote", "Storm hits Wales"))
+    assert set(places("Snow across New England")) == {"US"}
 
 
 # ---------- places inside countries ----------
