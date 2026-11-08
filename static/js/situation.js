@@ -515,6 +515,7 @@
     }
 
     /** Zoom to a country's mainland (not its far-off islands and territories). */
+    // A story's places are framed within their whole country, never a province alone.
     async function zoomTo(isos, still = () => true) {
         const go = (bs) => setView(fit([Math.min(...bs.map((b) => b[0])), Math.min(...bs.map((b) => b[1])),
             Math.max(...bs.map((b) => b[2])), Math.max(...bs.map((b) => b[3]))]), true);

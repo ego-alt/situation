@@ -61,6 +61,8 @@ body {
 .map .region { fill: none; stroke: var(--color-region); stroke-width: 0.6; pointer-events: none; }
 .map .detail-land { stroke-width: 0.8; }
 .map .city { fill: var(--color-text-muted); pointer-events: none; }
+/* Names on the map are atlas style: thin, widely spaced grey capitals for countries,
+   plain names for cities, and no halo or stroke on any map text. */
 .map .city-label, .map .region-label { font-family: var(--font-sans); fill: var(--color-text-muted); pointer-events: none; }
 .map .city-label { fill: var(--color-text-muted); letter-spacing: 0.02em; }
 .map .region-label { text-transform: uppercase; letter-spacing: 0.16em; opacity: 0.7; }
