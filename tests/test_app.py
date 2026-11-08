@@ -141,26 +141,50 @@ def test_an_active_situation_without_shared_reports_quotes_nothing(loaded):
 
 
 def test_an_old_database_gains_the_new_column(tmp_path):
+    """A database from before `shown`: stories on the page then count as shown."""
     import sqlite3
 
     from app import create_app
     path = tmp_path / "old.db"
+    config = {"TESTING": True, "FETCH_LOOP": False, "SQLALCHEMY_DATABASE_URI": f"sqlite:///{path}"}
+    create_app(config)
     con = sqlite3.connect(path)
-    con.execute("CREATE TABLE stories (id INTEGER PRIMARY KEY, headline VARCHAR NOT NULL, tier VARCHAR NOT NULL, "
-                "score FLOAT NOT NULL, outlets INTEGER NOT NULL, leads INTEGER NOT NULL, itn VARCHAR, iso VARCHAR, "
-                "place VARCHAR, lat FLOAT, lon FLOAT, x FLOAT, y FLOAT, first_seen DATETIME, newest DATETIME)")
-    con.execute("INSERT INTO stories (headline, tier, score, outlets, leads) VALUES ('Old', 'headline', 5, 4, 0)")
-    con.execute("CREATE TABLE articles (id INTEGER PRIMARY KEY, url VARCHAR NOT NULL UNIQUE, source VARCHAR NOT NULL, "
-                "outlet VARCHAR NOT NULL, title VARCHAR NOT NULL, summary VARCHAR, published DATETIME, "
-                "position INTEGER, fetched DATETIME)")
+    con.execute("ALTER TABLE stories DROP COLUMN shown")
+    insert = "INSERT INTO stories (headline, tier, score, outlets, leads, closed, running) VALUES (?, ?, 1, 1, 0, 0, 0)"
+    con.executemany(insert, [("Old", "headline"), ("Quiet", "background")])
     con.commit()
     con.close()
-    app = create_app({"TESTING": True, "FETCH_LOOP": False, "SQLALCHEMY_DATABASE_URI": f"sqlite:///{path}"})
-    with app.app_context():
-        story = Story.query.one()
-        assert story.headline == "Old" and story.closed is False
-        from models import Article
-        assert Article.query.count() == 0 and hasattr(Article, "spots")
+    with create_app(config).app_context():
+        assert {s.headline: s.shown for s in Story.query} == {"Old": True, "Quiet": False}
+
+
+def test_a_story_that_faded_is_closed_not_deleted(app):
+    """Major once, background by the time it leaves the window: it was on the
+    page, so it's kept (closed) and never pushed again."""
+    from models import db
+    from pipeline import _close
+    from score import BACKGROUND, MAJOR
+
+    faded, never = Story(headline="", tier=BACKGROUND), Story(headline="", tier=BACKGROUND)
+    db.session.add_all([faded, never])
+    faded.rank("Quake", MAJOR, 9)
+    faded.rank("Quake", BACKGROUND, 1)
+    never.rank("Fete", BACKGROUND, 1)
+    db.session.flush()
+    _close({faded.id, never.id})
+    db.session.commit()
+    assert [(s.headline, s.closed) for s in Story.query] == [("Quake", True)]
+
+
+def test_only_rank_sets_a_tier():
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    writes = re.compile(r"\.tier\s*(,[^=]*)?=(?!=)")   # story.tier = …, or story.tier, story.score = …
+    offenders = [f"{p.name}:{n}" for p in root.glob("*.py") if p.name != "models.py"
+                 for n, line in enumerate(p.read_text().splitlines(), 1) if writes.search(line)]
+    assert offenders == []
 
 
 def test_stories_carry_their_places(loaded):

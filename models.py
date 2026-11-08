@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
+from score import BACKGROUND
+
 db = SQLAlchemy()
 
 
@@ -59,11 +61,19 @@ class Story(db.Model):
     # Closed once none of its articles are in the regrouping window any more;
     # kept (with its id) so nothing is pushed twice.
     closed = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    # Ever tiered above background: it was on the page, so when it leaves the
+    # window it's closed, not deleted, even if it had faded by then.
+    shown = db.Column(db.Boolean, nullable=False, default=False)
     # A running story (situations.py) is a story too: all its events' articles, its
     # own tier and place, and its name as the headline. Its events point to it.
     running = db.Column(db.Boolean, nullable=False, default=False, index=True)
     run_id = db.Column(db.Integer, index=True)                  # an event: the running story it's part of
     articles = db.relationship("Article", secondary=story_articles, lazy="selectin")
+
+    def rank(self, headline: str, tier: str, score: float):
+        """Its headline, tier and score from a regrouping (the only place a tier is set)."""
+        self.headline, self.tier, self.score = headline, tier, score
+        self.shown = self.shown or tier != BACKGROUND
 
 
 class ItnSnapshot(db.Model):
@@ -151,21 +161,9 @@ def migrate():
     """Add columns that create_all() can't add to an existing table."""
     def columns(table):
         return {row[1] for row in db.session.execute(db.text(f"PRAGMA table_info({table})"))}
-    stories, articles, labels = columns("stories"), columns("articles"), columns("labels")
-    if stories and "closed" not in stories:
-        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN closed BOOLEAN NOT NULL DEFAULT 0"))
-        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_closed ON stories (closed)"))
-    if articles and "spots" not in articles:
-        db.session.execute(db.text("ALTER TABLE articles ADD COLUMN spots JSON"))   # filled in by the next fetch
-    if labels and "source" not in labels:
-        db.session.execute(db.text("ALTER TABLE labels ADD COLUMN source VARCHAR NOT NULL DEFAULT 'you'"))
-        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_labels_source ON labels (source)"))
-    if articles and "updated" not in articles:
-        db.session.execute(db.text("ALTER TABLE articles ADD COLUMN updated DATETIME"))
-    if stories and "running" not in stories:
-        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN running BOOLEAN NOT NULL DEFAULT 0"))
-        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_running ON stories (running)"))
-    if stories and "run_id" not in stories:
-        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN run_id INTEGER"))
-        db.session.execute(db.text("CREATE INDEX IF NOT EXISTS ix_stories_run_id ON stories (run_id)"))
+    stories = columns("stories")
+    if stories and "shown" not in stories:
+        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN shown BOOLEAN NOT NULL DEFAULT 0"))
+        # Its tier now is all there is to go on for a story from before.
+        db.session.execute(db.text("UPDATE stories SET shown = 1 WHERE tier != 'background'"))
     db.session.commit()

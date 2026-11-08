@@ -92,7 +92,7 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
         item = matched.get(k)
         fresh = item is not None and now - first_seen.get(item, now) <= ITN_FRESH
         a = assess(group, place, item, now, itn_fresh=fresh, active=active)
-        story.headline, story.tier, story.score = a["headline"], a["tier"], a["score"]
+        story.rank(a["headline"], a["tier"], a["score"])
         story.outlets, story.leads, story.itn = a["outlets"], a["leads"], a["itn"]
         story.newest = a["newest"].astimezone(UTC).replace(tzinfo=None)
         _set_place(story, place)
@@ -121,7 +121,7 @@ def regroup_running(groups: list[list[dict]], events: list[Story], topics: list[
         place = locate(union)
         a = assess(union, place, None, now, active=active)
         tier, score = running_tier(a, [groups[k] for k in f["events"]], now, active)
-        story.headline, story.tier, story.score = f["name"], tier, score
+        story.rank(f["name"], tier, score)
         story.outlets, story.leads, story.itn = a["outlets"], a["leads"], None
         story.newest = a["newest"].astimezone(UTC).replace(tzinfo=None)
         _set_place(story, place)
@@ -164,10 +164,10 @@ def _close(ids: set[int]):
     week and so nothing is pushed twice), else deleted: nothing to remember."""
     for sid in ids:
         story = db.session.get(Story, sid)
-        if story.tier == BACKGROUND:
-            db.session.delete(story)
-        else:
+        if story.shown:
             story.closed = True
+        else:
+            db.session.delete(story)
 
 
 # A running story is FLASH while it's breaking: carried by this many outlets, with
