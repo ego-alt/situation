@@ -21,7 +21,7 @@ and compares them with the hand rules there; `flask train --save` fits them
 on everything and writes the files the app then uses. Delete a file (or set
 LEARNED=0) and the hand rules come back. Learned grouping (events, then
 situations) is parked on the learned-grouping branch until events are
-measured well: see docs/phases.md.
+measured well: see docs/design.md.
 """
 import json
 import os

@@ -1,5 +1,5 @@
 """Situation's sizes come from tokens.css: no stylesheet sets a raw font size, so
-the type scale can't creep back to sizes a pixel apart (dashboard/docs/ui-spec.md)."""
+the type scale can't creep back to sizes a pixel apart (dashboard/docs/design.md)."""
 import pathlib
 import re
 

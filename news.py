@@ -1,4 +1,4 @@
-"""Stage 1 of the pipeline: is an article news? (docs/phases.md)
+"""Stage 1 of the pipeline: is an article news? (docs/design.md)
 
 News reports something that happened or is happening, live blogs included.
 Not news: opinion, analysis (even about today), explainers, features,

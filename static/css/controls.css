@@ -1,4 +1,4 @@
-/* Situation's one definition of a button (dashboard/docs/ui-spec.md, rule 4).
+/* Situation's one definition of a button (dashboard/docs/design.md, rule 4).
  * Components may place or size a button, nothing more.
  *   .btn        a bordered mono chip, quiet until hovered (Show all, Try again)
  *   .btn-float  the same, on glass over the map (zoom)

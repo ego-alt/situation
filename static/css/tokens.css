@@ -1,6 +1,6 @@
 /* Situation's tokens: every size and colour it uses. An operations-room wall:
  * near-black glass, a phosphor-green map, amber for FLASH, cyan for PRIORITY.
- * Role names follow dashboard/docs/ui-spec.md (tests/test_style_tokens.py checks
+ * Role names follow dashboard/docs/design.md (tests/test_style_tokens.py checks
  * that no stylesheet sets a raw font size). */
 :root {
     /* Type: facts in Plex Mono, headlines in Inter. Five sizes, two pixels or more apart. */

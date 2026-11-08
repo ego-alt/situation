@@ -1,6 +1,6 @@
 # Situation
 
-An open-source intelligence wall for the home stack: the world map with today's major stories pinned on it, and only the headlines that clear a high bar.
+An open-source intelligence wall for the home stack: the world map with the countries in today's major stories lit up, and only the headlines that clear a high bar.
 
 ![Situation](images/situation-2026-10.png)
 
@@ -30,7 +30,7 @@ An open-source intelligence wall for the home stack: the world map with today's 
 - **Sources a tap away.** Open a story to see every outlet's own headline and link; the map goes to the places it names, and back when you close it.
 - **Phone-first.** The map on top, the list under it.
 
-How importance is decided, and what comes next: [`docs/plan.md`](docs/plan.md).
+How importance is decided, and what comes next: [`docs/design.md`](docs/design.md).
 
 ## Papers
 
@@ -70,7 +70,7 @@ uv run flask --app app:create_app evaluate                                   # t
 uv run flask --app app:create_app train --save                               # fit the rank and place models, and use them
 ```
 
-Grouping is scored per article (B-cubed, `evaluation/metrics.py`), over all articles and over headline-size events, with bootstrap intervals; the newest week is the test. The off-the-shelf grouping is switched on by `instance/models/meaning.json` (`{"cut": 0.5}`) and off by deleting it. What's been tried and what's next: [`docs/phases.md`](docs/phases.md).
+Grouping is scored per article (B-cubed, `evaluation/metrics.py`), over all articles and over headline-size events, with bootstrap intervals; the newest week is the test. The off-the-shelf grouping is switched on by `instance/models/meaning.json` (`{"cut": 0.5}`) and off by deleting it. What's been tried and what's next: [`docs/design.md`](docs/design.md).
 
 On the home stack it's added from the dashboard's Deploy tab, which reads `homestack.toml`.
 

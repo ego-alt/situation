@@ -1,5 +1,5 @@
 """Stage 2 of the pipeline: which news articles report the same event
-(docs/phases.md). Two methods, chosen by cluster():
+(docs/design.md). Two methods, chosen by cluster():
 
   by_rules    the hand rules (deployed): TF-IDF likeness over each article's
               title (counted twice) and the start of its summary (text.py),

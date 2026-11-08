@@ -1,6 +1,56 @@
-# Design and phases
+# Design
 
-How Situation decides what's on the page, how each decision is measured, what each phase did, and what's next. The product plan is in [`plan.md`](plan.md).
+What Situation is for, how it decides what's on the page, how each decision is measured, and what's next. What it does today is in the README; how it looks is in the dashboard's `docs/design.md`.
+
+A home-stack app that tells you when something big is happening in the world, and stays quiet otherwise.
+
+## The problem
+
+- News apps send too many notifications, so they all get swiped away, the important ones included.
+- Opening a news app every day never became a habit.
+- Twitter surfaces some of it, but only when the algorithm happens to. The French riots (October 2026) went unnoticed until a friend mentioned them.
+
+So the job isn't "more news". It's a **filter with a high bar**, delivered somewhere you'll see it without building a new habit.
+
+## Principles
+
+1. **Few, and only what matters.** A normal day shows five to ten stories out of several hundred. A quiet day shows fewer, and the page says so. Nothing is padded.
+2. **Headlines first.** Each story is one line saying what happened, plus the outlets that carry it. Reading more is one tap away, at the source.
+3. **Importance comes from evidence, not an algorithm tuned for clicks.** The signals are public and explainable: how many independent newsrooms lead with a story, and whether Wikipedia's editors put it "In the news".
+4. **One notification a day, at most one more.** A morning brief, and a second push only for something historic. Never a stream.
+5. **Storylines over items.** Ongoing situations (a war, an outbreak, unrest) are tracked as one thing that develops, not re-announced every day.
+6. **Works without AI.** Grouping, scoring and tiering run on the Pi with no language model. Claude labels data offline, to measure and train against (below); the live app needs no key.
+
+## Sources
+
+| Kind | Sources | Why |
+|---|---|---|
+| Wires (Google News search) | Reuters World, AP | The two agencies most newsrooms build on; their own feeds are gone, so they're read through a Google News site search, titles only. |
+| World desks (RSS) | BBC World, Guardian World, NYT World, Al Jazeera, France 24, DW, NPR World, Le Monde (English), Euronews, Bloomberg Politics (videos skipped) | Independent newsrooms on different continents; agreement between them is the main signal. |
+| Your region (RSS) | SCMP, RTHK, Taipei Times, CNA Asia | Hong Kong, Taiwan and the region get a lower bar. |
+| Curated (Wikipedia) | "In the news" and its "Ongoing" list; the Current events portal | Human editors with a high, global bar. ITN adds a few items a day, hours after the event. On 18 Oct 2026 its top item was the Limoges city hall burning in the French protests. |
+
+Twitter/X is out: its API is expensive and its ranking is the problem being solved. Feeds are configured in `sources.py`; each has a weight and a region.
+
+## How importance is decided
+
+Every fetch (every 15 minutes):
+
+1. **Collect** the latest items from every feed: title, summary, link, time and position in the feed. In the four feeds kept in front-page order (BBC, Guardian, NYT, Le Monde), the first items are the lead stories; the rest are newest first.
+2. **Cluster** items about the same event. The cluster key is TF-IDF over titles and summaries; items join when they're similar enough within 48 hours. A linked group is then cut into tight cores, and cores stay one story only if they share what happened, not just names: the Wainwright base fire and Alberta's referendum share "Alberta" and "Carney" but not "fire" or "vote", so one article mentioning both can't fuse them. Clusters live across fetches, so a story keeps its identity as it develops.
+3. **Score** each cluster:
+   - **breadth:** the number of distinct outlets carrying it, weighted per outlet. This is the core signal.
+   - **lead:** a bonus when front-page-ordered outlets put it among their top three stories.
+   - **curated:** a bonus worth about two outlets when it matches a Wikipedia "In the news" item. It's confirmation, not a trump card: it lifts an under-covered story to Headline, but makes a story Major only alongside real coverage.
+   - **region:** a bonus for Hong Kong, Taiwan, China and the UK.
+   - **freshness:** full for 8 hours from when the story broke (a second outlet picked it up), then halving every 12 hours, unless three or more outlets are still writing about it; so yesterday's story yields to today's.
+4. **Tier** each story:
+   - **Major:** carried by six or more outlets with at least two leading with it, or new on ITN (within a day) and carried by four or more. These can trigger the second push.
+   - **Headline:** carried by four or more outlets, or three when one of them leads with it; for Hong Kong, Taiwan, China and the UK, a weighted breadth of 2. These are shown on the page and in the brief, at most ten at a time (the best by score).
+   - Sport and entertainment stay below the bar, even on ITN, which lists recurring finals.
+   - Everything else stays out of sight. It's searchable later, never shown by default.
+5. **Running stories** (`situations.py`): many events that are part of one thing, found from the news itself. Words whose use jumps over the last day against the fortnight before (at least 12 articles, 6 outlets, three times the usual rate; never a name that's always in the news, like "Trump") and mostly appear together are one candidate. An event joins when most of its articles use its words and it's near the candidate in meaning; a story stays in one country, needs three events, two of them carried by two or more outlets and none holding more than 70% of its articles (one big event is already a story), and words besides place names ("White House" is where, not what). It's named for a phrase at least three of its events use ("US midterm elections"), as their headlines write it; with none, its words were only shared by the day's stories ("president"), and there's no running story. It's scored over all its articles, as fresh as its newest developments, and FLASH with 8+ outlets and 3+ developments carried by two or more in the last 12 hours. The page shows it once, its events as developments. Within a running story, an article the learned news filter doubts counts when the stricter rules call it news ("US midterms: Democrat wins North Carolina" is how running stories are headlined); election results pages are never news.
+6. **Ongoing:** each item in ITN's "Ongoing" list becomes a storyline. A story attaches to it when its headline names one of the situation's countries, it or most of its articles do so in the words of conflict, and it's near the week's coverage in meaning; the page shows its latest development.
 
 ## The pipeline: four questions
 
@@ -17,7 +67,7 @@ On the side: **where** each event happens (`geo.locate`, or a place model traine
 
 Errors flow downstream: a non-news piece that gets through can join an event, a wrong merge inflates an event's outlet count, and that inflates its tier. So each stage is measured on its own, and the page is checked as a whole (is the top 10 right?).
 
-## Principles
+## How it's measured
 
 - **Define the unit before modelling.** Each stage's question, in one sentence, comes before any labels or models.
 - **Objective questions get Claude's labels; taste gets yours.** Stages 1–3 are labelled by Claude in bulk; stage 4, and how wide a situation is, by you.
@@ -27,7 +77,7 @@ Errors flow downstream: a non-news piece that gets through can join an event, a 
 - **Curate datasets, don't just grow them.** Check label quality, report by stratum, and review each new batch before trusting it.
 - **Every comparison comes with an interval,** against what's deployed, on the newest data.
 
-## The apparatus
+### The apparatus
 
 Live code is flat at the top (`fetch`, `pipeline`, `cluster`, `score`, `geo`, `text`, `embed`, `learn`, `labels`, `app`); measuring lives in `evaluation/` and scripts in `tools/`.
 
@@ -37,7 +87,7 @@ Live code is flat at the top (`fetch`, `pipeline`, `cluster`, `score`, `geo`, `t
 - **`tools/evaluate_grouping.py`**: compares event methods against the deployed one on the newest week, with intervals. A new method is one line in its table.
 - **`labels.py` and `/label`**: your rankings and bar answers, and their scoring (`flask evaluate`, `flask train`).
 
-### The labelled data
+#### The labelled data
 
 Three files in `instance/groundtruth/`, each with one job. A piece (`groundtruth.piece`: the same headline under any url) is only ever on one side of a train/test split.
 
@@ -72,11 +122,11 @@ The shipped model trains on the first two together (disputed labels left out), s
 
 ## Roadmap
 
-Ordered by what matters most now.
+Ordered by what matters most now. The learning stages come first; then the product, most of which was planned from the start and isn't built yet.
 
 **Stage 4, tier** (what you see; taste)
+- [ ] Set the Headline bar and the ten-story cap from the real daily counts in `day_tallies`, rather than two days' snapshots.
 - [ ] Rank and answer "would you show it?" on `/label` (40 rankings so far).
-- [ ] Recalibrate the bar and the ten-story cap once the news filter is live: it changes outlet counts.
 - [ ] Train the rank model when the rankings are enough; keep it only if it beats the hand score on held-out labels.
 
 **Stage 1, news** (measure before fixing)
@@ -103,7 +153,19 @@ Ordered by what matters most now.
 (once events hold up)
 - [ ] Situations as a layer over events (shown together, not merged), anchored on Wikipedia's "Ongoing" list.
 
-**Later**
+**The product** (not built yet)
+- **Delivery through ntfy, with quiet hours.** A morning brief (one push at a set time with the top three to five headlines and a link; none on a day with nothing at Headline or above), and a Major alert (at most one a day, outside quiet hours, only for Major stories that weren't in the brief). Stories that were shown are closed rather than deleted, keeping their ids, so nothing will be pushed twice.
+- **Claude's headlines** (optional, `ANTHROPIC_API_KEY`): for each Headline-or-higher story, a neutral headline of 12 words or fewer, a "why it matters" line, and a 1-to-5 significance rating that can move a story one tier at most. Without a key, the most-shared outlet title stays.
+- **The dashboard tile shows the top headline**, so it's visible wherever you already look.
+- **Later:** a weekly recap, an MCP tool ("what's going on in the world?"), per-region bars you can tune, and timelines for each ongoing situation.
+
+**Decisions for you** (when delivery is built)
+- **Brief time and quiet hours.** The defaults are a 08:00 brief and quiet hours from 22:00 to 08:00, in your local time.
+- **Notifications through ntfy?** It's self-hostable and works on Android without Google services; the public ntfy.sh with a private topic name is fine to start.
+- **Regions.** The default boosts are Hong Kong, Taiwan, China and the UK. Add or remove any.
+- **Outlets.** Add an outlet you trust or drop one you don't.
+
+**Later, for learning**
 - A small historical "challenge set" for rare cases (results, ceasefires, leaders falling), if live weeks don't cover them.
 - Revisit learned grouping (the branch) when labels span weeks.
 - Speed only if needed (about 2 seconds a window on the Mac).

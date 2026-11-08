@@ -1,4 +1,4 @@
-"""Stage 3 of the pipeline: running stories (docs/phases.md).
+"""Stage 3 of the pipeline: running stories (docs/design.md).
 
 A running story is many events that are part of one thing: an election night's
 race calls, a hurricane's landfall and its damage, a summit's meetings. Each

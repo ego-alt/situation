@@ -1,6 +1,6 @@
 """How important a story is, and which tier that puts it in.
 
-Signals (see docs/plan.md):
+Signals (see docs/design.md):
   breadth   distinct outlets carrying it, each counted once at its weight
   lead      outlets that put it among their top three items (front-page-ordered
             feeds only; in a newest-first feed the top spot just means recent)
