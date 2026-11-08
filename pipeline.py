@@ -32,9 +32,7 @@ def store(items: list[dict]) -> int:
     known = {a.url: a for a in Article.query.filter(Article.url.in_([i["url"] for i in items])).all()}
     added = 0
     for item in items:
-        def naive(t):
-            return t.astimezone(UTC).replace(tzinfo=None) if t is not None and t.tzinfo is not None else t
-        published, updated = naive(item.get("published")), naive(item.get("updated"))
+        published, updated = item.get("published"), item.get("updated")
         row = known.get(item["url"])
         if row is None:
             db.session.add(Article(
@@ -58,7 +56,7 @@ def article_spots(item) -> list[dict]:
 
 def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]:
     now = now or clock()
-    since = (now - WINDOW).replace(tzinfo=None)
+    since = now - WINDOW
     articles = Article.query.filter(db.or_(Article.published >= since,
                                            db.and_(Article.published.is_(None), Article.fetched >= since))).all()
     for a in articles:
@@ -94,7 +92,7 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
         a = assess(group, place, item, now, itn_fresh=fresh, active=active)
         story.rank(a["headline"], a["tier"], a["score"])
         story.outlets, story.leads, story.itn = a["outlets"], a["leads"], a["itn"]
-        story.newest = a["newest"].astimezone(UTC).replace(tzinfo=None)
+        story.newest = a["newest"]
         _set_place(story, place)
         story.articles = [by_id[i["id"]] for i in group]
         story.run_id = None                 # (set again below if it's part of a running story)
@@ -123,7 +121,7 @@ def regroup_running(groups: list[list[dict]], events: list[Story], topics: list[
         tier, score = running_tier(a, [groups[k] for k in f["events"]], now, active)
         story.rank(f["name"], tier, score)
         story.outlets, story.leads, story.itn = a["outlets"], a["leads"], None
-        story.newest = a["newest"].astimezone(UTC).replace(tzinfo=None)
+        story.newest = a["newest"]
         _set_place(story, place)
         story.articles = [by_id[a["id"]] for a in union]
         db.session.flush()
@@ -146,7 +144,7 @@ def _carry_over(group: list[dict], old: dict[int, set[int]], claimed: set[int], 
     best = max(((len(ids & arts), sid) for sid, arts in old.items() if sid not in claimed), default=(0, None))
     story = db.session.get(Story, best[1]) if best[0] * 2 >= len(ids) else None
     if story is None:
-        story = Story(headline="", tier=BACKGROUND, running=running, first_seen=now.replace(tzinfo=None))
+        story = Story(headline="", tier=BACKGROUND, running=running, first_seen=now)
         db.session.add(story)
     else:
         claimed.add(story.id)
@@ -204,9 +202,9 @@ def usual_words(now: datetime):
     if end not in _usual:
         start = end - timedelta(days=situations.BASELINE_DAYS)
         rows = (db.session.query(Article.title, Article.summary, Article.published, Article.fetched)
-                .filter(Article.published >= start.replace(tzinfo=None), Article.published < end.replace(tzinfo=None)))
+                .filter(Article.published >= start, Article.published < end))
         _usual.clear()
-        _usual[end] = situations.baseline([{"title": t, "summary": s, "published": (p or f).replace(tzinfo=UTC)}
+        _usual[end] = situations.baseline([{"title": t, "summary": s, "published": p or f}
                                            for t, s, p, f in rows])
     return _usual[end]
 
@@ -221,7 +219,7 @@ def itn_first_seen() -> dict[str, datetime]:
     seen: dict[str, datetime] = {}
     for snap in ItnSnapshot.query.order_by(ItnSnapshot.fetched):
         for item in snap.items:
-            seen.setdefault(item, snap.fetched.replace(tzinfo=UTC))
+            seen.setdefault(item, snap.fetched)
     return seen
 
 
@@ -231,14 +229,14 @@ def save_itn(itn: dict, now: datetime | None = None):
         return
     last = latest_itn()
     if last["items"] != itn["items"] or last["ongoing"] != itn.get("ongoing", []):
-        fetched = (now or clock()).astimezone(UTC).replace(tzinfo=None)
+        fetched = now or clock()
         db.session.add(ItnSnapshot(items=itn["items"], ongoing=itn.get("ongoing", []), fetched=fetched))
         db.session.commit()
 
 
 def record_sources(report: dict, now: datetime | None = None):
     """{source key: (item count, error or None)} from one fetch."""
-    now = (now or clock()).astimezone(UTC).replace(tzinfo=None)
+    now = now or clock()
     for key, (count, error) in report.items():
         row = db.session.get(SourceStatus, key) or SourceStatus(key=key)
         row.last_try, row.items, row.error = now, count, error
@@ -251,7 +249,7 @@ def record_sources(report: dict, now: datetime | None = None):
 def source_health(sources, now: datetime | None = None) -> dict:
     """{"ok": n, "total": n, "silent": [names]}: feeds with nothing for 6 hours.
     A feed that hasn't been tried yet isn't counted against it."""
-    now = (now or clock()).astimezone(UTC).replace(tzinfo=None)
+    now = now or clock()
     rows = {r.key: r for r in SourceStatus.query.all()}
     silent = []
     for src in sources:
@@ -266,14 +264,14 @@ def source_health(sources, now: datetime | None = None) -> dict:
 def last_fetch_ok() -> datetime | None:
     """The last time any feed returned items (UTC)."""
     when = db.session.query(db.func.max(SourceStatus.last_ok)).scalar()
-    return when.replace(tzinfo=UTC) if when else None
+    return when
 
 
 def on_screen(now: datetime | None = None) -> tuple[list[Story], int]:
     """Today's stories at Headline or above, best first, capped at MAX_SHOWN;
     and how many cleared the bar before the cap."""
     now = now or clock()
-    since = (now - SHOWN).replace(tzinfo=None)
+    since = now - SHOWN
     # An event that's part of a running story is shown inside it, not on its own.
     cleared = (Story.query.filter(Story.tier != BACKGROUND, Story.closed.is_(False), Story.newest >= since,
                                   Story.run_id.is_(None))
@@ -294,7 +292,7 @@ def tally(now: datetime | None = None):
 
 
 def prune(days: int = 30):
-    cutoff = (clock() - timedelta(days=days)).replace(tzinfo=None)
+    cutoff = clock() - timedelta(days=days)
     Article.query.filter(Article.fetched < cutoff).delete()
     ItnSnapshot.query.filter(ItnSnapshot.fetched < cutoff).delete()
     Story.query.filter(Story.closed.is_(True), Story.newest < cutoff).delete()
@@ -312,10 +310,10 @@ def tracks(areas: list[set[str]], now: datetime | None = None, limit: int = 40) 
     """For each situation's countries, where its reporting has been over the past
     week: every city or region named there in an article about it (about_situation),
     how many articles named it and when last. One pass over the week's articles."""
-    since = ((now or clock()) - TRACK).replace(tzinfo=None)
+    since = (now or clock()) - TRACK
     seen: list[dict[tuple, dict]] = [{} for _ in areas]
     for a in Article.query.filter(Article.published >= since, Article.spots.isnot(None)):
-        when = a.published.replace(tzinfo=UTC)
+        when = a.published
         text = f"{a.title}. {a.summary or ''}"
         for isos, found in zip(areas, seen, strict=True):
             if not _about(text, isos):
@@ -369,7 +367,7 @@ def ongoing_situations(stories: list[Story], itn: dict, now: datetime | None = N
     """Wikipedia's "Ongoing" topics, each with its latest development today: what most
     outlets carry about it (about_situation). A single outlet's piece isn't quoted (it's
     as often an essay as news), only counted."""
-    now = (now or clock()).replace(tzinfo=None)
+    now = now or clock()
     since = now - SHOWN
     week = [{"title": a.title, "summary": a.summary} for a in Article.query.filter(Article.published >= now - TRACK)]
     out = []

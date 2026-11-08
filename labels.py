@@ -50,11 +50,11 @@ def snapshots_dir() -> pathlib.Path:
 def save_snapshot(now: datetime) -> str:
     """The articles the app is grouping now, as the fetcher returns them."""
     from pipeline import WINDOW, latest_itn
-    since = (now - WINDOW).replace(tzinfo=None)
+    since = now - WINDOW
     articles = Article.query.filter(db.or_(Article.published >= since,
                                            db.and_(Article.published.is_(None), Article.fetched >= since))).all()
     items = [{"source": a.source, "title": a.title, "url": a.url, "summary": a.summary, "position": a.position,
-              "published": (a.published or a.fetched).replace(tzinfo=UTC).isoformat()} for a in articles]
+              "published": (a.published or a.fetched).isoformat()} for a in articles]
     name = now.strftime("%Y-%m-%dT%H%M")
     data = {"taken": now.isoformat(), "items": items, "itn": latest_itn()}
     with gzip.open(snapshots_dir() / f"{name}.json.gz", "wt", encoding="utf-8") as f:
@@ -189,7 +189,7 @@ def record(answer: dict) -> Label:
 
 
 def counts(now: datetime) -> dict:
-    today = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     yours = Label.query.filter_by(source="you")
     return {"today": yours.filter(Label.at >= today).count(), "total": yours.count()}
 
@@ -312,5 +312,6 @@ def prune_snapshots(days: int = 30):
     cutoff = utcnow() - timedelta(days=days)
     for path in snapshots_dir().glob("*.json.gz"):
         name = path.name.removesuffix(".json.gz")
-        if name not in judged and _NAME.match(name) and datetime.strptime(name, "%Y-%m-%dT%H%M") < cutoff:
+        taken = datetime.strptime(name, "%Y-%m-%dT%H%M").replace(tzinfo=UTC) if _NAME.match(name) else None
+        if name not in judged and taken and taken < cutoff:
             path.unlink()

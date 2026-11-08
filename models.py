@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import DateTime
+from sqlalchemy.types import TypeDecorator
 
 from score import BACKGROUND
 
@@ -8,7 +10,28 @@ db = SQLAlchemy()
 
 
 def utcnow():
-    return datetime.now(UTC).replace(tzinfo=None)   # stored naive, always UTC
+    return datetime.now(UTC)
+
+
+class UtcDateTime(TypeDecorator):
+    """A moment stored as naive UTC (SQLite keeps no zone) and always read back
+    as aware UTC, so code never strips or adds the zone by hand and isoformat()
+    ends in +00:00. Every timestamp column uses it (tests/test_app.py)."""
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            raise ValueError("UtcDateTime needs an aware datetime, not a naive one")
+        return value.astimezone(UTC).replace(tzinfo=None)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 story_articles = db.Table(
@@ -27,16 +50,16 @@ class Article(db.Model):
     outlet = db.Column(db.String, nullable=False)
     title = db.Column(db.String, nullable=False)
     summary = db.Column(db.String)
-    published = db.Column(db.DateTime, index=True)      # UTC
-    updated = db.Column(db.DateTime)                    # UTC, when the outlet last revised it (if it says)
+    published = db.Column(UtcDateTime, index=True)      # UTC
+    updated = db.Column(UtcDateTime)                    # UTC, when the outlet last revised it (if it says)
     position = db.Column(db.Integer)                    # place in its feed when last seen (0 = lead)
-    fetched = db.Column(db.DateTime, default=utcnow, index=True)
+    fetched = db.Column(UtcDateTime, default=utcnow, index=True)
     spots = db.Column(db.JSON)                          # cities and regions it names (geo.spots)
 
     def as_item(self) -> dict:
         return {"id": self.id, "source": self.source, "outlet": self.outlet, "title": self.title,
                 "summary": self.summary, "url": self.url, "position": self.position,
-                "published": (self.published or self.fetched).replace(tzinfo=UTC)}
+                "published": self.published or self.fetched}
 
 
 class Story(db.Model):
@@ -56,8 +79,8 @@ class Story(db.Model):
     lon = db.Column(db.Float)
     x = db.Column(db.Float)                                     # map position (projection.py)
     y = db.Column(db.Float)
-    first_seen = db.Column(db.DateTime, default=utcnow)
-    newest = db.Column(db.DateTime)
+    first_seen = db.Column(UtcDateTime, default=utcnow)
+    newest = db.Column(UtcDateTime)
     # Closed once none of its articles are in the regrouping window any more;
     # kept (with its id) so nothing is pushed twice.
     closed = db.Column(db.Boolean, nullable=False, default=False, index=True)
@@ -80,7 +103,7 @@ class ItnSnapshot(db.Model):
     """What Wikipedia's "In the news" said at a fetch."""
     __tablename__ = "itn_snapshots"
     id = db.Column(db.Integer, primary_key=True)
-    fetched = db.Column(db.DateTime, default=utcnow, index=True)
+    fetched = db.Column(UtcDateTime, default=utcnow, index=True)
     items = db.Column(db.JSON, nullable=False)
     ongoing = db.Column(db.JSON, nullable=False)
 
@@ -89,8 +112,8 @@ class SourceStatus(db.Model):
     """How each feed did on its last fetches, so a broken one is noticed."""
     __tablename__ = "source_status"
     key = db.Column(db.String, primary_key=True)
-    last_try = db.Column(db.DateTime)
-    last_ok = db.Column(db.DateTime)            # last fetch that returned items
+    last_try = db.Column(UtcDateTime)
+    last_ok = db.Column(UtcDateTime)            # last fetch that returned items
     items = db.Column(db.Integer, nullable=False, default=0)
     error = db.Column(db.String)
 
@@ -109,10 +132,10 @@ class Signal(db.Model):
     lat = db.Column(db.Float, nullable=False)
     lon = db.Column(db.Float, nullable=False)
     magnitude = db.Column(db.Float)
-    started = db.Column(db.DateTime, nullable=False, index=True)
-    ended = db.Column(db.DateTime, nullable=False)              # an earthquake ends when it starts
+    started = db.Column(UtcDateTime, nullable=False, index=True)
+    ended = db.Column(UtcDateTime, nullable=False)              # an earthquake ends when it starts
     url = db.Column(db.String)
-    seen = db.Column(db.DateTime, default=utcnow)               # when Situation first saw it
+    seen = db.Column(UtcDateTime, default=utcnow)               # when Situation first saw it
 
 
 class DayTally(db.Model):
@@ -133,7 +156,7 @@ class Label(db.Model):
     a = db.Column(db.JSON, nullable=False)                      # same: an article; rank: a story's headline and urls
     b = db.Column(db.JSON, nullable=False)
     answer = db.Column(db.String, nullable=False)               # a|b|equal, or yes|no|borderline
-    at = db.Column(db.DateTime, default=utcnow, index=True)
+    at = db.Column(UtcDateTime, default=utcnow, index=True)
     source = db.Column(db.String, nullable=False, default="you", index=True)   # you, or claude:<model>
 
 
@@ -153,8 +176,8 @@ class Paper(db.Model):
     free = db.Column(db.JSON)                                   # {"url", "label"}: a copy anyone can read
     on = db.Column(db.String, index=True)                       # commentary: the DOI it's about
     cover = db.Column(db.String)                                # research: the cover image, when it's the cover story
-    fetched = db.Column(db.DateTime, default=utcnow)
-    enriched = db.Column(db.DateTime)                           # when its figure was looked for
+    fetched = db.Column(UtcDateTime, default=utcnow)
+    enriched = db.Column(UtcDateTime)                           # when its figure was looked for
 
 
 def migrate():

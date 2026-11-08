@@ -207,16 +207,16 @@ def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
     for j in JOURNALS:
         status = db.session.get(SourceStatus, f"papers:{j.key}") or SourceStatus(key=f"papers:{j.key}")
         db.session.add(status)
-        status.last_try = now.replace(tzinfo=None)
+        status.last_try = now
         try:
             report[j.key] = _read(j, since, until)
-            status.last_ok, status.items, status.error = now.replace(tzinfo=None), report[j.key], None
+            status.last_ok, status.items, status.error = now, report[j.key], None
         except (requests.RequestException, ValueError, KeyError) as e:
             status.error = type(e).__name__
             report[j.key] = status.error
         db.session.commit()
     covered = db.session.get(SourceStatus, "papers:since") or SourceStatus(key="papers:since")
-    start = datetime.combine(since, datetime.min.time())
+    start = datetime.combine(since, datetime.min.time(), UTC)
     covered.last_ok = min(covered.last_ok or start, start)    # where editions begin
     db.session.add(covered)
     _link_commentaries(since)
@@ -345,7 +345,7 @@ def _covers():
 def due(now: datetime) -> bool:
     last = (db.session.query(db.func.max(SourceStatus.last_try))
             .filter(SourceStatus.key.like("papers:%"), SourceStatus.key != "papers:since").scalar())
-    return last is None or now.replace(tzinfo=None) - last >= EVERY
+    return last is None or now - last >= EVERY
 
 
 # ---------- editions ----------
@@ -470,5 +470,5 @@ def status() -> dict:
 def last_fetched() -> datetime | None:
     last = (db.session.query(db.func.max(SourceStatus.last_ok))
             .filter(SourceStatus.key.like("papers:%"), SourceStatus.key != "papers:since").scalar())
-    return last.replace(tzinfo=UTC) if last else None
+    return last
 

@@ -86,7 +86,7 @@ def create_app(config=None):
             return {"error": "no such country"}, 404
         shown = Story.query.filter(Story.iso == card["iso"], Story.tier != "background")
         last = shown.order_by(Story.newest.desc()).first()
-        month = (clock() - timedelta(days=30)).replace(tzinfo=None)
+        month = clock() - timedelta(days=30)
         return jsonify({**card, "stories_30d": shown.filter(Story.newest >= month).count(),
                         "last": {"headline": last.headline, "at": _iso(last.newest), "id": last.id} if last else None})
 
@@ -218,8 +218,8 @@ def create_app(config=None):
         import news
         from models import Article
         model = learn.load("news")
-        items = [a.as_item() for a in Article.query.filter(Article.fetched >= datetime.now(UTC).replace(tzinfo=None)
-                                                            - timedelta(hours=hours))]
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        items = [a.as_item() for a in Article.query.filter(Article.fetched >= since)]
         p = news.chances(items, model) if model and items else None
         if p is None:
             print("no news model in use: the rules decide (news.is_news)")
@@ -321,7 +321,7 @@ def start_loop(app):
 
 
 def _iso(dt):
-    return (dt if dt.tzinfo else dt.replace(tzinfo=UTC)).isoformat() if dt else None
+    return dt.isoformat() if dt else None
 
 
 def _xy(s: Story) -> dict:

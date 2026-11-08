@@ -20,7 +20,7 @@ Signals (see docs/plan.md):
 """
 import re
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import datetime
 
 from geo import places
 from sources import BY_KEY
@@ -166,8 +166,7 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     home = bool(place and place["iso"] in HOME_REGIONS)
 
     def when(a):
-        t = a.get("published") or now
-        return t if t.tzinfo else t.replace(tzinfo=UTC)
+        return a.get("published") or now
     times = [when(a) for a in articles if a.get("published")]
     newest = max(times) if times else now
     first_by_outlet: dict[str, datetime] = {}

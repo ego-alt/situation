@@ -63,7 +63,7 @@ def test_one_signal_per_earthquake(app):
 
 def test_signals_show_while_they_happen_and_two_days_after(app):
     signals.fetch(NOW, get=fake_get)
-    now = NOW.replace(tzinfo=None)
+    now = NOW
     shown = {s.title for s in signals.current(now)}
     assert shown == {"Cyclone Murasu", "M7.0 earthquake", "M6.1 earthquake"}    # Taal erupted in October
     assert signals.current(now)[0].level == "red"                                # red first
@@ -75,10 +75,10 @@ def test_a_story_about_the_event_is_tied_to_its_signal(app):
     from models import Article, Story, db
     signals.fetch(NOW, get=fake_get)
     story = Story(headline="Strong earthquake shakes western China", tier="headline", iso="CN", outlets=5,
-                  first_seen=QUAKE.replace(tzinfo=None))
+                  first_seen=QUAKE)
     story.articles.append(Article(url="https://ap.example/q", source="ap", outlet="ap", title="Quake hits Qinghai",
-                                  published=(QUAKE + timedelta(minutes=40)).replace(tzinfo=None)))
+                                  published=(QUAKE + timedelta(minutes=40))))
     db.session.add(story)
     db.session.commit()
-    china = next(s for s in _signals(NOW.replace(tzinfo=None), [story]) if s["iso"] == "CN")
+    china = next(s for s in _signals(NOW, [story]) if s["iso"] == "CN")
     assert china["story_id"] == story.id and china["lead"] == 40   # seen 40 minutes before the first report

@@ -36,10 +36,10 @@ def _get(url, **params):
     return resp.json()
 
 
-def _naive(text: str) -> datetime:
+def _utc(text: str) -> datetime:
     """GDACS's times, which are UTC without saying so."""
     t = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    return t.astimezone(UTC).replace(tzinfo=None) if t.tzinfo else t
+    return t.astimezone(UTC) if t.tzinfo else t.replace(tzinfo=UTC)
 
 
 def _iso2(iso3: str | None) -> str | None:
@@ -79,8 +79,8 @@ def gdacs(record: dict) -> dict | None:
     url = p.get("url") or {}
     return {"id": f"gdacs:{kind}:{p.get('eventid')}", "source": "GDACS", "kind": kind, "level": level,
             "title": _title(kind, name, magnitude), "place": _places(p.get("country")), "iso": iso,
-            "lat": lat, "lon": lon, "magnitude": magnitude, "started": _naive(p["fromdate"]),
-            "ended": _naive(p.get("todate") or p["fromdate"]),
+            "lat": lat, "lon": lon, "magnitude": magnitude, "started": _utc(p["fromdate"]),
+            "ended": _utc(p.get("todate") or p["fromdate"]),
             "url": url.get("report") if isinstance(url, dict) else url}
 
 
@@ -91,7 +91,7 @@ def usgs(record: dict) -> dict | None:
     if magnitude < MIN_MAGNITUDE and alert not in PAGER and not p.get("tsunami"):
         return None
     lon, lat = record["geometry"]["coordinates"][:2]
-    at = datetime.fromtimestamp(p["time"] / 1000, UTC).replace(tzinfo=None)
+    at = datetime.fromtimestamp(p["time"] / 1000, UTC)
     named = places(p.get("place") or "")
     return {"id": f"usgs:{record.get('id')}", "source": "USGS", "kind": "EQ",
             "level": alert if alert in ("orange", "red") else "orange", "title": _title("EQ", "", magnitude),
@@ -124,7 +124,7 @@ def merge(found: list[dict]) -> list[dict]:
 
 def fetch(now: datetime | None = None, get=_get) -> int:
     """Read both services and keep what counts; returns how many signals are current."""
-    now = (now or datetime.now(UTC)).astimezone(UTC).replace(tzinfo=None)
+    now = now or datetime.now(UTC)
     week = {"fromdate": (now - timedelta(days=7)).date().isoformat(),
             "todate": (now + timedelta(days=1)).date().isoformat(), "alertlevel": "Orange;Red"}
     reads = {"gdacs": lambda: [gdacs(f) for f in get(GDACS, **week).get("features", [])],
@@ -154,7 +154,6 @@ def fetch(now: datetime | None = None, get=_get) -> int:
 
 def current(now: datetime) -> list[Signal]:
     """The signals to show: happening, or ended within SHOWN; red first, then newest."""
-    now = now.astimezone(UTC).replace(tzinfo=None) if now.tzinfo else now
     rows = Signal.query.filter(Signal.ended >= now - SHOWN, Signal.started <= now).all()
     return sorted(rows, key=lambda s: (s.level != "red", -s.started.timestamp()))
 

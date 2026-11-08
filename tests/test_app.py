@@ -235,7 +235,7 @@ def test_sync_fetches_now_but_not_twice_in_a_row(app, monkeypatch):
     assert client.post("/api/sync").get_json()["status"] == "fetched" and len(calls) == 1
     # Moments later: spare the news sites.
     assert client.post("/api/sync").get_json()["status"] == "recent" and len(calls) == 1
-    db.session.get(SourceStatus, "bbc").last_ok = (NOW - timedelta(minutes=10)).replace(tzinfo=None)
+    db.session.get(SourceStatus, "bbc").last_ok = (NOW - timedelta(minutes=10))
     db.session.commit()
     # A fetch already running (the background loop): the button waits for it instead of starting another.
     app_module._fetch_lock.acquire()
@@ -276,7 +276,7 @@ def test_a_running_story_shows_its_latest_development(app, monkeypatch):
     from models import Article, Story, db
     def article(outlet, title, hours_ago):
         return Article(url=f"https://example.org/{outlet}/{hours_ago}", source=outlet, outlet=outlet, title=title,
-                       published=(NOW - timedelta(hours=hours_ago)).replace(tzinfo=None))
+                       published=(NOW - timedelta(hours=hours_ago)))
     arts = [article("bbc", "Riots spread across France", 30), article("nyt", "Riots spread across France", 29),
             article("ap", "Paris police issue overnight curfew in two areas after riots", 1),
             article("reuters", "Riots spread across France again", 0.5), article("dw", "France", 0.2),
@@ -336,7 +336,7 @@ def test_a_situation_takes_stories_about_it_wherever_they_are(app):
     from pipeline import about_situation
 
     def story(headline, iso, titles):
-        s = Story(headline=headline, tier="headline", iso=iso, outlets=len(titles), first_seen=NOW.replace(tzinfo=None))
+        s = Story(headline=headline, tier="headline", iso=iso, outlets=len(titles), first_seen=NOW)
         s.articles = [Article(url=f"https://x.example/{headline[:9]}{i}", source="ap", outlet=f"o{i}", title=t)
                       for i, t in enumerate(titles)]
         db.session.add(s)
@@ -353,3 +353,14 @@ def test_a_situation_takes_stories_about_it_wherever_they_are(app):
     vance = story("JD Vance, frustrated by his party's defeat, sparks debate", "US",
                   ["Vance frustrated as Iran war costs Republicans", "Republicans blame the Iran war for defeat"])
     assert not about_situation(vance, {"IR"})    # its articles blame the war; it's about the midterms
+
+
+def test_every_timestamp_column_is_utc():
+    """Stored as UTC and read back with its zone (models.UtcDateTime), so no code
+    strips or adds the zone by hand."""
+    from sqlalchemy import DateTime
+
+    from models import db
+    columns = [(t.name, c) for t in db.metadata.tables.values() for c in t.columns]
+    plain = [f"{name}.{c.name}" for name, c in columns if isinstance(c.type, DateTime)]
+    assert plain == []
