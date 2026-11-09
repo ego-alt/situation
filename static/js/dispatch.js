@@ -235,11 +235,9 @@
         step('prev', e?.prev);
         step('next', e?.next);
         $('turn').hidden = !e?.prev && !e?.next;
-        const names = data.journals;
-        const under = e?.in_progress ? `This week’s edition fills in as papers come out, until ${esc(due)}. ` : '';
-        $('foot').innerHTML = `<p>${under}Research papers in neuroscience from
-            ${esc(names.slice(0, -1).join(', '))} and ${esc(names[names.length - 1])}, by the week they came out.</p>
-            <p>Abstracts and links: <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>. Figures: the publishers.</p>`;
+        // The foot says only that this week's issue is still filling in; otherwise there's no foot.
+        $('foot').hidden = !e?.in_progress;
+        $('foot').innerHTML = e?.in_progress ? `<p>This week’s edition fills in as papers come out, until ${esc(due)}.</p>` : '';
         document.title = e ? `Situation · Dispatch No. ${e.number}` : 'Situation · Dispatch';
     }
 
@@ -334,20 +332,22 @@
         return `${esc(OUTCOME[q.state])}. ${said}; the crowd ${pct(q.crowd)}.${scored}${waiting}`;
     }
 
-    /** Your answer beside the question: the slider while it's open, what came of it after. */
+    /** Your answer beside the question: the slider while it's open (saved when you let go of
+     * it), what came of it after. */
     function answer(q) {
         if (q.state !== 'open') {
             return `<article class="story open w4"><p class="kicker"><span class="journal">${q.state === 'closed' ? 'Closed' : 'The result'}</span></p>
                 <p class="abstract">${outcome(q)}</p></article>`;
         }
         const set = q.yours != null;
-        return `<form class="story open w4" data-edition="${esc(q.edition)}">
+        return `<div class="story open w4 answer" data-edition="${esc(q.edition)}">
             <p class="kicker"><label class="journal" for="fcChance">Your chance of Yes</label></p>
             <output class="story-title" for="fcChance">${set ? pct(q.yours) : '—'}</output>
-            <input class="range${set ? '' : ' unset'}" id="fcChance" type="range" min="0" max="100" step="5" value="${set ? q.yours : 50}" aria-valuetext="${set ? pct(q.yours) : 'not set'}">
-            <p class="links"><button type="submit" class="btn" ${set ? 'hidden' : 'disabled'}>Save</button></p>
+            <input class="range${set ? '' : ' unset'}" id="fcChance" type="range" min="0" max="100" step="5" value="${set ? q.yours : 50}"
+                style="--v: ${set ? q.yours : 50}%" aria-valuetext="${set ? pct(q.yours) : 'not set'}">
+            <div class="range-scale" aria-hidden="true"><span>No</span><span>50</span><span>Yes</span></div>
             <p class="byline" role="status">${set ? `Saved. The crowd said ${pct(q.crowd)} when you did. You can change it until ${esc(on(q.closes))}.`
-                : 'Move the slider, then save. The crowd’s odds show once you have.'}</p></form>`;
+                : 'Slide to answer. The crowd’s odds show once you have.'}</p></div>`;
     }
 
     /** How you've done, in sentences: against the crowd, how often what you said came true, by subject. */
@@ -388,33 +388,30 @@
             ${results.slice(1).map((r) => `<div class="row">${r}</div>`).join('')}`;
     }
 
+    // Sliding shows your number; letting go saves it.
     $('forecast').addEventListener('input', (e) => {
         if (!e.target.matches('.range')) return;
-        const form = e.target.closest('form');
         e.target.classList.remove('unset');
+        e.target.style.setProperty('--v', pct(e.target.value));
         e.target.setAttribute('aria-valuetext', pct(e.target.value));
-        form.querySelector('output').textContent = pct(e.target.value);
-        const save = form.querySelector('button');
-        save.hidden = false;
-        save.disabled = false;
+        e.target.closest('.answer').querySelector('output').textContent = pct(e.target.value);
     });
-    $('forecast').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const form = e.target;
-        const save = form.querySelector('button');
-        save.disabled = true;
+    $('forecast').addEventListener('change', async (e) => {
+        if (!e.target.matches('.range')) return;
+        const box = e.target.closest('.answer');
+        const status = box.querySelector('[role=status]');
+        status.textContent = 'Saving…';
         try {
-            const res = await fetch(url(`/api/forecast/${encodeURIComponent(form.dataset.edition)}`), {
+            const res = await fetch(url(`/api/forecast/${encodeURIComponent(box.dataset.edition)}`), {
                 method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chance: Number(form.querySelector('.range').value) }),
+                body: JSON.stringify({ chance: Number(e.target.value) }),
             });
             const body = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(body.error || 'Couldn’t save it. Try again.');
+            if (!res.ok) throw new Error(body.error || 'Couldn’t save it. Let go of the slider again to retry.');
             data.forecast = body;
             drawForecast();
         } catch (err) {
-            save.disabled = false;
-            form.querySelector('[role=status]').textContent = err.message === 'Failed to fetch' ? 'Can’t reach the server. Try again.' : err.message;
+            status.textContent = err.message === 'Failed to fetch' ? 'Can’t reach the server, so it isn’t saved yet. Try again.' : err.message;
         }
     });
 

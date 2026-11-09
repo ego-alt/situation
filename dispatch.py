@@ -9,7 +9,6 @@ from datetime import date, datetime, timedelta
 import holidays
 
 import papers
-from journals import JOURNALS
 
 KEEP_WEEKS = 4                  # the last four issues, then they go
 HOLIDAYS = ("HK", "Hong Kong")  # whose public holidays it lists (the holidays library's code), and its name
@@ -74,7 +73,7 @@ def issue(which: str | None, today: date, fetched: datetime | None = None) -> di
     upcoming = {"out": (this_week + timedelta(days=7)).isoformat(),
                 "so_far": len(papers.section(this_week))}
     base = {"editions": all_editions, "next_edition": upcoming, "fetched": fetched.isoformat() if fetched else None,
-            "sources": papers.status(), "journals": [j.name for j in JOURNALS]}
+            "sources": papers.status()}
     if not which:
         return {**base, "edition": None, "papers": [], "holidays": {"where": HOLIDAYS[1], "days": []}}
     start = week_of(which)

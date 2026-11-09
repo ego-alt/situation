@@ -131,6 +131,11 @@
 
 /* The week's question and the holidays are set in these same modules, but they don't open. */
 .still .story { cursor: auto; }
+/* Your answer: what's asked beside your number, then the slider, its scale and a line on what's saved. */
+.answer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-3); }
+.answer > :not(.kicker, .story-title) { grid-column: 1 / -1; }
+.answer .kicker { margin: 0; }
+.answer .range { margin-top: var(--space-3); }
 
 .section-rule {
     display: flex; justify-content: space-between; margin: 0; padding: var(--space-2) 0;
@@ -146,7 +151,6 @@
     text-align: center; font: var(--text-xs)/1.6 var(--font-mono); letter-spacing: 0.04em; color: var(--color-text-muted);
 }
 .press-foot p { margin: 0; }
-.press-foot a { color: inherit; }
 .dispatch-page .notice { margin-top: var(--space-4); }
 /* The steps again at the foot of the edition, where you finish reading it: the folio's rules,
    turned over (one above, the footer's double one below). */
@@ -156,11 +160,7 @@
 }
 .turn[hidden] { display: none; }
 .turn + .press-foot { margin-top: 0; }
-/* Touch: small links keep their look, with a finger-sized target. */
-@media (hover: none) {
-    .press-foot a { position: relative; }
-    .press-foot a::after { content: ""; position: absolute; inset: -15px 0; }
-}
+.press-foot[hidden] { display: none; }
 
 /* ---- a figure on its own, over the page: tap to zoom, Close or Back to put it away ---- */
 .viewer {
