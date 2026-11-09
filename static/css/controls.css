@@ -3,7 +3,9 @@
  *   .btn        a bordered mono chip, quiet until hovered (Show all, Try again)
  *   .btn-float  the same, on glass over the map (zoom)
  *   .btn-lg     a big choice to tap (the labelling page)
- *   .btn-ghost  bare words that act (Sync in the bar) */
+ *   .btn-ghost  bare words that act (Sync in the bar)
+ * and its one slider:
+ *   .range      a hairline track with a square thumb (the forecast's chance) */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -32,6 +34,19 @@
 }
 
 .btn-ghost { border-color: transparent; color: inherit; font: inherit; letter-spacing: inherit; }
+
+.range { width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.range:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 2px; }
+.range::-webkit-slider-runnable-track { height: 2px; background: var(--color-border); }
+.range::-moz-range-track { height: 2px; background: var(--color-border); }
+.range::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px;
+    border: 1px solid var(--color-text-primary); border-radius: var(--radius-sm); background: var(--color-bg-base);
+}
+.range::-moz-range-thumb { width: 14px; height: 14px; border: 1px solid var(--color-text-primary); border-radius: var(--radius-sm); background: var(--color-bg-base); }
+/* Not moved yet: the thumb waits, unlit, so nothing is suggested. */
+.range.unset::-webkit-slider-thumb { border-color: var(--color-text-muted); }
+.range.unset::-moz-range-thumb { border-color: var(--color-text-muted); }
 
 /* Hover only where there's a pointer to hover with: on a touch screen it sticks after a tap. */
 @media (hover: hover) {

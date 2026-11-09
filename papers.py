@@ -1,8 +1,9 @@
-"""Papers: a weekly paper of the neuroscience in the journals in journals.py.
+"""Papers: the neuroscience in the journals in journals.py, the first section of Dispatch.
 
 Once a day the last three weeks of each journal are read from Europe PMC: abstracts,
 article types, free copies and PubMed's commentary links. A paper belongs to the
 week it first came out; the cover story leads, then papers with a commentary, then the rest.
+Which weeks make an issue, and what else is in it, is dispatch.py's.
 """
 import html
 import re
@@ -19,7 +20,6 @@ EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CROSSREF = "https://api.crossref.org/works/"
 WINDOW = timedelta(days=21)     # commentaries and free copies come later, so look back this far
 EVERY = timedelta(days=1)
-KEEP_WEEKS = 4                  # a periodical, not an archive: the last four issues, then they go
 TIMEOUT = 20
 NOT_RESEARCH = {"Review", "News", "Editorial", "Letter", "Published Erratum", "Retraction of Publication",
                 "Retracted Publication", "Expression of Concern", "Comment"}
@@ -217,10 +217,9 @@ def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
         db.session.commit()
     covered = db.session.get(SourceStatus, "papers:since") or SourceStatus(key="papers:since")
     start = datetime.combine(since, datetime.min.time(), UTC)
-    covered.last_ok = min(covered.last_ok or start, start)    # where editions begin
+    covered.last_ok = min(covered.last_ok or start, start)    # where the issues begin
     db.session.add(covered)
     _link_commentaries(since)
-    prune(now.date())
     _enrich()
     _covers()
     db.session.commit()
@@ -348,47 +347,25 @@ def due(now: datetime) -> bool:
     return last is None or now - last >= EVERY
 
 
-# ---------- editions ----------
+# ---------- for the issue (dispatch.py) ----------
 
-def monday(d: date) -> date:
-    return d - timedelta(days=d.weekday())
-
-
-def edition_id(d: date) -> str:
-    y, w, _ = d.isocalendar()
-    return f"{y}-W{w:02d}"
-
-
-def week_of(edition: str) -> date | None:
-    try:
-        return date.fromisocalendar(int(edition[:4]), int(edition[6:8]), 1)
-    except (ValueError, IndexError):
-        return None
-
-
-def kept_from(today: date) -> date:
-    """The first day of the oldest issue kept."""
-    return monday(today) - timedelta(weeks=KEEP_WEEKS)
-
-
-def editions(today: date) -> list[str]:
-    """The last KEEP_WEEKS weeks read in full that have a paper (or a commentary on an earlier
-    one) in them, oldest first: this week too, while it fills in."""
+def covered_from() -> date | None:
+    """The first day read in full: the issues begin with the first whole week after it."""
     covered = db.session.get(SourceStatus, "papers:since")
-    if not covered or not covered.last_ok:
-        return []
-    first = covered.last_ok.date()
-    first = max(first if first.weekday() == 0 else monday(first) + timedelta(days=7), kept_from(today))
+    return covered.last_ok.date() if covered and covered.last_ok else None
+
+
+def published_days(start: date, end: date) -> set[date]:
+    """The days from `start` until `end` with a paper out (or a commentary on an earlier one)."""
     days = (db.session.query(Paper.published).distinct()
             .filter(db.or_(Paper.kind == "research", db.and_(Paper.kind == "commentary", Paper.on.isnot(None))),
-                    Paper.published >= first, Paper.published < monday(today) + timedelta(days=7)))
-    return sorted({edition_id(d) for (d,) in days})
+                    Paper.published >= start, Paper.published < end))
+    return {d for (d,) in days}
 
 
-def prune(today: date) -> int:
-    """Forget what's older than the issues kept: papers, their commentaries and the rest.
-    A paper stays while a commentary on it is in a kept issue (that issue shows it)."""
-    cutoff = kept_from(today)
+def prune(cutoff: date) -> int:
+    """Forget the papers out before `cutoff`, their commentaries and the rest. A paper stays
+    while a commentary on it is out after the cutoff (that issue shows it)."""
     discussed = {on for (on,) in db.session.query(Paper.on).filter(Paper.kind == "commentary", Paper.on.isnot(None),
                                                                     Paper.published >= cutoff)}
     old = Paper.query.filter(Paper.published < cutoff).all()
@@ -398,23 +375,12 @@ def prune(today: date) -> int:
     return len(gone)
 
 
-def edition(which: str | None, today: date, fetched: datetime | None = None) -> dict:
-    """One week's papers in layout order: the cover story, those with a commentary, the
-    rest; within each by journal rank, newest first. Defaults to the newest finished week."""
-    all_editions = editions(today)
-    this_week = monday(today)
-    finished = [e for e in all_editions if week_of(e) < this_week]
-    which = which if which in all_editions else (finished or all_editions or [None])[-1]
-    upcoming = {"out": (this_week + timedelta(days=7)).isoformat(),
-                "so_far": Paper.query.filter(Paper.kind == "research", Paper.published >= this_week).count()}
-    base = {"editions": all_editions, "next_edition": upcoming, "fetched": fetched.isoformat() if fetched else None,
-            "sources": status(), "journals": [j.name for j in JOURNALS]}
-    if not which:
-        return {**base, "edition": None, "papers": []}
-    start = week_of(which)
+def section(start: date) -> list[dict]:
+    """The week from `start`, in layout order: the cover story, those with a commentary, the
+    rest; within each by journal rank, newest first. A commentary out this week brings its
+    earlier paper into the week (Neuron's Previews come with its print issue): a late
+    commentary is news in its own issue, with its paper."""
     in_week = (Paper.published >= start, Paper.published < start + timedelta(days=7))
-    # The week's papers, and earlier ones a commentary out this week is about (Neuron's Previews
-    # come with its print issue): a late commentary is news in its own issue, with its paper.
     commentary = (Paper.kind == "commentary", Paper.on.isnot(None))
     late = {on for (on,) in db.session.query(Paper.on).filter(*commentary, *in_week)}
     papers = Paper.query.filter(Paper.kind == "research",
@@ -432,13 +398,7 @@ def edition(which: str | None, today: date, fetched: datetime | None = None) -> 
         lead = next((p for p in papers if p.figure), papers[0])
         papers.remove(lead)
         papers.insert(0, lead)
-    at = all_editions.index(which)
-    return {**base, "edition": {"id": which, "number": int(which[6:8]),
-                                "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
-                                "in_progress": start >= this_week,
-                                "prev": all_editions[at - 1] if at else None,
-                                "next": all_editions[at + 1] if at + 1 < len(all_editions) else None},
-            "papers": [{**_paper(p, notes.get(p.doi, [])), "earlier": p.published < start} for p in papers]}
+    return [{**_paper(p, notes.get(p.doi, [])), "earlier": p.published < start} for p in papers]
 
 
 def _paper(p: Paper, notes: list[Paper]) -> dict:

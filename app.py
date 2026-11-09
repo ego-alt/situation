@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import click
 import numpy as np
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from models import Story, db, migrate
@@ -43,19 +43,49 @@ def create_app(config=None):
     def index():
         return render_template("index.html")
 
+    @app.route("/dispatch")
+    @app.route("/dispatch/<edition>")
+    def dispatch_page(edition=None):
+        """Dispatch; /dispatch/2026-W44 is that week's issue (the page reads it from the address)."""
+        from journals import SUBJECT
+        return render_template("dispatch.html", subject=SUBJECT)
+
     @app.route("/papers")
     @app.route("/papers/<edition>")
     def papers_page(edition=None):
-        """Papers; /papers/2026-W44 is that week's edition (the page reads it from the address)."""
-        from journals import SUBJECT
-        return render_template("papers.html", subject=SUBJECT)
+        """Where Dispatch was called Papers: old links still work."""
+        return redirect(url_for("dispatch_page", edition=edition), 301)
 
-    @app.route("/api/papers")
-    def papers_api():
-        """One week's edition of Papers (?edition=2026-W44; the latest finished week by default)."""
+    @app.route("/api/dispatch")
+    def dispatch_api():
+        """One week's issue (?edition=2026-W44; the latest finished week by default), with its question."""
+        import dispatch
+        import forecast
         import papers
         from pipeline import clock
-        return jsonify(papers.edition(request.args.get("edition"), clock().date(), papers.last_fetched()))
+        now = clock()
+        data = dispatch.issue(request.args.get("edition"), now.date(), papers.last_fetched())
+        data["forecast"] = forecast.view((data["edition"] or {}).get("id"), _user(), now)
+        return jsonify(data)
+
+    @app.route("/api/forecast/<edition>", methods=["POST"])
+    def forecast_answer(edition):
+        """Your chance of Yes for an edition's question ({"chance": 0-100})."""
+        import forecast
+        from pipeline import clock
+        try:
+            forecast.answer(edition, _user(), int((request.get_json(silent=True) or {}).get("chance", -1)), clock())
+        except (ValueError, TypeError) as e:
+            return {"error": str(e)}, 400
+        except Exception:  # noqa: BLE001 — Polymarket didn't answer: nothing is saved
+            return {"error": "Couldn’t reach Polymarket for the crowd’s odds. Try again in a minute."}, 502
+        return jsonify(forecast.view(edition, _user(), clock()))
+
+    def _user() -> str:
+        """Whose guesses these are: the stack's signed-in user (trusted only when the stack says
+        which header carries it), else the one local user."""
+        header = os.environ.get("AUTH_PROXY_HEADER")
+        return (request.headers.get(header) if header else None) or "local"
 
     @app.route("/favicon.ico")
     def favicon():
@@ -206,9 +236,20 @@ def create_app(config=None):
     @app.cli.command("papers")
     @click.option("--weeks", default=3, help="How many weeks back to read (more to fill earlier editions).")
     def papers_command(weeks):
-        """Read the journals for Papers now (the server does every six hours)."""
+        """Read the journals for Dispatch now (the server does once a day)."""
+        import dispatch
         import papers
         print(papers.fetch(window=timedelta(weeks=weeks)))
+        dispatch.prune(datetime.now(UTC).date())
+
+    @app.cli.command("forecast")
+    def forecast_command():
+        """Ask the edition's forecast question if it hasn't been, and look for results (the server does hourly)."""
+        import forecast
+        from models import Question
+        forecast.run()
+        for q in Question.query.order_by(Question.edition.desc()).limit(4):
+            print(q.edition, q.state, q.title or "(nothing eligible)")
 
     @app.cli.command("dropped")
     @click.option("--hours", default=24, help="How far back to look.")
@@ -309,12 +350,21 @@ def start_loop(app):
             except Exception:  # noqa: BLE001 — a bad fetch must not stop the loop
                 app.logger.exception("fetch failed")
             try:
+                import dispatch
                 import papers
                 with app.app_context():
                     if papers.due(datetime.now(UTC)):
                         papers.fetch()
+                        dispatch.prune(datetime.now(UTC).date())
             except Exception:  # noqa: BLE001 — nor a bad journal
                 app.logger.exception("papers fetch failed")
+            try:
+                import forecast
+                with app.app_context():
+                    if forecast.due(datetime.now(UTC)):
+                        forecast.run()
+            except Exception:  # noqa: BLE001 — nor Polymarket
+                app.logger.exception("forecast failed")
             time.sleep(app.config["FETCH_EVERY_MINUTES"] * 60)
 
     threading.Thread(target=loop, daemon=True, name="situation-fetch").start()

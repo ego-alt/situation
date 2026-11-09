@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#070a0b">
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
-    <title>Situation · Papers</title>
+    <title>Situation · Dispatch</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/papers.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dispatch.css') }}">
     <script>window.APP_ROOT = {{ request.script_root|tojson }};</script>
-    {% set tab = 'papers' %}{% include '_last_tab.html' %}
+    {% set tab = 'dispatch' %}{% include '_last_tab.html' %}
 </head>
-<body class="papers-page">
+<body class="dispatch-page">
     <header class="bar">
         <div class="brand"><span class="brand-name">SITUATION</span>{% include '_tabs.html' %}</div>
         <!-- One status, as on News: how fresh the papers are; amber when a journal couldn't be read. -->
@@ -24,7 +24,7 @@
 
     <main class="press">
         <header class="masthead">
-            <h1 class="nameplate">{{ subject }}</h1>
+            <h1 class="nameplate">Dispatch</h1>
             <div class="folio">
                 <button type="button" class="btn btn-ghost folio-step" id="prevEdition" data-dir="prev" disabled><span aria-hidden="true">‹</span> <span class="folio-step-label"></span></button>
                 <p class="folio-line" id="folio" aria-live="polite">&nbsp;</p>
@@ -32,7 +32,11 @@
             </div>
         </header>
         <div id="notice" class="notice" role="status" hidden></div>
-        <div id="edition" class="edition"><p class="press-empty">Loading…</p></div>
+        <div id="edition" class="edition" data-subject="{{ subject }}"><p class="press-empty">Loading…</p></div>
+        <!-- The week's question about the world (forecast.py): drawn on its own, so answering redraws only it. -->
+        <section id="forecast" class="rest still" aria-label="The week’s question" hidden></section>
+        <!-- Public holidays in the two weeks from when the issue comes out; only when there are some. -->
+        <section id="holidays" class="rest still" aria-label="Holidays" hidden></section>
         <nav class="turn" id="turn" aria-label="Editions" hidden>
             <button type="button" class="btn btn-ghost folio-step" data-dir="prev" disabled><span aria-hidden="true">‹</span> <span class="folio-step-label"></span></button>
             <button type="button" class="btn btn-ghost folio-step" data-dir="next" disabled><span class="folio-step-label"></span> <span aria-hidden="true">›</span></button>
@@ -50,6 +54,6 @@
     </dialog>
 
     <script src="{{ url_for('static', filename='js/signed_out.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/papers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dispatch.js') }}"></script>
 </body>
 </html>

@@ -32,18 +32,27 @@ An open-source intelligence wall for the home stack: the world map with the coun
 
 How importance is decided, and what comes next: [`docs/design.md`](docs/design.md).
 
-## Papers
+## Dispatch
 
-The second tab is a weekly paper of neuroscience research: every research paper in Neuron, and the neuroscience in Nature and Science, from one week.
+The second tab is a weekly issue to read, out each Monday: the week's neuroscience research, one question about the world, and the public holidays coming up.
 
-- **One edition a week.** A paper belongs to the week it first came out, online or in print. The tab opens on last week's edition; this week's fills in as papers come out. Step through editions with ‹ and › or the arrow keys; each has its own address (`/papers/2026-W44`).
+- **One issue a week.** A paper belongs to the week it first came out, online or in print. The tab opens on last week's issue; this week's fills in as papers come out. Step through issues with ‹ and › or the arrow keys; each has its own address (`/dispatch/2026-W44`; the old `/papers` addresses still lead there).
 - **Laid out by what the journals made of it.** The cover story leads when it's a neuroscience paper (Nature's issue page names it; Science and Neuron don't say in a form that can be read reliably). Papers the journal commissioned a commentary on (News & Views, Perspective, Preview) come next, larger, with the commentary's headline under their own. The rest fill rows of modules that change shape from row to row, the widest figure taking the widest slot; each story's text runs to the foot of its row, and in a long week what's left is a list, a line each. On a phone it's all a list.
 - **Enough to skim without clicking.** The real title, first and last author, the abstract and the first figure or graphical abstract, with links to the paper, the commentary and a free copy (PubMed Central, open access or the preprint) when there is one.
 - **Late commentary still counts.** Neuron's Previews come with its print issue, weeks after a paper went online: the paper appears again, with its commentary, as a story in the issue of the week the commentary came out (marked *From* its date).
-- **The last four issues.** Papers is a periodical, not an archive: older papers are forgotten after each daily read, unless a commentary on one is in an issue still kept.
+- **The last four issues.** Dispatch is a periodical, not an archive: older papers are forgotten after each daily read, unless a commentary on one is in an issue still kept.
 - **Nothing filtered out.** Which journals, and how each one's neuroscience is found, is in `journals.py`: all of a neuroscience journal, a publisher's own subject feed (Nature), or the nervous-system words in the title and abstract (Science, which files nothing by subject).
 
-The journals are read once a day from [Europe PMC](https://europepmc.org/) (abstracts, article types, free copies and PubMed's commentary links), with Crossref for a commentary's references and the publishers' pages for figures. Science's site turns automated readers away, so its papers have no figure. `uv run flask --app app:create_app papers --weeks 6` reads further back to fill earlier editions.
+The journals are read once a day from [Europe PMC](https://europepmc.org/) (abstracts, article types, free copies and PubMed's commentary links), with Crossref for a commentary's references and the publishers' pages for figures. Science's site turns automated readers away, so its papers have no figure. `uv run flask --app app:create_app papers --weeks 6` reads further back to fill earlier issues.
+
+**The week's question.** Each issue asks one yes/no question about the world from [Polymarket](https://polymarket.com) (read only; nothing is traded), to build better models of how it works by finding out whether you were right. You answer with your chance of Yes on a slider; the next issue says what happened, what you said and what the crowd said, with a Brier score for both, and keeps your record: against the crowd, how often what you said came true, and by subject.
+
+- **Chosen by four numbers** (`forecast.py`): a yes/no market open when the issue comes out and closing before the next, with the crowd between 20% and 80% and at least $25k traded, one per event (its market nearest 50%). Sports, crypto, novelty markets and anything about deaths or attacks are never asked. The most traded wins, never last week's event; one within 10% of it is a tie, drawn at random.
+- **What to think it through with:** the market's resolution rule and the articles Situation's newsrooms wrote on it the week before. The crowd's odds show only once you've answered, so the record is your judgement.
+- **Calm about results.** A market that settles late or is disputed shows as awaiting its result and carries on into later issues until it settles; a refunded one is void and not scored. Skipped a week? You still see the answer.
+- **Yours.** Answers are kept in `instance/situation.db` per signed-in user (backed up with it), never sent anywhere. `uv run flask --app app:create_app forecast` asks this week's question now and checks for results (the server does both hourly).
+
+**Holidays.** Hong Kong's public holidays (statutory and general) in the two weeks after the issue comes out, from the `holidays` library; the section appears only when there are some. The country is `HOLIDAYS` in `dispatch.py`.
 
 ## Run it
 
@@ -88,7 +97,7 @@ Outlets, their weights and regions are in `sources.py`.
 
 ## Data
 
-- `instance/situation.db`: articles from the last 30 days, the stories they form, Wikipedia snapshots, your labels, and every paper and commentary Papers has read.
+- `instance/situation.db`: articles from the last 30 days, the stories they form, Wikipedia snapshots, your labels, every paper and commentary Dispatch has read, and the week's questions with your answers.
 - `instance/models/`: the models `flask train --save` fitted on your labels.
 - `models/potion-base-8M/`: the embedding model (MIT licence, minishlab), downloaded into the image at build time.
 - `instance/snapshots/`: the articles as they were when you labelled (one every 6 hours while you do; ones without labels go after 30 days).

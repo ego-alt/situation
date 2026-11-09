@@ -1,6 +1,7 @@
-/* Papers: one week's neuroscience, laid out as a front page. The cover story leads,
- * the papers with a commentary come next and larger, the rest fill the columns. Everything is
- * read here: a story opens in place, and only an opened one links out to the publisher. */
+/* Dispatch: one week's issue, laid out as a front page. The neuroscience comes first: the
+ * cover story leads, the papers with a commentary come next and larger, the rest fill the
+ * columns; then the week's question and the holidays coming up. Everything is read here: a
+ * story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
     const url = (p) => `${ROOT}${p}`;
@@ -153,6 +154,7 @@
             slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
             rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
         }
+        rows.unshift(`<h2 class="section-rule"><span>${esc($('edition').dataset.subject)}</span><span class="n">${papers.length} ${papers.length === 1 ? 'paper' : 'papers'}</span></h2>`);
         if (queue.length) {
             rows.push(`<section class="rest" aria-label="The rest of the week">
                 <h2 class="section-rule"><span>The rest of the week</span><span class="n">${queue.length} ${queue.length === 1 ? 'paper' : 'papers'}</span></h2>
@@ -238,7 +240,7 @@
         $('foot').innerHTML = `<p>${under}Research papers in neuroscience from
             ${esc(names.slice(0, -1).join(', '))} and ${esc(names[names.length - 1])}, by the week they came out.</p>
             <p>Abstracts and links: <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>. Figures: the publishers.</p>`;
-        document.title = e ? `Situation · Papers No. ${e.number}` : 'Situation · Papers';
+        document.title = e ? `Situation · Dispatch No. ${e.number}` : 'Situation · Dispatch';
     }
 
     /** The steps to the edition before or after: in the folio, and again at the foot. */
@@ -271,7 +273,7 @@
     /** Fetch and draw an edition: `push` puts it in the history; `y` puts back where you were. */
     async function load(edition, { push = false, y = null } = {}) {
         try {
-            const res = await fetch(url(`/api/papers${edition ? `?edition=${encodeURIComponent(edition)}` : ''}`), { credentials: 'same-origin' });
+            const res = await fetch(url(`/api/dispatch${edition ? `?edition=${encodeURIComponent(edition)}` : ''}`), { credentials: 'same-origin' });
             if (res.status === 401) failure = 'signed-out';
             else if (!res.ok) throw new Error(res.status);
             else {
@@ -279,9 +281,11 @@
                 failure = null;
                 await measure(data.papers);
                 drawEdition();
+                drawForecast();
+                drawHolidays();
                 const id = data.edition?.id;
-                if (push && id) history.pushState({ edition: id }, '', url(`/papers/${id}`));
-                else if (edition && fromPath() !== edition) history.replaceState({ edition: id }, '', url(`/papers/${edition}`));
+                if (push && id) history.pushState({ edition: id }, '', url(`/dispatch/${id}`));
+                else if (edition && fromPath() !== edition) history.replaceState({ edition: id }, '', url(`/dispatch/${edition}`));
                 window.scrollTo({ top: push ? 0 : y ?? window.scrollY });
             }
         } catch (_) {
@@ -293,6 +297,126 @@
         }
         drawStatus();
     }
+
+    // ---------- the forecast ----------
+    // The week's question about the world (forecast.py), set in the paper's own modules, shown
+    // open since they don't open or shut: the question as a story, with what the newsrooms wrote
+    // as its standfirst, your answer beside it, then last week's result and your record. The
+    // crowd's odds come from the server only once you've answered, or once it can't be answered.
+
+    const pct = (n) => `${n}%`;
+    const on = (iso) => new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const OUTCOME = { yes: 'Yes', no: 'No', void: 'Void: refunded, not scored', closed: 'Awaiting the result' };
+
+    /** What the newsrooms Situation reads wrote on it the week before, like a commentary's standfirst. */
+    function reading(news) {
+        return news.map((a) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(a.outlet)}</span>
+            <a href="${esc(webLink(a.url) || '#')}" target="_blank" rel="noopener">${esc(a.title)} <span aria-hidden="true">↗</span></a></p></div>`).join('');
+    }
+
+    /** The question as a story: the rule as its abstract, the market as its way out. */
+    function asked(q, kicker) {
+        const [rule] = (q.rule || '').split(/\n+/);
+        return `<article class="story open w8">
+            <p class="kicker"><span class="journal">${esc(kicker)}</span><span>${esc(q.subject)}</span><span>Closes ${esc(on(q.closes))}</span></p>
+            <h2 class="story-title">${esc(q.title)}</h2>
+            ${reading(q.news)}
+            ${rule ? `<p class="abstract">${esc(rule)}</p>` : ''}
+            <p class="links">${away(q.link, 'The market · Polymarket')}${away(q.source, 'Resolution source')}</p>
+        </article>`;
+    }
+
+    /** What happened, what you said and what the crowd said, in a sentence. */
+    function outcome(q) {
+        const said = q.yours == null ? 'You didn’t answer' : `You said ${pct(q.yours)}`;
+        const scored = q.score ? ` Brier score: you ${q.score.yours.toFixed(2)}, the crowd ${q.score.crowd.toFixed(2)}.` : '';
+        const waiting = q.state === 'closed' ? ' Polymarket hasn’t settled it yet; it stays here until it does.' : '';
+        return `${esc(OUTCOME[q.state])}. ${said}; the crowd ${pct(q.crowd)}.${scored}${waiting}`;
+    }
+
+    /** Your answer beside the question: the slider while it's open, what came of it after. */
+    function answer(q) {
+        if (q.state !== 'open') {
+            return `<article class="story open w4"><p class="kicker"><span class="journal">${q.state === 'closed' ? 'Closed' : 'The result'}</span></p>
+                <p class="abstract">${outcome(q)}</p></article>`;
+        }
+        const set = q.yours != null;
+        return `<form class="story open w4" data-edition="${esc(q.edition)}">
+            <p class="kicker"><label class="journal" for="fcChance">Your chance of Yes</label></p>
+            <output class="story-title" for="fcChance">${set ? pct(q.yours) : '—'}</output>
+            <input class="range${set ? '' : ' unset'}" id="fcChance" type="range" min="0" max="100" step="5" value="${set ? q.yours : 50}" aria-valuetext="${set ? pct(q.yours) : 'not set'}">
+            <p class="links"><button type="submit" class="btn" ${set ? 'hidden' : 'disabled'}>Save</button></p>
+            <p class="byline" role="status">${set ? `Saved. The crowd said ${pct(q.crowd)} when you did. You can change it until ${esc(on(q.closes))}.`
+                : 'Move the slider, then save. The crowd’s odds show once you have.'}</p></form>`;
+    }
+
+    /** How you've done, in sentences: against the crowd, how often what you said came true, by subject. */
+    function record(r) {
+        if (!r.answered) return '';
+        const ahead = r.yours < r.crowd ? 'ahead of' : r.yours > r.crowd ? 'behind' : 'level with';
+        const bands = r.bands.filter((b) => b.said).map((b) => `${b.from}–${b.to}%, ${b.happened} of ${b.said}`).join('; ');
+        const subjects = r.subjects.map((s) => `${esc(s.subject)} ${s.yours.toFixed(2)} (the crowd ${s.crowd.toFixed(2)})`).join(', ');
+        return `<article class="story open w4"><p class="kicker"><span class="journal">Your record</span><span>${r.answered} answered</span></p>
+            <p class="abstract">A Brier score of ${r.yours.toFixed(2)}, ${ahead} the crowd’s ${r.crowd.toFixed(2)}: 0 is perfect, and always saying 50% scores 0.25.
+            When you said ${bands}, it happened that often. By subject: ${subjects}.</p></article>`;
+    }
+
+    /** The public holidays in the two weeks from when the issue comes out: a section only when there are some. */
+    function drawHolidays() {
+        const h = data?.holidays;
+        const el = $('holidays');
+        el.hidden = !h?.days.length;
+        el.innerHTML = el.hidden ? '' : `<h2 class="section-rule"><span>Holidays</span><span class="n">${esc(h.where)} · the next two weeks</span></h2>
+            <div class="rest-list">${h.days.map((d) => `<article class="story s-line"><p class="kicker"><span class="journal">${esc(day(d.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</span></p>
+                <h2 class="story-title">${esc(d.name)}</h2></article>`).join('')}</div>`;
+    }
+
+    function drawForecast() {
+        const f = data?.forecast;
+        const el = $('forecast');
+        el.hidden = !f;
+        if (!f) { el.innerHTML = ''; return; }
+        const q = f.question;
+        const none = f.asked ? 'No question this week: nothing big enough closes before the next edition.' : 'This week’s question is being chosen.';
+        const results = f.results.map((r, i) => `<article class="story open ${i ? 'w12' : 'w8'}">
+            <p class="kicker"><span class="journal">${i ? 'Settled late' : 'Last week’s question'}</span><span>${esc(r.subject)}</span></p>
+            <h2 class="story-title">${esc(r.title)}</h2><p class="byline">${outcome(r)}</p></article>`);
+        const second = [results[0], record(f.record)].filter(Boolean).join('');
+        el.innerHTML = `<h2 class="section-rule"><span>The week’s question</span><span class="n">From Polymarket</span></h2>
+            ${q ? `<div class="row">${asked(q, 'Forecast')}${answer(q)}</div>` : `<p class="press-empty">${none}</p>`}
+            ${second ? `<div class="row">${second}</div>` : ''}
+            ${results.slice(1).map((r) => `<div class="row">${r}</div>`).join('')}`;
+    }
+
+    $('forecast').addEventListener('input', (e) => {
+        if (!e.target.matches('.range')) return;
+        const form = e.target.closest('form');
+        e.target.classList.remove('unset');
+        e.target.setAttribute('aria-valuetext', pct(e.target.value));
+        form.querySelector('output').textContent = pct(e.target.value);
+        const save = form.querySelector('button');
+        save.hidden = false;
+        save.disabled = false;
+    });
+    $('forecast').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const save = form.querySelector('button');
+        save.disabled = true;
+        try {
+            const res = await fetch(url(`/api/forecast/${encodeURIComponent(form.dataset.edition)}`), {
+                method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chance: Number(form.querySelector('.range').value) }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.error || 'Couldn’t save it. Try again.');
+            data.forecast = body;
+            drawForecast();
+        } catch (err) {
+            save.disabled = false;
+            form.querySelector('[role=status]').textContent = err.message === 'Failed to fetch' ? 'Can’t reach the server. Try again.' : err.message;
+        }
+    });
 
     // ---------- reading ----------
 
@@ -361,10 +485,10 @@
         if (button && !button.disabled) button.click();
     });
 
-    // The edition is in the address (/papers/2026-W44), so back and forward step through what you
+    // The issue is in the address (/dispatch/2026-W44), so back and forward step through what you
     // read, each where you left it. Leaving for News and coming back soon after does too.
-    const fromPath = () => (location.pathname.match(/\/papers\/(\d{4}-W\d{2})\/?$/) || [])[1] || null;
-    const PLACE = 'situation.papers.place';
+    const fromPath = () => (location.pathname.match(/\/dispatch\/(\d{4}-W\d{2})\/?$/) || [])[1] || null;
+    const PLACE = 'situation.dispatch.place';
     const SOON = 30 * 60000;
     history.scrollRestoration = 'manual';
     window.addEventListener('popstate', (e) => {

@@ -364,3 +364,10 @@ def test_every_timestamp_column_is_utc():
     columns = [(t.name, c) for t in db.metadata.tables.values() for c in t.columns]
     plain = [f"{name}.{c.name}" for name, c in columns if isinstance(c.type, DateTime)]
     assert plain == []
+
+
+def test_papers_moved_to_dispatch(app):
+    client = app.test_client()
+    r = client.get("/papers/2026-W44")
+    assert r.status_code == 301 and r.headers["Location"].endswith("/dispatch/2026-W44")
+    assert client.get("/dispatch").status_code == 200

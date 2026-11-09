@@ -180,6 +180,39 @@ class Paper(db.Model):
     enriched = db.Column(UtcDateTime)                           # when its figure was looked for
 
 
+class Question(db.Model):
+    """The forecast question an edition of Papers asks (forecast.py), one per edition. Its
+    state is one of forecast.STATES and is changed only there: none (nothing was eligible),
+    open, closed (trading stopped, the result not in yet), then yes, no or void. Kept for
+    good, unlike papers: the record is made of them."""
+    __tablename__ = "questions"
+    edition = db.Column(db.String, primary_key=True)            # the edition it's in: 2026-W45
+    state = db.Column(db.String, nullable=False)
+    asked = db.Column(UtcDateTime, nullable=False)
+    market = db.Column(db.String)                               # Polymarket's market id
+    event = db.Column(db.String)                                # its event id: never asked two weeks running
+    slug = db.Column(db.String)                                 # the event's page, polymarket.com/event/<slug>
+    title = db.Column(db.String)                                # the question, as Polymarket words it
+    rule = db.Column(db.String)                                 # how it resolves, in Polymarket's words
+    source = db.Column(db.String)                               # the resolution source, when Polymarket names one
+    subject = db.Column(db.String)                              # for the record: elections, economics, …
+    closes = db.Column(UtcDateTime)
+    crowd = db.Column(db.Float)                                 # the price of Yes when it was asked
+    volume = db.Column(db.Float)                                # dollars traded when it was asked
+    news = db.Column(db.JSON)                                   # articles on it the week before (coverage)
+    settled = db.Column(UtcDateTime)                            # when it became yes, no or void
+
+
+class Guess(db.Model):
+    """Your answer to an edition's question: your chance of Yes, and the crowd's at that moment."""
+    __tablename__ = "guesses"
+    edition = db.Column(db.String, db.ForeignKey("questions.edition"), primary_key=True)
+    user = db.Column(db.String, primary_key=True)               # the stack's signed-in user, or "local"
+    chance = db.Column(db.Integer, nullable=False)              # percent, in steps of forecast.STEP
+    crowd = db.Column(db.Float, nullable=False)                 # Polymarket's price of Yes when you saved it
+    at = db.Column(UtcDateTime, nullable=False)
+
+
 def migrate():
     """Add columns that create_all() can't add to an existing table."""
     def columns(table):

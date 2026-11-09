@@ -8,6 +8,7 @@ dependencies = [
     "flask>=3.1.0",
     "flask-sqlalchemy>=3.1.1",
     "gunicorn>=23.0.0",
+    "holidays>=0.108",
     "numpy>=2.4.6",
     "requests>=2.32.0",
     "scipy>=1.17.1",

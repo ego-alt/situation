@@ -1,9 +1,11 @@
-"""Papers: which papers make an edition, how commentary finds its paper, and how an edition is ordered.
-The journals are stood in for by records shaped like Europe PMC's."""
+"""Papers and the issue they lead (dispatch.py): which papers make an issue, how commentary finds its
+paper, how an issue is ordered and kept, and the holidays in it. The journals are stood in for by
+records shaped like Europe PMC's."""
 from datetime import UTC, datetime
 
 import pytest
 
+import dispatch
 import papers
 from models import Paper, db
 
@@ -109,7 +111,7 @@ def test_fetch_stores_the_neuroscience_and_ties_commentary(app, journals):
 def test_an_edition_leads_with_the_cover_then_commentary(app, journals):
     with app.app_context():
         papers.fetch(NOW)
-        e = papers.edition(None, NOW.date())
+        e = dispatch.issue(None, NOW.date())
         assert e["edition"]["id"] == "2026-W44" and e["edition"]["start"] == "2026-10-26"
         order = [p["doi"] for p in e["papers"]]
         assert order[0] == "10.1038/s41586-1"                                   # the cover story
@@ -126,7 +128,7 @@ def test_an_edition_leads_with_the_cover_then_commentary(app, journals):
 
 
 def test_only_the_last_four_issues_are_kept(app, journals):
-    """Papers is a periodical, not an archive: older papers go, unless a commentary on
+    """Dispatch is a periodical, not an archive: older papers go, unless a commentary on
     one is in an issue kept (that issue shows it)."""
     from datetime import date
     with app.app_context():
@@ -134,8 +136,17 @@ def test_only_the_last_four_issues_are_kept(app, journals):
         for doi, kind in (("10.1016/j.neuron.sept", "research"), ("10.1016/j.neuron.note", "other")):
             db.session.add(Paper(doi=doi, journal="neuron", kind=kind, title="Old", published=date(2026, 9, 1)))
         db.session.commit()
-        assert papers.prune(NOW.date()) == 2
+        assert dispatch.prune(NOW.date()) == 2
         db.session.commit()
         assert db.session.get(Paper, "10.1016/j.neuron.sept") is None
         assert db.session.get(Paper, "10.1016/j.neuron.old")             # from August, but its Preview is recent
-        assert all(papers.week_of(e) >= papers.kept_from(NOW.date()) for e in papers.editions(NOW.date()))
+        assert all(dispatch.week_of(e) >= dispatch.kept_from(NOW.date()) for e in dispatch.editions(NOW.date()))
+
+
+def test_the_holidays_ahead_are_hong_kongs_in_english():
+    from datetime import date
+    days = dispatch.holidays_ahead(date(2026, 12, 21))
+    assert [d["date"] for d in days] == ["2026-12-25", "2026-12-26", "2027-01-01"]
+    assert days[0]["name"] == "Christmas Day"
+    assert dispatch.holidays_ahead(date(2027, 3, 22))[0]["name"] == "Good Friday"     # a general holiday counts too
+    assert dispatch.holidays_ahead(date(2026, 11, 9)) == []                            # no section that week
