@@ -1,6 +1,6 @@
 /* Dispatch: the week's issue as a front page, in the map's glass and type: a nameplate and
  * folio, then its sections. The neuroscience leads with a rail, then rows of modules whose
- * shape changes row to row; the week's question and what's coming up use the same modules. */
+ * shape changes row to row; the week's question and the holidays use the same modules. */
 .dispatch-page { height: auto; }
 .press { max-width: 1280px; margin: 0 auto; padding: 0 var(--space-8) calc(var(--space-8) + env(safe-area-inset-bottom)); }
 
@@ -129,7 +129,7 @@
     .bare .fig { display: none; }
 }
 
-/* The week's question and what's coming up are set in these same modules, but they don't open. */
+/* The week's question and the holidays are set in these same modules, but they don't open. */
 .still .story { cursor: auto; }
 /* Your answer: what's asked beside your number, then the slider, its scale and a line on what's saved. */
 .answer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-3); }

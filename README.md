@@ -34,7 +34,7 @@ How importance is decided, and what comes next: [`docs/design.md`](docs/design.m
 
 ## Dispatch
 
-The second tab is a weekly issue to read, out each Wednesday (8am in Hong Kong) for the week before: the week's neuroscience research, one question about the world, and what's coming up.
+The second tab is a weekly issue to read, out each Wednesday (8am in Hong Kong) for the week before: the week's neuroscience research, one question about the world, and the public holidays coming up.
 
 - **One issue a week, kept as it came out.** A paper belongs to the week it first came out, online or in print. Its issue comes out on the Wednesday after, once the journals have mostly been listed, and is fixed from then on. A paper listed too late for its own week's issue is in the next one, marked with its date. Step through issues with ‹ and › or the arrow keys; each has its own address (`/dispatch/2026-W44`; the old `/papers` addresses still lead there).
 - **Laid out by what the journals made of it.** The cover story leads when it's a neuroscience paper (Nature's issue page names it; Science and Neuron don't say in a form that can be read reliably). Papers the journal commissioned a commentary on (News & Views, Perspective, Preview) come next, larger, with the commentary's headline under their own. The rest fill rows of modules that change shape from row to row, the widest figure taking the widest slot; each story's text runs to the foot of its row, and in a long week what's left is a list, a line each. On a phone it's all a list.
@@ -47,12 +47,12 @@ The journals are read once a day from [Europe PMC](https://europepmc.org/) (abst
 
 **The week's question.** Each issue asks one yes/no question about the world from [Polymarket](https://polymarket.com) (read only; nothing is traded), to build better models of how it works by finding out whether you were right. You answer with your chance of Yes on a slider; the next issue says what happened, what you said and what the crowd said, with a Brier score for both, and keeps your record: against the crowd, how often what you said came true, and by subject.
 
-- **Chosen by four numbers** (`forecast.py`, reading through `polymarket.py`, which also says what's never shown): a yes/no market open when the issue comes out and closing before the next, with the crowd between 20% and 80% and at least $25k traded, one per event (its market nearest 50%). Sports, crypto, novelty markets and anything about deaths or attacks are never asked. The most traded wins, never last week's event; one within 10% of it is a tie, drawn at random.
+- **Chosen by four numbers** (`forecast.py`): a yes/no market open when the issue comes out and closing before the next, with the crowd between 20% and 80% and at least $25k traded, one per event (its market nearest 50%). Sports, crypto, novelty markets and anything about deaths or attacks are never asked. The most traded wins, never last week's event; one within 10% of it is a tie, drawn at random.
 - **What to think it through with:** the market's resolution rule and the articles Situation's newsrooms wrote on it the week before. The crowd's odds show only once you've answered, so the record is your judgement.
 - **Calm about results.** A market that settles late or is disputed shows as awaiting its result and carries on into later issues until it settles; a refunded one is void and not scored. Skipped a week? You still see the answer.
 - **Yours.** Answers are kept in `instance/situation.db` per signed-in user (backed up with it), never sent anywhere. `uv run flask --app app:create_app forecast` asks this week's question now and checks for results (the server does both hourly).
 
-**Coming up.** The two weeks after the issue comes out, in one dated list: Hong Kong's public holidays (statutory and general, from the `holidays` library; the country is `HOLIDAYS` in `dispatch.py`) and the scheduled events Polymarket has markets on (elections, central bank decisions, data releases). An event is one closing in the fortnight, in a subject the question could be on, with at least $25k traded and not a bet on a price; one entry per release, the `EVENTS` most traded. Read as the issue is published and kept with it; if Polymarket doesn't answer, the issue comes out with the holidays alone. The section appears only when there's something in it.
+**Holidays.** Hong Kong's public holidays (statutory and general) in the two weeks after the issue comes out, from the `holidays` library; the section appears only when there are some. The country is `HOLIDAYS` in `dispatch.py`.
 
 ## Run it
 

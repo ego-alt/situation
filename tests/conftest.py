@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 import pytest
 
 import pipeline
-import polymarket
 from app import create_app
 from models import db
 from sources import BY_KEY
@@ -34,12 +33,6 @@ def snapshot_items(path=SNAPSHOT):
         i["published"] = datetime.fromisoformat(i["published"]) if i["published"] else None
         items.append(i)
     return items, data["itn"]
-
-
-@pytest.fixture(autouse=True)
-def no_polymarket(monkeypatch):
-    """Publishing an issue reads Polymarket's events: none, unless a test gives some."""
-    monkeypatch.setattr(polymarket, "read_events", lambda start, end: [])
 
 
 @pytest.fixture(autouse=True)
