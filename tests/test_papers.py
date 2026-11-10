@@ -207,6 +207,26 @@ def test_an_issue_is_kept_as_it_came_out_and_a_late_paper_is_in_the_next(app, jo
         assert "10.1016/j.neuron.late" not in {p["doi"] for p in dispatch.issue("2026-W46", later)["stories"]}
 
 
+def test_the_poems_are_the_two_anthologies_in_hong_kongs_characters():
+    books = [p["book"] for p in dispatch.POEMS]
+    assert (books.count("唐詩"), books.count("宋詞")) == (320, 280)
+    text = "".join("".join(p["lines"]) for p in dispatch.POEMS)
+    assert "為" in text and "爲" not in text and "为" not in text                    # Hong Kong's forms, not simplified
+    assert all(p["title"] and p["author"] and p["lines"] for p in dispatch.POEMS)
+
+
+def test_an_issue_draws_a_poem_never_one_still_kept(app, journals):
+    import random
+    rng = random.Random(1)
+    shown = dispatch.POEMS[:-1]
+    assert dispatch.draw_poem(shown, rng) == dispatch.POEMS[-1]                      # the only one not shown
+    with app.app_context():
+        papers.fetch(NOW)
+        dispatch.publish(NOW)
+        poems = [dispatch.issue(e, NOW)["poem"] for e in ("2026-W43", "2026-W44")]
+        assert all(poems) and poems[0] != poems[1]
+
+
 def test_an_issue_comes_out_on_the_wednesday_after_its_week():
     from datetime import datetime as dt
     assert dispatch.out("2026-W45") == dt(2026, 11, 11, tzinfo=UTC)

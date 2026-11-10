@@ -1,6 +1,7 @@
 /* Dispatch: one week's issue, laid out as a front page. The neuroscience comes first: the
  * cover story leads, the papers with a commentary come next and larger, the rest fill the
- * columns, then Quanta's articles; then the week's question and the holidays coming up. Everything is read here: a
+ * columns, then Quanta's articles; then the week's poem, the week's question and the holidays
+ * coming up. Everything is read here: a
  * story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
@@ -276,6 +277,7 @@
                 failure = null;
                 await measure(data.stories);
                 drawEdition();
+                drawPoem();
                 drawForecast();
                 drawHolidays();
                 const id = data.edition?.id;
@@ -366,6 +368,19 @@
         el.innerHTML = el.hidden ? '' : `<h2 class="section-head"><span>Holidays</span><span class="n">${esc(h.where)} · the next two weeks</span></h2>
             <div class="rest-list">${h.days.map((d) => `<article class="story s-line"><p class="kicker"><span class="journal">${esc(day(d.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</span></p>
                 <h2 class="story-title">${esc(d.name)}</h2></article>`).join('')}</div>`;
+    }
+
+    /** The week's poem, to learn by heart: set as a story, line by line, in Hong Kong's characters. */
+    function drawPoem() {
+        const p = data?.poem;
+        const el = $('poem');
+        el.hidden = !p;
+        el.innerHTML = p ? `<h2 class="section-head"><span>The week’s poem</span><span class="n">${esc(p.book)}三百首</span></h2>
+            <div class="row"><article class="story open w12" lang="zh-HK">
+                <p class="kicker"><span class="journal">${esc(p.author)}</span><span>${esc(p.form)}</span></p>
+                <h2 class="story-title">${esc(p.title)}</h2>
+                <p class="abstract">${p.lines.map(esc).join('<br>')}</p>
+            </article></div>` : '';
     }
 
     function drawForecast() {
