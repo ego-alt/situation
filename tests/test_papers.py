@@ -1,16 +1,12 @@
 """Papers and the issue they lead (dispatch.py): which papers make an issue, how commentary finds its
 paper, how an issue is ordered and kept, and the holidays in it. The journals are stood in for by
 records shaped like Europe PMC's."""
-import pathlib
 from datetime import UTC, datetime
 
-import feedparser
 import pytest
-import requests
 
 import dispatch
 import papers
-import quanta
 from models import Issue, Paper, SourceStatus, db
 
 LONG = "Neurons in the cortex " + "and their synapses " * 30     # an abstract, not front matter
@@ -155,28 +151,6 @@ def test_the_holidays_ahead_are_hong_kongs_in_english():
     assert days[0]["name"] == "Christmas Day"
     assert dispatch.holidays_ahead(date(2027, 3, 22))[0]["name"] == "Good Friday"     # a general holiday counts too
     assert dispatch.holidays_ahead(date(2026, 11, 9)) == []                            # no section that week
-
-
-QUANTA = pathlib.Path(__file__).parent / "fixtures" / "quanta.xml"     # its feed, cut down
-
-
-def test_quanta_brings_its_articles_from_the_week_before_an_issue(app, journals, monkeypatch):
-    entries = feedparser.parse(QUANTA.read_text()).entries
-    [a] = quanta.articles(entries, dispatch.out("2026-W44"))                        # out Wed 4 Nov: 28 Oct to 3 Nov
-    assert (a["title"], a["journal"], a["topic"]) == ("Did Life Begin in an RNA World?", "Quanta", "Biology")
-    assert a["abstract"] == "Some believe the earliest life emerged from self-copying molecules."
-    assert a["authors"] == ["Philip Ball"] and a["figure"] == "https://www.quantamagazine.org/rna.webp"
-    with app.app_context():
-        papers.fetch(NOW)
-        monkeypatch.setattr(quanta, "read", lambda: entries)
-        dispatch.publish(NOW)
-        stories = dispatch.issue("2026-W44", NOW)["stories"]
-        assert stories[-1]["url"] == "https://www.quantamagazine.org/rna-world/"           # after the papers
-
-        def down():
-            raise requests.ConnectionError
-        monkeypatch.setattr(quanta, "read", down)
-        assert dispatch.quanta_before(NOW) == []                                       # the issue comes out without
 
 
 def test_an_issue_is_kept_as_it_came_out_and_a_late_paper_is_in_the_next(app, journals):

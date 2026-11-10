@@ -1,9 +1,8 @@
 """Dispatch: the weekly issue to read, one an ISO week, out the Wednesday after.
 
-It carries the week's neuroscience the journals made more of (papers.py) and Quanta Magazine's
-articles from the week before it came out (quanta.py), a poem from 唐詩三百首 or 宋詞三百首 to
-learn by heart, the week's question (forecast.py, added by the app, which knows who's reading)
-and the public holidays coming up. An issue comes
+It carries the week's neuroscience the journals made more of (papers.py), a poem from 唐詩三百首
+or 宋詞三百首 to learn by heart, the week's question (forecast.py, added by the app, which knows
+who's reading) and the public holidays coming up. An issue comes
 out on the Wednesday after its week, once the journals have mostly been listed, and is
 published then (publish): what it carries is kept as it stood and shown unchanged from then on.
 A paper listed too late for its own week's issue is in the next one, marked with its date. A
@@ -15,10 +14,8 @@ import random
 from datetime import UTC, date, datetime, timedelta
 
 import holidays
-import requests
 
 import papers
-import quanta
 from models import Issue, db
 
 KEEP_WEEKS = 4                  # the last four issues, then they go
@@ -77,15 +74,6 @@ def holidays_ahead(start: date) -> list[dict]:
     return [{"date": d.isoformat(), "name": name} for d, name in sorted(found.items()) if start <= d < end]
 
 
-def quanta_before(end: datetime) -> list[dict]:
-    """Quanta's articles in the week before an issue comes out; none when it doesn't answer (the
-    issue still comes out, without them)."""
-    try:
-        return quanta.articles(quanta.read(), end)
-    except requests.RequestException:
-        return []
-
-
 def draw_poem(shown: list[dict], rng: random.Random) -> dict:
     """A poem at random, never one in an issue still kept."""
     seen = {(p["author"], p["lines"][0]) for p in shown}
@@ -110,7 +98,7 @@ def publish(now: datetime) -> list[str]:
             # Listed too late for last week's issue: in this one. (The first issue has none to catch up on.)
             late = papers.research_between(week - timedelta(days=7), week) - shown if shown is not None else set()
             db.session.add(Issue(edition=edition, out=out(edition), papers=papers.section(week, late),
-                                 quanta=quanta_before(out(edition)), holidays=holidays_ahead(out(edition).date()),
+                                 holidays=holidays_ahead(out(edition).date()),
                                  poem=draw_poem([i.poem for i in Issue.query if i.poem], random.Random())))
             db.session.commit()
             done.append(edition)
@@ -142,5 +130,5 @@ def issue(which: str | None, now: datetime) -> dict:
                                 "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
                                 "prev": editions[at - 1] if at else None,
                                 "next": editions[at + 1] if at + 1 < len(editions) else None},
-            "stories": i.papers + (i.quanta or []), "poem": i.poem,
+            "stories": i.papers, "poem": i.poem,
             "holidays": {"where": HOLIDAYS[1], "days": i.holidays}}

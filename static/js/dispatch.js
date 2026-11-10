@@ -1,7 +1,6 @@
 /* Dispatch: one week's issue, laid out as a front page. The neuroscience comes first: the
  * cover story leads, the papers with a commentary come next and larger, the rest fill the
- * columns, then Quanta's articles; then the week's poem, the week's question and the holidays
- * coming up. Everything is read here: a
+ * columns; then the week's poem, the week's question and the holidays coming up. Everything is read here: a
  * story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
@@ -81,7 +80,7 @@
 
     /** The way out, shown only in an opened story: everything else is read here. */
     function links(p) {
-        const all = [away(p.url, p.via ? `Article · ${p.via}` : `Paper · ${p.journal}`), p.free && away(p.free.url, `Free · ${p.free.label}`, 'free'),
+        const all = [away(p.url, `Paper · ${p.journal}`), p.free && away(p.free.url, `Free · ${p.free.label}`, 'free'),
             ...p.commentary.map((c) => away(c.url, c.label))].filter(Boolean);
         return all.length ? `<p class="links">${all.join('')}</p>` : '';
     }
@@ -89,8 +88,7 @@
     function kicker(p) {
         // An earlier paper, in this issue for the commentary on it that came out this week.
         const earlier = p.earlier ? `<span>From ${esc(day(p.published, { day: 'numeric', month: 'short' }))}</span>` : '';
-        const topic = p.topic ? `<span>${esc(p.topic)}</span>` : '';
-        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${topic} ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}${earlier}</p>`;
+        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span> ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}${earlier}</p>`;
     }
 
     /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module

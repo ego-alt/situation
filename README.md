@@ -34,10 +34,10 @@ How importance is decided, and what comes next: [`docs/design.md`](docs/design.m
 
 ## Dispatch
 
-The second tab is a weekly issue to read, out each Wednesday (8am in Hong Kong) for the week before: the neuroscience the journals made more of and Quanta Magazine's articles as one front page, then a poem to learn by heart, one question about the world, and the public holidays coming up.
+The second tab is a weekly issue to read, out each Wednesday (8am in Hong Kong) for the week before: the neuroscience the journals made more of as a front page, then a poem to learn by heart, one question about the world, and the public holidays coming up.
 
 - **One issue a week, kept as it came out.** A paper belongs to the week it first came out, online or in print. Its issue comes out on the Wednesday after, once the journals have mostly been listed, and is fixed from then on. A paper listed too late for its own week's issue is in the next one, marked with its date. Step through issues with ‹ and › or the arrow keys; each has its own address (`/dispatch/2026-W44`; the old `/papers` addresses still lead there).
-- **Only what the journals made more of.** The cover story, which leads when it's a neuroscience paper (Nature's issue page names it; Science and Neuron don't say in a form that can be read reliably), and the papers the journal commissioned a commentary on (News & Views, Perspective, Preview), with the commentary's headline under their own. Then Quanta's articles. They fill rows of modules that change shape from row to row, the widest figure taking the widest slot; each story's text runs to the foot of its row. On a phone it's a list.
+- **Only what the journals made more of.** The cover story, which leads when it's a neuroscience paper (Nature's issue page names it; Science and Neuron don't say in a form that can be read reliably), and the papers the journal commissioned a commentary on (News & Views, Perspective, Preview), with the commentary's headline under their own. They fill rows of modules that change shape from row to row, the widest figure taking the widest slot; each story's text runs to the foot of its row. On a phone it's a list.
 - **Enough to skim without clicking.** The real title, first and last author, the abstract and the first figure or graphical abstract, with links to the paper, the commentary and a free copy (PubMed Central, open access or the preprint) when there is one.
 - **Late commentary still counts.** Neuron's Previews come with its print issue, weeks after a paper went online: the paper appears again, with its commentary, as a story in the issue of the week the commentary came out (marked *From* its date).
 - **The last four issues.** Dispatch is a periodical, not an archive: older issues and papers are forgotten after each daily read.
@@ -45,7 +45,6 @@ The second tab is a weekly issue to read, out each Wednesday (8am in Hong Kong) 
 
 The journals are read once a day from [Europe PMC](https://europepmc.org/) (abstracts, article types, free copies and PubMed's commentary links), with Crossref for a commentary's references and the publishers' pages for figures. Science's site turns automated readers away, so its papers have no figure. `uv run flask --app app:create_app papers --weeks 6` reads further back to fill earlier issues.
 
-**Quanta Magazine.** Its articles from the seven days before the issue comes out (not its podcast), after the papers and in the same modules, labelled Quanta and the section: title, writer, standfirst and image, with a link to the article. Read from its feed as the issue is published (the feed holds about ten days, so nothing is stored); if it doesn't answer then, the issue comes out without them (`quanta.py`).
 
 **The week's poem.** One poem from 唐詩三百首 or 宋詞三百首, drawn at random as the issue is published and never one still in a kept issue, set line by line in Hong Kong's characters. The 600 poems are in `data/poems.json`, built from the [chinese-poetry](https://github.com/chinese-poetry/chinese-poetry) collection by `tools/add_poems.py`.
 
