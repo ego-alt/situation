@@ -5,10 +5,10 @@ before the next one; you answer with your chance of Yes, and the next edition sa
 you said, and what the crowd said. Polymarket is only read (its public API); nothing is traded.
 
 Choosing (eligible and choose, pure): a yes/no market open when the edition comes out and
-closing before the next, not blocked, with the crowd between 20% and 80% and at least
-MIN_VOLUME traded; one market per event, the one nearest 50%. The most traded in the past
-week wins (what people are trading on now, not what has run longest), never the event asked
-last week; one within TIE of it is a tie, drawn at random once.
+closing before the next, but no sooner than TO_ANSWER after, not blocked, with the crowd
+between 20% and 80% and at least MIN_VOLUME traded; one market per event, the one nearest
+50%. The most traded in the past week wins (what people are trading on now, not what has run
+longest), never the event asked last week; one within TIE of it is a tie, drawn at random once.
 
 A question's state is one of STATES and moves only along MOVES, in _move and nowhere else:
 none (nothing was eligible) is final; open becomes closed when trading stops; open or closed
@@ -32,6 +32,7 @@ EVENTS = "https://gamma-api.polymarket.com/events"
 MARKET = "https://gamma-api.polymarket.com/markets/"
 EVERY = timedelta(hours=1)          # how often open questions are checked for a result
 ASK_WITHIN = timedelta(days=1)      # a question is asked as its issue comes out, or not at all
+TO_ANSWER = timedelta(days=2)       # the least time there is to answer it
 
 # The four numbers that decide everything.
 CROWD = (0.2, 0.8)                  # the crowd must be this unsure
@@ -124,11 +125,12 @@ def subject_of(tags: set[str]) -> str | None:
 
 
 def _askable(m: dict, start: datetime, end: datetime) -> bool:
-    """A yes/no market already trading at `start`, closing by `end`, traded enough, not blocked."""
+    """A yes/no market already trading at `start`, closing by `end` but not within TO_ANSWER of
+    `start`, traded enough, not blocked."""
     made, ends = _time(m.get("createdAt") or m.get("startDate")), _time(m.get("endDate"))
     return (json.loads(m.get("outcomes") or "[]") == ["Yes", "No"] and not m.get("closed")
             and not BLOCK_WORDS.search(m.get("question") or "") and _yes(m) is not None
-            and bool(made and ends) and made <= start < ends <= end
+            and bool(made and ends) and made <= start and start + TO_ANSWER <= ends <= end
             and float(m.get("volumeNum") or 0) >= MIN_VOLUME)
 
 

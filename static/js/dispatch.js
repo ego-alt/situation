@@ -1,6 +1,6 @@
 /* Dispatch: one week's issue, laid out as a front page. The neuroscience comes first: the
- * cover story leads, the papers with a commentary come next and larger, the rest fill the
- * columns; then the week's poem, the week's question and the holidays coming up. Everything is read here: a
+ * cover story leads, the papers with a commentary fill the rail and the rows under it;
+ * then the week's poem, the week's question and the holidays coming up. Everything is read here: a
  * story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
@@ -14,7 +14,6 @@
 
     // Each row below the lead takes the next of these shapes, so the page changes rhythm as it goes.
     const SHAPES = [[6, 3, 3], [4, 4, 4], [3, 6, 3], [7, 5], [4, 8], [3, 3, 6], [5, 7]];
-    const MODULES = 9;       // past this many, the rest of a long week is a list
     const ROW_MAX = 600;     // the most a row of modules runs to before its text is cut
     const MIN_LINES = 4;     // a story shows at least this much of its abstract
     const narrow = window.matchMedia('(max-width: 860px)');
@@ -91,7 +90,7 @@
         return `<p class="kicker"><span class="journal">${esc(p.journal)}</span> ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}${earlier}</p>`;
     }
 
-    /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module
+    /** One story. `size` is lead, rail or mod: a module `w` of 12 columns wide. A module
      * leads with its figure, puts its headline over it (mid widths), floats it in the corner for
      * the text to wrap (wide), or goes without on a desktop (the rail, a narrow slot with a wide
      * figure). On a phone every story but the lead shows its figure as a thumbnail. The title is
@@ -111,7 +110,7 @@
         const kind = mod ? `s-mod w${w}${w >= 7 ? ' side' : ''}` : `s-${size}`;
         const marks = `${art && !bare ? ' has-fig' : ''}${art && bare ? ' bare' : ''}${headFirst ? ' head-first' : ''}${p.commentary.length ? ' has-note' : ''}`;
         return `<article class="story ${kind}${marks}" data-doi="${esc(p.doi)}">
-            <div class="flow">${lead || headFirst || size === 'line' ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
+            <div class="flow">${lead || headFirst ? head + art : art + head}${p.abstract ? `<p class="abstract">${marked(p.abstract)}</p>` : ''}</div>
             ${links(p)}
         </article>`;
     }
@@ -134,9 +133,8 @@
         return Promise.race([Promise.all(todo), new Promise((done) => setTimeout(done, 1500))]);
     }
 
-    /** The lead with a rail beside it, then rows of modules in changing shapes, then in a
-     * long week the remainder as a list. The papers come in order: the cover story, those
-     * with a commentary, the rest. */
+    /** The lead with a rail beside it, then rows of modules in changing shapes. The papers
+     * come in order: the cover story, then those with a commentary. */
     function compose(papers) {
         const [lead, ...queue] = papers;
         const art = cover(lead);
@@ -145,21 +143,14 @@
         const rail = queue.splice(0, 2 - !!art - (!narrow.matches && !ratio(lead)));
         const rows = [rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
             : `<div class="row">${story(lead, 'lead')}</div>`];
-        // A list of one isn't worth it: one over the limit goes in the modules.
-        const modules = queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length);
-        for (let s = 0; modules.length; s++) {
+        for (let s = 0; queue.length; s++) {
             let shape = SHAPES[s % SHAPES.length];
-            if (modules.length < shape.length) shape = modules.length === 1 ? [12] : [7, 5];
-            const items = modules.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
+            if (queue.length < shape.length) shape = queue.length === 1 ? [12] : [7, 5];
+            const items = queue.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
             const slots = shape.map((w, i) => ({ w, i })).sort((a, b) => b.w - a.w);
             const placed = [];
             slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
             rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
-        }
-        if (queue.length) {
-            rows.push(`<section class="rest" aria-label="The rest of the week">
-                <h2 class="section-head"><span>The rest of the week</span></h2>
-                <div class="rest-list">${queue.map((p) => story(p, 'line')).join('')}</div></section>`);
         }
         return rows.join('');
     }
@@ -338,8 +329,8 @@
         const live = q.state === 'open';
         // Much the same length whatever it says, a line on a desktop, so the module keeps its size from week to week.
         const by = new Date(q.closes).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-        const note = !live ? `Closed ${by}. The result is in the next issue.`
-            : set ? `Saved; the crowd said ${pct(q.crowd)}. Change by ${by}.` : `Answer by ${by} to see the crowd’s odds.`;
+        const note = !live ? `Closed; the crowd ${pct(q.crowd)}. Result next issue.`
+            : set ? `Saved; the crowd ${pct(q.crowd)}. Change by ${by}.` : `Answer by ${by} to see the crowd’s odds.`;
         return `<div class="story open w4 answer" data-edition="${esc(q.edition)}">
             <p class="kicker"><label class="journal" for="fcChance">Your chance of Yes</label></p>
             <output class="story-title" for="fcChance">${set ? pct(q.yours) : '—'}</output>

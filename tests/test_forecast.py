@@ -83,6 +83,12 @@ def test_it_is_ranked_by_the_past_weeks_trading_not_the_total():
     assert forecast.choose(found, None, random.Random(0))["event"] == "2"
 
 
+def test_there_are_two_days_at_least_to_answer():
+    soon = event(1, "Tomorrow", [market(1, "Will it happen tomorrow?", 0.5, 9e6, ends="2026-11-12T00:00:00Z")])
+    later = event(2, "Saturday", [market(2, "Will it happen on Saturday?", 0.5, 4e5, ends="2026-11-14T00:00:00Z")])
+    assert [c["event"] for c in forecast.eligible([soon, later], OUT, OUT + timedelta(days=7))] == ["2"]
+
+
 def test_the_most_traded_wins_but_never_last_weeks_event():
     cands = [{"event": "a", "volume": 9e6}, {"event": "b", "volume": 4e6}, {"event": "c", "volume": 1e6}]
     assert forecast.choose(cands, None, random.Random(1))["event"] == "a"

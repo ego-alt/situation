@@ -111,18 +111,14 @@
 .rail-cover-k { font: 600 var(--text-xs) var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-flash); }
 .rail-cover-note { font: italic var(--text-sm)/var(--leading-text) var(--font-sans); color: var(--color-text-secondary); }
 
-/* ---- the rest of a long week, one line each, down two columns ---- */
+/* ---- the sections after the papers; the holidays one line each, down two columns ---- */
 .rest { margin-top: var(--space-8); }
 .rest-list { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 .s-line { break-inside: avoid; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-soft); }
 .s-line .kicker { margin-bottom: var(--space-1); }
 .s-line .story-title { font-weight: 500; }
-.s-line:not(.open) :is(.fig, .byline, .abstract) { display: none; }
-.s-line .fig { margin: var(--space-3) 0 0; }
 @media (hover: hover) {
     .links a:hover, .standfirst-head a:hover { color: var(--color-text-primary); }
-    .s-line:hover .story-title { color: var(--color-selected); }
-    .still .s-line:hover .story-title { color: inherit; }
 }
 /* On a desktop the rail, and a narrow slot with a wide figure, go without theirs. */
 @media (min-width: 861px) {
@@ -214,7 +210,7 @@
     .story:not(.s-lead) .fig img { object-fit: cover; object-position: top center; }
     .story:not(.s-lead) .abstract { grid-area: abs; }
     .story:not(.s-lead, .open) .abstract { margin-top: var(--space-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-    .has-note:not(.open) .abstract, .s-line:not(.open) :is(.fig, .byline, .abstract) { display: none; }   /* the rest of a long week stays a plain list */
+    .has-note:not(.open) .abstract { display: none; }
     .story.open:not(.s-lead) .flow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "fig" "abs"; }
     .story.open:not(.s-lead) .fig { width: auto; aspect-ratio: auto; margin: var(--space-4) 0 0; }
     .story.open:not(.s-lead) .fig img { height: auto; max-height: 70vh; object-fit: contain; }
