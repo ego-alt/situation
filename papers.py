@@ -2,7 +2,8 @@
 
 Once a day the last three weeks of each journal are read from Europe PMC: abstracts,
 article types, free copies and PubMed's commentary links. A paper belongs to the
-week it first came out; the cover story leads, then papers with a commentary, then the rest.
+week it first came out. An issue carries the ones its journal made more of: the cover story,
+which leads, and those it commissioned a commentary on.
 Which weeks make an issue, and what else is in it, is dispatch.py's.
 """
 import html
@@ -374,8 +375,8 @@ def prune(cutoff: date) -> int:
 
 
 def section(start: date, late: set[str] = frozenset()) -> list[dict]:
-    """The week from `start`, in layout order: the cover story, those with a commentary, the
-    rest; within each by journal rank, newest first. Earlier papers come in too, marked as
+    """The week's cover stories and papers with a commentary, from `start`, in layout order: the
+    cover story, then the rest by journal rank, newest first. Earlier papers come in too, marked as
     such: `late` ones (listed after their own week's issue came out), and any whose commentary
     is out this week (Neuron's Previews come with its print issue): a late commentary is news
     in its own issue, with its paper."""
@@ -388,15 +389,8 @@ def section(start: date, late: set[str] = frozenset()) -> list[dict]:
     for n in Paper.query.filter(Paper.kind == "commentary", Paper.on.in_([p.doi for p in papers])):
         notes.setdefault(n.on, []).append(n)
 
-    def order(p):
-        return (0 if p.cover else 1 if p.doi in notes else 2, BY_KEY[p.journal].rank, -p.published.toordinal(), p.title)
-
-    papers.sort(key=order)
-    # Nothing to lead with: the first paper with a figure leads.
-    if papers and not papers[0].cover and papers[0].doi not in notes:
-        lead = next((p for p in papers if p.figure), papers[0])
-        papers.remove(lead)
-        papers.insert(0, lead)
+    papers = sorted((p for p in papers if p.cover or p.doi in notes),
+                    key=lambda p: (not p.cover, BY_KEY[p.journal].rank, -p.published.toordinal(), p.title))
     return [{**_paper(p, notes.get(p.doi, [])), "earlier": p.published < start} for p in papers]
 
 

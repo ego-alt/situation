@@ -1,4 +1,4 @@
-"""Quanta Magazine, the second section of Dispatch: its articles since the last issue came out.
+"""Quanta Magazine in Dispatch: its articles from the week before an issue, after the papers.
 
 Read from its feed as each issue is published. The feed carries the last five or so, about ten
 days' worth, which covers the week before an issue; nothing is kept but the issue.
@@ -28,12 +28,13 @@ def articles(entries: list, end: datetime) -> list[dict]:
     found = []
     for e in entries:
         when = datetime(*e.published_parsed[:6], tzinfo=UTC) if e.get("published_parsed") else None
-        if not when or not end - timedelta(days=7) <= when < end:
+        topics = [t["term"] for t in e.get("tags") or [] if t.get("term")]
+        if not when or not end - timedelta(days=7) <= when < end or "Multimedia" in topics:     # its podcast
             continue
         # The feed's summary is the standfirst, then a "first appeared on Quanta" line.
         standfirst = clean((e.get("summary") or "").split("<p>The post ")[0])
         image = next((m["url"] for m in e.get("media_content") or [] if m.get("url", "").startswith("https://")), None)
-        found.append({"doi": e.link, "journal": (e.get("tags") or [{}])[0].get("term") or NAME, "via": NAME,
+        found.append({"doi": e.link, "journal": "Quanta", "topic": topics[0] if topics else None, "via": NAME,
                       "title": clean(e.title), "authors": [a["name"] for a in e.get("authors") or [] if a.get("name")],
                       "abstract": standfirst, "published": when.date().isoformat(), "url": e.link,
                       "figure": image, "figure_large": image, "free": None, "cover": False, "commentary": []})

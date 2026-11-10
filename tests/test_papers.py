@@ -112,18 +112,17 @@ def test_fetch_stores_the_neuroscience_and_ties_commentary(app, journals):
         assert db.session.get(Paper, "10.1038/s41586-1").cover == "https://img.example/cover.jpg"
 
 
-def test_an_edition_leads_with_the_cover_then_commentary(app, journals):
+def test_an_edition_is_the_cover_and_the_papers_with_a_commentary(app, journals):
     with app.app_context():
         papers.fetch(NOW)
         assert dispatch.publish(NOW) == ["2026-W43", "2026-W44"]
         e = dispatch.issue(None, NOW)
         assert e["edition"]["id"] == "2026-W44" and e["edition"]["start"] == "2026-10-26"
-        order = [p["doi"] for p in e["papers"]]
+        order = [p["doi"] for p in e["stories"]]
         assert order[0] == "10.1038/s41586-1"                                   # the cover story
         # with commentary: two of the week's papers, and one from August whose Preview came out this week
-        assert set(order[1:4]) == {"10.1038/s41586-2", "10.1126/science.brain", "10.1016/j.neuron.old"}
-        assert order[4:] == ["10.1016/j.neuron.1"]
-        by = {p["doi"]: p for p in e["papers"]}
+        assert set(order[1:]) == {"10.1038/s41586-2", "10.1126/science.brain", "10.1016/j.neuron.old"}
+        by = {p["doi"]: p for p in e["stories"]}                                # not neuron.1: no commentary
         assert by["10.1038/s41586-2"]["commentary"][0]["label"] == "News & Views"
         assert by["10.1038/s41586-2"]["commentary"][0]["summary"] == "What the meta-study means."   # from its page
         late = by["10.1016/j.neuron.old"]
@@ -161,17 +160,18 @@ def test_the_holidays_ahead_are_hong_kongs_in_english():
 QUANTA = pathlib.Path(__file__).parent / "fixtures" / "quanta.xml"     # its feed, cut down
 
 
-def test_quanta_brings_the_week_before_an_issue_shaped_like_papers(app, journals, monkeypatch):
+def test_quanta_brings_its_articles_from_the_week_before_an_issue(app, journals, monkeypatch):
     entries = feedparser.parse(QUANTA.read_text()).entries
     [a] = quanta.articles(entries, dispatch.out("2026-W44"))                        # out Wed 4 Nov: 28 Oct to 3 Nov
-    assert (a["title"], a["journal"], a["via"]) == ("Did Life Begin in an RNA World?", "Biology", "Quanta Magazine")
+    assert (a["title"], a["journal"], a["topic"]) == ("Did Life Begin in an RNA World?", "Quanta", "Biology")
     assert a["abstract"] == "Some believe the earliest life emerged from self-copying molecules."
     assert a["authors"] == ["Philip Ball"] and a["figure"] == "https://www.quantamagazine.org/rna.webp"
     with app.app_context():
         papers.fetch(NOW)
         monkeypatch.setattr(quanta, "read", lambda: entries)
         dispatch.publish(NOW)
-        assert [x["url"] for x in dispatch.issue("2026-W44", NOW)["quanta"]] == ["https://www.quantamagazine.org/rna-world/"]
+        stories = dispatch.issue("2026-W44", NOW)["stories"]
+        assert stories[-1]["url"] == "https://www.quantamagazine.org/rna-world/"           # after the papers
 
         def down():
             raise requests.ConnectionError
@@ -180,29 +180,31 @@ def test_quanta_brings_the_week_before_an_issue_shaped_like_papers(app, journals
 
 
 def test_an_issue_is_kept_as_it_came_out_and_a_late_paper_is_in_the_next(app, journals):
-    """Once out, an issue never changes; a paper listed after its week's issue came out is in the
-    next issue (marked earlier), and only there."""
+    """Once out, an issue never changes; a paper (with a commentary) listed after its week's issue
+    came out is in the next issue (marked earlier), and only there."""
     from datetime import date, timedelta
     with app.app_context():
         papers.fetch(NOW)
         dispatch.publish(NOW)
-        before = dispatch.issue("2026-W44", NOW)["papers"]
+        before = dispatch.issue("2026-W44", NOW)["stories"]
         db.session.add(Paper(doi="10.1016/j.neuron.late", journal="neuron", kind="research", title="Listed late",
                              published=date(2026, 10, 30)))
+        db.session.add(Paper(doi="10.1016/j.neuron.late-preview", journal="neuron", kind="commentary", title="On it",
+                             published=date(2026, 10, 30), on="10.1016/j.neuron.late"))
         db.session.commit()
-        assert dispatch.issue("2026-W44", NOW)["papers"] == before                    # unchanged
+        assert dispatch.issue("2026-W44", NOW)["stories"] == before                    # unchanged
         assert dispatch.publish(NOW) == []                                             # nothing new out yet
         later = NOW + timedelta(days=7)
         status = db.session.get(SourceStatus, "papers:neuron")
         status.last_ok = later                                                          # read since No. 45 came out
         db.session.commit()
         assert dispatch.publish(later) == ["2026-W45"]
-        w45 = {p["doi"]: p for p in dispatch.issue("2026-W45", later)["papers"]}
+        w45 = {p["doi"]: p for p in dispatch.issue("2026-W45", later)["stories"]}
         assert w45["10.1016/j.neuron.late"]["earlier"]
         status.last_ok = later + timedelta(days=7)
         db.session.commit()
         dispatch.publish(later + timedelta(days=7))
-        assert "10.1016/j.neuron.late" not in {p["doi"] for p in dispatch.issue("2026-W46", later)["papers"]}
+        assert "10.1016/j.neuron.late" not in {p["doi"] for p in dispatch.issue("2026-W46", later)["stories"]}
 
 
 def test_an_issue_comes_out_on_the_wednesday_after_its_week():

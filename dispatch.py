@@ -1,11 +1,11 @@
 """Dispatch: the weekly issue to read, one an ISO week, out the Wednesday after.
 
-It carries the week's neuroscience (papers.py), Quanta Magazine's articles from the week
-before it came out (quanta.py), the week's question (forecast.py, added by the app, which knows
-who's reading) and the public holidays coming up. An issue comes out on the Wednesday after its
-week, once the journals have mostly been listed, and is published then (publish): what it
-carries is kept as it stood and shown unchanged from then on. A
-paper listed too late for its own week's issue is in the next one, marked with its date. A
+It carries the week's neuroscience the journals made more of (papers.py) and Quanta Magazine's
+articles from the week before it came out (quanta.py), then the week's question (forecast.py,
+added by the app, which knows who's reading) and the public holidays coming up. An issue comes
+out on the Wednesday after its week, once the journals have mostly been listed, and is
+published then (publish): what it carries is kept as it stood and shown unchanged from then on.
+A paper listed too late for its own week's issue is in the next one, marked with its date. A
 periodical, not an archive: the last KEEP_WEEKS issues are kept.
 """
 from datetime import UTC, date, datetime, timedelta
@@ -114,6 +114,7 @@ def prune(today: date) -> int:
 
 # ---------- reading ----------
 
+
 def issue(which: str | None, now: datetime) -> dict:
     """One published issue, as it came out (the newest by default), and its place among the others."""
     editions = [e for (e,) in db.session.query(Issue.edition).order_by(Issue.edition)]
@@ -121,11 +122,11 @@ def issue(which: str | None, now: datetime) -> dict:
     base = {"editions": editions, "next_out": out(edition_id(week_of(latest(now)) + timedelta(days=7))).isoformat(),
             "sources": papers.status(), "fetched": papers.last_fetched().isoformat() if papers.last_fetched() else None}
     if not which:
-        return {**base, "edition": None, "papers": [], "quanta": [], "holidays": {"where": HOLIDAYS[1], "days": []}}
+        return {**base, "edition": None, "stories": [], "holidays": {"where": HOLIDAYS[1], "days": []}}
     i = db.session.get(Issue, which)
     start, at = week_of(which), editions.index(which)
     return {**base, "edition": {"id": which, "number": int(which[6:8]), "out": i.out.isoformat(),
                                 "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
                                 "prev": editions[at - 1] if at else None,
                                 "next": editions[at + 1] if at + 1 < len(editions) else None},
-            "papers": i.papers, "quanta": i.quanta or [], "holidays": {"where": HOLIDAYS[1], "days": i.holidays}}
+            "stories": i.papers + (i.quanta or []), "holidays": {"where": HOLIDAYS[1], "days": i.holidays}}

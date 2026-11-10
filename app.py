@@ -47,8 +47,7 @@ def create_app(config=None):
     @app.route("/dispatch/<edition>")
     def dispatch_page(edition=None):
         """Dispatch; /dispatch/2026-W44 is that week's issue (the page reads it from the address)."""
-        from journals import SUBJECT
-        return render_template("dispatch.html", subject=SUBJECT)
+        return render_template("dispatch.html")
 
     @app.route("/papers")
     @app.route("/papers/<edition>")

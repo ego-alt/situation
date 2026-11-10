@@ -1,7 +1,6 @@
 /* Dispatch: one week's issue, laid out as a front page. The neuroscience comes first: the
  * cover story leads, the papers with a commentary come next and larger, the rest fill the
- * columns; then Quanta's articles in the same modules, the week's question and the holidays
- * coming up. Everything is read here: a
+ * columns, then Quanta's articles; then the week's question and the holidays coming up. Everything is read here: a
  * story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
@@ -89,7 +88,8 @@
     function kicker(p) {
         // An earlier paper, in this issue for the commentary on it that came out this week.
         const earlier = p.earlier ? `<span>From ${esc(day(p.published, { day: 'numeric', month: 'short' }))}</span>` : '';
-        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span> ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}${earlier}</p>`;
+        const topic = p.topic ? `<span>${esc(p.topic)}</span>` : '';
+        return `<p class="kicker"><span class="journal">${esc(p.journal)}</span>${topic} ${p.cover ? '<span class="mark-cover">Cover story</span>' : ''}${earlier}</p>`;
     }
 
     /** One story. `size` is lead, rail, line, or mod: a module `w` of 12 columns wide. A module
@@ -145,8 +145,17 @@
         const rows = [rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
             : `<div class="row">${story(lead, 'lead')}</div>`];
         // A list of one isn't worth it: one over the limit goes in the modules.
-        rows.push(...modules(queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length)));
-        rows.unshift(`<h2 class="section-rule"><span>${esc($('edition').dataset.subject)}</span><span class="n">${papers.length} ${papers.length === 1 ? 'paper' : 'papers'}</span></h2>`);
+        const modules = queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length);
+        for (let s = 0; modules.length; s++) {
+            let shape = SHAPES[s % SHAPES.length];
+            if (modules.length < shape.length) shape = modules.length === 1 ? [12] : [7, 5];
+            const items = modules.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
+            const slots = shape.map((w, i) => ({ w, i })).sort((a, b) => b.w - a.w);
+            const placed = [];
+            slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
+            rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
+        }
+        rows.unshift(`<h2 class="section-rule"><span>This week</span><span class="n">${counts(papers)}</span></h2>`);
         if (queue.length) {
             rows.push(`<section class="rest" aria-label="The rest of the week">
                 <h2 class="section-rule"><span>The rest of the week</span><span class="n">${queue.length} ${queue.length === 1 ? 'paper' : 'papers'}</span></h2>
@@ -155,26 +164,12 @@
         return rows.join('');
     }
 
-    /** Rows of modules in changing shapes, the widest figure in the widest slot. */
-    function modules(list) {
-        const rows = [];
-        for (let s = 0; list.length; s++) {
-            let shape = SHAPES[s % SHAPES.length];
-            if (list.length < shape.length) shape = list.length === 1 ? [12] : [7, 5];
-            const items = list.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
-            const slots = shape.map((w, i) => ({ w, i })).sort((a, b) => b.w - a.w);
-            const placed = [];
-            slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
-            rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
-        }
-        return rows;
-    }
-
-    /** Quanta's articles from the week before the issue, after the papers, in the same modules. */
-    function magazine(articles) {
-        if (!articles.length) return '';
-        return `<h2 class="section-rule"><span>${esc(articles[0].via)}</span><span class="n">${articles.length} ${articles.length === 1 ? 'article' : 'articles'}</span></h2>
-            ${modules([...articles]).join('')}`;
+    /** "12 papers · 3 articles", leaving out a kind there's none of. */
+    function counts(stories) {
+        const articles = stories.filter((s) => s.via).length;
+        const papers = stories.length - articles;
+        const n = (c, one) => (c ? `${c} ${one}${c === 1 ? '' : 's'}` : '');
+        return [n(papers, 'paper'), n(articles, 'article')].filter(Boolean).join(' · ');
     }
 
     // How tall a story's own content is (the grid stretches the story itself to its row).
@@ -240,7 +235,7 @@
             $('edition').innerHTML = `<p class="press-empty">The first issue comes out ${esc(next)}.</p>`;
         } else {
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next ${esc(next)}</span>`}`;
-            $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>') + magazine(data.quanta);
+            $('edition').innerHTML = data.stories.length ? compose(data.stories) : '<p class="press-empty">Nothing this week.</p>';
             fit();
             // The lead's figure sets the front row's height once it's in.
             $('edition').querySelector('.s-lead img')?.addEventListener('load', fit);
@@ -287,7 +282,7 @@
             else {
                 data = await res.json();
                 failure = null;
-                await measure([...data.papers, ...data.quanta]);
+                await measure(data.stories);
                 drawEdition();
                 drawForecast();
                 drawHolidays();
@@ -531,7 +526,7 @@
     let resizing = 0;
     window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(fit, 150); });
     // Turned wide (a tablet, a window), the desktop's slots need every figure's proportions.
-    narrow.addEventListener('change', () => data && !narrow.matches && measure(data.papers).then(() => drawEdition()));
+    narrow.addEventListener('change', () => data && !narrow.matches && measure(data.stories).then(() => drawEdition()));
     document.fonts?.ready.then(fit);
     setInterval(drawStatus, 60000);
     setInterval(() => !document.hidden && !viewing && load(data?.edition?.id), 30 * 60000);
