@@ -1,4 +1,4 @@
-"""The journals Papers reads, and how each one's neuroscience is found.
+"""The journals Dispatch reads, and how each one's neuroscience is found.
 
 Add a journal here to widen the paper. `scope` says which of its papers belong:
   "all"      every research paper (a neuroscience journal, like Neuron);

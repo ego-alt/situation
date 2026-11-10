@@ -5,7 +5,6 @@
  * issue's woodcut is the same every time it's opened; the coast is the map's own (static/map). */
 (() => {
     const ROOT = window.APP_ROOT || '';
-    const NS = 'http://www.w3.org/2000/svg';
     const LAT = 22.3, LON = 114.17;          // Hong Kong
     const EVENING = 13;                      // 9pm in Hong Kong, in UTC hours
     // Each shape: its size, the part of the map it shows (the map's own units), where the sky,

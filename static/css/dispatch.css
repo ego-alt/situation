@@ -12,7 +12,6 @@
 .seal text { font: 600 var(--text-xl) var(--font-song); fill: var(--color-bg-base); text-anchor: middle; }
 /* Engraved in the page's own light lines on its glass (woodcut.js draws it, in user units the size of pixels). */
 .woodcut { margin: var(--space-4) 0 0; }
-.woodcut[hidden] { display: none; }
 .woodcut svg { display: block; width: 100%; height: auto; }
 .woodcut .line { stroke: var(--color-text-secondary); }
 .woodcut .sea-line { stroke: var(--color-bg-base); }
@@ -44,7 +43,7 @@
 /* ---- rows: twelve columns, parted by hairlines ---- */
 .row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); padding: var(--space-6) 0; border-bottom: 1px solid var(--color-border-soft); }
 .row-front { border-bottom-color: var(--color-border); }
-.row:has(+ section), .row:last-child { border-bottom: 0; }
+.row:last-child { border-bottom: 0; }
 .row > * { grid-column: span 12; padding: 0 var(--space-6); }
 .row > :first-child { padding-left: 0; }
 .row > :last-child { padding-right: 0; }
@@ -247,7 +246,5 @@
     .rest-list { columns: auto; }
     .back { display: block; }
     /* One rule between sections: the last story or item before one goes without its own. */
-    .row:is(:has(+ section), :last-child) .story:last-child, .rest .s-line:last-child { border-bottom: 0; }
-    /* The bar: the dot and the tabs, and SRC only when a journal didn't answer. */
-    .dispatch-page #updatedReadout, .dispatch-page #journalsReadout:not(.warn) { display: none; }
+    .row:last-child .story:last-child, .rest .s-line:last-child { border-bottom: 0; }
 }

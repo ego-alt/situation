@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 
 import click
 import numpy as np
-from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from models import Story, db, migrate
+from models import Story, db
 from projection import project
 from score import clean_title, is_headline
 from sources import BY_KEY, SOURCES
@@ -33,7 +33,6 @@ def create_app(config=None):
         app.config.update(config)
     db.init_app(app)
     with app.app_context():
-        migrate()
         db.create_all()
     # Behind the dashboard's nginx at /situation/: trust its X-Forwarded-*
     # headers, so url_for() and request.script_root include the prefix.
@@ -48,12 +47,6 @@ def create_app(config=None):
     def dispatch_page(edition=None):
         """Dispatch; /dispatch/2026-W44 is that week's issue (the page reads it from the address)."""
         return render_template("dispatch.html")
-
-    @app.route("/papers")
-    @app.route("/papers/<edition>")
-    def papers_page(edition=None):
-        """Where Dispatch was called Papers: old links still work."""
-        return redirect(url_for("dispatch_page", edition=edition), 301)
 
     @app.route("/api/dispatch")
     def dispatch_api():

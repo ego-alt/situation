@@ -56,6 +56,8 @@ def test_links_carry_the_stack_prefix(app):
     assert b'href="/situation/static/css/situation.css' in page.data
     assert b'window.APP_ROOT = "/situation"' in page.data
     assert b"js/signed_out.js" in page.data                        # the stack's "signed out" bar
+    page = app.test_client().get("/dispatch/2026-W44", headers={"X-Forwarded-Prefix": "/situation"})
+    assert b'href="/situation/static/css/dispatch.css' in page.data and b"js/woodcut.js" in page.data
 
 
 # ---------- what the audit asked for ----------
@@ -138,24 +140,6 @@ def test_the_second_day_is_capped_at_ten(app, monkeypatch):
 def test_an_active_situation_without_shared_reports_quotes_nothing(loaded):
     iran = next(o for o in snapshot()["ongoing"] if o["topic"] == "Iran war")
     assert iran["latest"] is None and iran["singles"] >= 1           # a lone essay isn't the news
-
-
-def test_an_old_database_gains_the_new_column(tmp_path):
-    """A database from before `shown`: stories on the page then count as shown."""
-    import sqlite3
-
-    from app import create_app
-    path = tmp_path / "old.db"
-    config = {"TESTING": True, "FETCH_LOOP": False, "SQLALCHEMY_DATABASE_URI": f"sqlite:///{path}"}
-    create_app(config)
-    con = sqlite3.connect(path)
-    con.execute("ALTER TABLE stories DROP COLUMN shown")
-    insert = "INSERT INTO stories (headline, tier, score, outlets, leads, closed, running) VALUES (?, ?, 1, 1, 0, 0, 0)"
-    con.executemany(insert, [("Old", "headline"), ("Quiet", "background")])
-    con.commit()
-    con.close()
-    with create_app(config).app_context():
-        assert {s.headline: s.shown for s in Story.query} == {"Old": True, "Quiet": False}
 
 
 def test_a_story_that_faded_is_closed_not_deleted(app):
@@ -364,10 +348,3 @@ def test_every_timestamp_column_is_utc():
     columns = [(t.name, c) for t in db.metadata.tables.values() for c in t.columns]
     plain = [f"{name}.{c.name}" for name, c in columns if isinstance(c.type, DateTime)]
     assert plain == []
-
-
-def test_papers_moved_to_dispatch(app):
-    client = app.test_client()
-    r = client.get("/papers/2026-W44")
-    assert r.status_code == 301 and r.headers["Location"].endswith("/dispatch/2026-W44")
-    assert client.get("/dispatch").status_code == 200

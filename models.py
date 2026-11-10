@@ -161,7 +161,7 @@ class Label(db.Model):
 
 
 class Paper(db.Model):
-    """A research paper in one of the journals Papers reads (journals.py), or a
+    """A research paper in one of the journals Dispatch reads (journals.py), or a
     commentary the journal commissioned on one (`on` is that paper's DOI)."""
     __tablename__ = "papers"
     doi = db.Column(db.String, primary_key=True)                # lower case
@@ -192,7 +192,7 @@ class Issue(db.Model):
 
 
 class Question(db.Model):
-    """The forecast question an edition of Papers asks (forecast.py), one per edition. Its
+    """The forecast question an issue of Dispatch asks (forecast.py), one per edition. Its
     state is one of forecast.STATES and is changed only there: none (nothing was eligible),
     open, closed (trading stopped, the result not in yet), then yes, no or void. Kept for
     good, unlike papers: the record is made of them."""
@@ -222,17 +222,3 @@ class Guess(db.Model):
     chance = db.Column(db.Integer, nullable=False)              # percent, in steps of forecast.STEP
     crowd = db.Column(db.Float, nullable=False)                 # Polymarket's price of Yes when you saved it
     at = db.Column(UtcDateTime, nullable=False)
-
-
-def migrate():
-    """Add columns that create_all() can't add to an existing table."""
-    def columns(table):
-        return {row[1] for row in db.session.execute(db.text(f"PRAGMA table_info({table})"))}
-    stories, issues = columns("stories"), columns("issues")
-    if stories and "shown" not in stories:
-        db.session.execute(db.text("ALTER TABLE stories ADD COLUMN shown BOOLEAN NOT NULL DEFAULT 0"))
-        # Its tier now is all there is to go on for a story from before.
-        db.session.execute(db.text("UPDATE stories SET shown = 1 WHERE tier != 'background'"))
-    if issues and "poem" not in issues:
-        db.session.execute(db.text("ALTER TABLE issues ADD COLUMN poem JSON"))
-    db.session.commit()

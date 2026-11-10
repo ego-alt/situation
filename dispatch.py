@@ -2,9 +2,9 @@
 
 It carries the week's neuroscience the journals made more of (papers.py), a poem from 唐詩三百首
 or 宋詞三百首 to learn by heart, the week's question (forecast.py, added by the app, which knows
-who's reading) and the public holidays coming up. An issue comes
-out on the Wednesday after its week, once the journals have mostly been listed, and is
-published then (publish): what it carries is kept as it stood and shown unchanged from then on.
+who's reading) and the public holidays coming up. An issue comes out on the Wednesday after its
+week, once the journals have mostly been listed, and is published then (publish): what it
+carries is kept as it stood and shown unchanged from then on.
 A paper listed too late for its own week's issue is in the next one, marked with its date. A
 periodical, not an archive: the last KEEP_WEEKS issues are kept.
 """

@@ -19,7 +19,7 @@ body {
     font-family: var(--font-mono); font-size: var(--text-sm); letter-spacing: var(--tracking-label);
 }
 .brand { display: flex; align-items: center; gap: var(--space-3); font-weight: 600; color: var(--color-text-primary); letter-spacing: var(--tracking-wide); }
-/* News and Papers: the two halves of the app, as tabs beside the name. */
+/* News and Dispatch: the two halves of the app, as tabs beside the name. */
 .tabs { display: flex; align-self: stretch; gap: var(--space-4); margin-left: var(--space-3); }
 .brand { align-self: stretch; }
 .tab {
@@ -30,7 +30,7 @@ body {
 .tab[aria-current="page"] { color: var(--color-text-primary); }   /* brighter, no underline */
 .tab:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .brand-sub { color: var(--color-text-muted); font-weight: 400; letter-spacing: var(--tracking-caps); text-transform: uppercase; font-size: var(--text-xs); }
-/* Papers and the labelling page: their facts as readouts. */
+/* The labelling page: its counts as readouts. */
 .readouts { display: flex; gap: var(--space-4); color: var(--color-text-secondary); white-space: nowrap; }
 .readout .k { color: var(--color-text-muted); }
 .readout.warn, .readout.warn .k { color: var(--color-flash); }
