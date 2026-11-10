@@ -209,7 +209,7 @@ class Question(db.Model):
     subject = db.Column(db.String)                              # for the record: elections, economics, …
     closes = db.Column(UtcDateTime)
     crowd = db.Column(db.Float)                                 # the price of Yes when it was asked
-    volume = db.Column(db.Float)                                # dollars traded when it was asked
+    volume = db.Column(db.Float)                                # dollars traded in the week before it was asked
     news = db.Column(db.JSON)                                   # articles on it the week before (coverage)
     settled = db.Column(UtcDateTime)                            # when it became yes, no or void
 

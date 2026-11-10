@@ -14,9 +14,11 @@ OUT = datetime(2026, 11, 11, tzinfo=UTC)       # issue 2026-W45 comes out
 EDITION = "2026-W45"
 
 
-def market(id, question, yes, volume, ends="2026-11-14T00:00:00Z", made="2026-10-01T00:00:00Z", **extra):
+def market(id, question, yes, volume, ends="2026-11-14T00:00:00Z", made="2026-10-01T00:00:00Z", week=None, **extra):
+    """A market with `volume` traded in all, and `week` of it (all of it, unless said) in the past week."""
     return {"id": id, "question": question, "outcomes": '["Yes", "No"]',
-            "outcomePrices": json.dumps([str(yes), str(1 - yes)]), "volumeNum": volume, "endDate": ends,
+            "outcomePrices": json.dumps([str(yes), str(1 - yes)]), "endDate": ends,
+            "volumeNum": volume, "volume1wk": volume if week is None else week,
             "createdAt": made, "closed": False, "description": f"{question} Rules.", **extra}
 
 
@@ -70,6 +72,15 @@ def test_what_is_never_asked():
         event(11, "Untagged", [market(11, "Will anything happen?", 0.5, 1e6)], tags=("misc",)),
     ]
     assert forecast.eligible(cases, OUT, OUT + timedelta(days=7)) == []
+
+
+def test_it_is_ranked_by_the_past_weeks_trading_not_the_total():
+    old = event(1, "Long-running", [market(1, "Will it ever happen?", 0.5, 9e6, week=3e4)])
+    hot = event(2, "This week", [market(2, "Will it happen on Friday?", 0.5, 4e5)])
+    quiet = event(3, "Barely traded", [market(3, "Will it happen?", 0.5, 2e4)])          # under the floor in all
+    found = forecast.eligible([old, hot, quiet], OUT, OUT + timedelta(days=7))
+    assert {c["event"]: c["volume"] for c in found} == {"1": 3e4, "2": 4e5}
+    assert forecast.choose(found, None, random.Random(0))["event"] == "2"
 
 
 def test_the_most_traded_wins_but_never_last_weeks_event():

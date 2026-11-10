@@ -6,8 +6,9 @@ you said, and what the crowd said. Polymarket is only read (its public API); not
 
 Choosing (eligible and choose, pure): a yes/no market open when the edition comes out and
 closing before the next, not blocked, with the crowd between 20% and 80% and at least
-MIN_VOLUME traded; one market per event, the one nearest 50%. The most traded wins, never
-the event asked last week; one within TIE of it is a tie, drawn at random once.
+MIN_VOLUME traded; one market per event, the one nearest 50%. The most traded in the past
+week wins (what people are trading on now, not what has run longest), never the event asked
+last week; one within TIE of it is a tie, drawn at random once.
 
 A question's state is one of STATES and moves only along MOVES, in _move and nowhere else:
 none (nothing was eligible) is final; open becomes closed when trading stops; open or closed
@@ -34,7 +35,7 @@ ASK_WITHIN = timedelta(days=1)      # a question is asked as its issue comes out
 
 # The four numbers that decide everything.
 CROWD = (0.2, 0.8)                  # the crowd must be this unsure
-MIN_VOLUME = 25_000                 # dollars traded, so the odds mean something
+MIN_VOLUME = 25_000                 # dollars traded in all, so the odds mean something
 TIE = 0.1                           # within this share of the most traded is a tie
 STEP = 5                            # the slider's step, in percent
 
@@ -147,12 +148,12 @@ def eligible(events: list[dict], start: datetime, end: datetime) -> list[dict]:
         out.append({"market": str(m["id"]), "event": str(e["id"]), "slug": e.get("slug"), "title": m["question"],
                     "rule": (m.get("description") or e.get("description") or "").strip(),
                     "source": source if source.startswith("https://") else None, "subject": subject,
-                    "closes": _time(m["endDate"]), "crowd": _yes(m), "volume": float(m.get("volumeNum") or 0)})
+                    "closes": _time(m["endDate"]), "crowd": _yes(m), "volume": float(m.get("volume1wk") or 0)})
     return out
 
 
 def choose(candidates: list[dict], last_event: str | None, rng: random.Random) -> dict | None:
-    """The most traded, never last week's event; a tie within TIE is drawn at random."""
+    """The most traded in the past week, never last week's event; a tie within TIE is drawn at random."""
     fresh = sorted((c for c in candidates if c["event"] != last_event), key=lambda c: -c["volume"])
     if not fresh:
         return None
