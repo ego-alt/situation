@@ -226,7 +226,10 @@
             $('folio').textContent = 'The first issue is being set';
             $('edition').innerHTML = `<p class="press-empty">The first issue comes out ${esc(next)}.</p>`;
         } else {
-            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span class="folio-next">Next ${esc(next)}</span>`}`;
+            const out = new Date(data.next_out);
+            const wday = out.toLocaleDateString('en-GB', { weekday: 'short' });
+            const date = out.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next <span class="folio-wday">${esc(wday)}, </span>${esc(date)}</span>`}`;
             $('edition').innerHTML = data.stories.length ? compose(data.stories) : '<p class="press-empty">Nothing this week.</p>';
             fit();
             // The lead's figure sets the front row's height once it's in.

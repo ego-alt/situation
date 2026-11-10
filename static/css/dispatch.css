@@ -186,10 +186,16 @@
     .press { padding: 0 var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
     .masthead { padding-top: var(--space-6); }
     .nameplate { letter-spacing: 0.3em; padding-left: 0.3em; }
-    .folio { grid-template-columns: 44px 1fr 44px; gap: var(--space-2); }
-    .folio-next { flex-basis: 100%; }   /* its own line, with no separator to start it */
-    .folio-line .folio-next::before { content: none; }
+    /* The issue line on one line: closer set, and without the weekday it's always out on. */
+    .folio { grid-template-columns: var(--space-6) minmax(0, 1fr) var(--space-6); gap: var(--space-1); letter-spacing: 0.06em; }
+    .folio-line { flex-wrap: nowrap; white-space: nowrap; }
+    .folio-line span + span::before { margin: 0 var(--space-1); }
+    .folio-wday { display: none; }
     .folio-step { min-width: 44px; padding: 0; }
+    .folio .folio-step { position: relative; width: 100%; min-width: 0; padding: 0; }
+    .folio .folio-step[data-dir="prev"] { justify-content: flex-start; }   /* flush with the edges */
+    .folio .folio-step[data-dir="next"] { justify-content: flex-end; }
+    .folio .folio-step::after { content: ""; position: absolute; inset: 0 -10px; }   /* still a 44px tap */
     .folio .folio-step-label, .folio-year { display: none; }
     .turn .folio-step { padding: 0; }
     .row, .rail { display: block; padding: 0; border: 0; }
