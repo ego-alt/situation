@@ -26,9 +26,9 @@
         <header class="masthead">
             <h1 class="nameplate">Dispatch</h1>
             <div class="folio">
-                <button type="button" class="btn btn-ghost folio-step" id="prevEdition" data-dir="prev" disabled><span aria-hidden="true">‹</span> <span class="folio-step-label"></span></button>
+                <button type="button" class="btn btn-ghost tap folio-step" id="prevEdition" data-dir="prev" disabled><span aria-hidden="true">‹</span> <span class="folio-step-label"></span></button>
                 <p class="folio-line" id="folio" aria-live="polite">&nbsp;</p>
-                <button type="button" class="btn btn-ghost folio-step" id="nextEdition" data-dir="next" disabled><span class="folio-step-label"></span> <span aria-hidden="true">›</span></button>
+                <button type="button" class="btn btn-ghost tap folio-step" id="nextEdition" data-dir="next" disabled><span class="folio-step-label"></span> <span aria-hidden="true">›</span></button>
             </div>
         </header>
         <div id="notice" class="notice" role="status" hidden></div>
@@ -46,7 +46,7 @@
     <dialog class="viewer" id="viewer" aria-labelledby="viewerTitle">
         <div class="viewer-bar">
             <p class="viewer-title" id="viewerTitle"></p>
-            <button type="button" class="btn viewer-close" id="viewerClose">Close</button>
+            <button type="button" class="btn tap viewer-close" id="viewerClose">Close</button>
         </div>
         <div class="viewer-stage" id="viewerStage"><img id="viewerImg" alt="" referrerpolicy="no-referrer"></div>
         <p class="viewer-hint">Tap to zoom in or out</p>

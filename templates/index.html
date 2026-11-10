@@ -18,7 +18,7 @@
     <header class="bar">
         <div class="brand"><span class="brand-name">SITUATION</span>{% include '_tabs.html' %}</div>
         <!-- One status: how fresh the news is (tap to fetch now); amber when something's wrong, with what in its title. -->
-        <button type="button" class="btn btn-ghost status" id="syncButton" title="Fetch the news now">
+        <button type="button" class="btn btn-ghost status tap" id="syncButton" title="Fetch the news now">
             <span class="status-dot" aria-hidden="true"></span><span id="sync">—</span>
         </button>
     </header>
@@ -27,9 +27,9 @@
         <section class="theatre" aria-label="World map">
             <svg id="map" class="map" role="img" aria-label="Where today's stories are"></svg>
             <div class="zoom" role="group" aria-label="Map zoom">
-                <button type="button" class="btn btn-float" data-zoom="in" aria-label="Zoom in">+</button>
-                <button type="button" class="btn btn-float" data-zoom="out" aria-label="Zoom out">−</button>
-                <button type="button" class="btn btn-float zoom-world" data-zoom="world">World</button>
+                <button type="button" class="btn btn-float tap" data-zoom="in" aria-label="Zoom in">+</button>
+                <button type="button" class="btn btn-float tap" data-zoom="out" aria-label="Zoom out">−</button>
+                <button type="button" class="btn btn-float tap zoom-world" data-zoom="world">World</button>
             </div>
             <div class="legend" aria-hidden="true">
                 <span data-kind="flash"><i class="dot flash"></i>flash</span>

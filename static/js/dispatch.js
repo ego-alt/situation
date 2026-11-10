@@ -157,7 +157,7 @@
         }
         if (queue.length) {
             rows.push(`<section class="rest" aria-label="The rest of the week">
-                <h2 class="section-rule"><span>The rest of the week</span></h2>
+                <h2 class="section-head"><span>The rest of the week</span></h2>
                 <div class="rest-list">${queue.map((p) => story(p, 'line')).join('')}</div></section>`);
         }
         return rows.join('');
@@ -221,15 +221,12 @@
     /** An issue as it came out. The newest also says when the next one comes out. */
     function drawEdition() {
         const e = data.edition;
-        const next = new Date(data.next_out).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+        const next = new Date(data.next_out).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
         if (!e) {
             $('folio').textContent = 'The first issue is being set';
             $('edition').innerHTML = `<p class="press-empty">The first issue comes out ${esc(next)}.</p>`;
         } else {
-            const out = new Date(data.next_out);
-            const wday = out.toLocaleDateString('en-GB', { weekday: 'short' });
-            const date = out.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next <span class="folio-wday">${esc(wday)}, </span>${esc(date)}</span>`}`;
+            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next ${esc(next)}</span>`}`;
             $('edition').innerHTML = data.stories.length ? compose(data.stories) : '<p class="press-empty">Nothing this week.</p>';
             fit();
             // The lead's figure sets the front row's height once it's in.
@@ -366,7 +363,7 @@
         const h = data?.holidays;
         const el = $('holidays');
         el.hidden = !h?.days.length;
-        el.innerHTML = el.hidden ? '' : `<h2 class="section-rule"><span>Holidays</span><span class="n">${esc(h.where)} · the next two weeks</span></h2>
+        el.innerHTML = el.hidden ? '' : `<h2 class="section-head"><span>Holidays</span><span class="n">${esc(h.where)} · the next two weeks</span></h2>
             <div class="rest-list">${h.days.map((d) => `<article class="story s-line"><p class="kicker"><span class="journal">${esc(day(d.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</span></p>
                 <h2 class="story-title">${esc(d.name)}</h2></article>`).join('')}</div>`;
     }
@@ -386,7 +383,7 @@
             <h2 class="story-title">${esc(r.title)}</h2><p class="byline">${outcome(r)}</p></article>`);
         const second = [results[0], record(f.record)].filter(Boolean).join('');
         if (!q && !none && !second) { el.hidden = true; el.innerHTML = ''; return; }
-        el.innerHTML = `<h2 class="section-rule"><span>The week’s question</span><span class="n">From Polymarket</span></h2>
+        el.innerHTML = `<h2 class="section-head"><span>The week’s question</span><span class="n">From Polymarket</span></h2>
             ${q ? `<div class="row">${asked(q, 'Forecast')}${answer(q)}</div>` : none ? `<p class="press-empty">${none}</p>` : ''}
             ${second ? `<div class="row">${second}</div>` : ''}
             ${results.slice(1).map((r) => `<div class="row">${r}</div>`).join('')}`;

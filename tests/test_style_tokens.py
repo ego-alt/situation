@@ -1,5 +1,5 @@
-"""Situation's sizes come from tokens.css: no stylesheet sets a raw font size, so
-the type scale can't creep back to sizes a pixel apart (dashboard/docs/design.md)."""
+"""Situation's type comes from tokens.css: no stylesheet sets a raw font size, letter-spacing or
+line height, so the type can't creep back to values a hair apart (dashboard/docs/design.md)."""
 import pathlib
 import re
 
@@ -25,3 +25,17 @@ def test_font_sizes_come_from_tokens():
 
 def test_type_scale_is_small():
     assert len(re.findall(r"--text-[\w-]+:", (CSS / "tokens.css").read_text())) <= 5
+
+
+def _spacing(css):
+    """Every letter-spacing and line height, the shorthand's (after its size's slash) too."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    yield from (v.strip() for v in re.findall(r"(?:letter-spacing|line-height):\s*([^;}!]+)", css))
+    yield from (m.strip() for m in re.findall(r"(?<![\w-])font:[^;}]*?\)/(\S+)", css))
+
+
+def test_tracking_and_leading_come_from_tokens():
+    allowed = r"var\(--(tracking|leading)-[\w-]+\)|inherit|normal|0"
+    raw = [f"{p.name}: {v}" for p in sorted(CSS.glob("*.css")) if p.name != "tokens.css"
+           for v in _spacing(p.read_text()) if not re.fullmatch(allowed, v)]
+    assert not raw, "use a --tracking-* or --leading-* token from tokens.css:\n" + "\n".join(raw)

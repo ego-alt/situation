@@ -60,7 +60,7 @@
 .range.unset::-moz-range-thumb { background: var(--color-text-muted); }
 .range-scale {
     display: flex; justify-content: space-between; margin-top: calc(-1 * var(--space-1));
-    font: var(--text-xs) var(--font-mono); letter-spacing: 0.06em; color: var(--color-text-muted);
+    font: var(--text-xs) var(--font-mono); letter-spacing: var(--tracking-label); color: var(--color-text-muted);
 }
 
 /* Hover only where there's a pointer to hover with: on a touch screen it sticks after a tap. */
@@ -68,4 +68,13 @@
     .btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-text-muted); }
     .btn-lg:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-accent); }
     .btn-ghost:hover:not(:disabled) { border-color: var(--color-border); }
+}
+
+/* On a touch screen a small control keeps its look and gets a finger-sized target around it. */
+@media (pointer: coarse) {
+    .tap { position: relative; }
+    .tap::after {
+        content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        width: max(100%, var(--tap)); height: max(100%, var(--tap));
+    }
 }

@@ -10,7 +10,21 @@
     --text-sm: 13px;      /* summaries, sources, notes, the bar */
     --text-base: 15px;    /* headlines */
     --text-lg: 17px;      /* titles: a country, a question */
-    --text-xl: 24px;      /* Papers: the nameplate and the lead story */
+    --text-xl: 24px;      /* Dispatch: the nameplate and the lead story */
+    /* Tracking, from tight to spaced, and leading: every letter-spacing and line height is one of these. */
+    --tracking-tight: -0.01em;      /* large headlines */
+    --tracking-text: 0.02em;        /* small sans text, names on the map */
+    --tracking-label: 0.06em;       /* labels, kickers, mono facts */
+    --tracking-caps: 0.12em;        /* section heads, tabs, the issue line */
+    --tracking-wide: 0.16em;        /* the brand, regions on the map */
+    --tracking-nameplate: 0.3em;    /* Dispatch's nameplate */
+    --leading-none: 1;
+    --leading-title: 1.3;           /* headlines and titles */
+    --leading-text: 1.45;           /* small text */
+    --leading-read: 1.55;           /* abstracts: text to read at length */
+    --leading-label: calc(var(--text-sm) * var(--leading-text));   /* a label's line: as tall as small text beside it */
+
+    --tap: 44px;          /* the smallest a finger target is */
 
     --space-1: 4px;
     --space-2: 8px;
