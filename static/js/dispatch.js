@@ -155,22 +155,14 @@
             slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
             rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
         }
-        rows.unshift(`<h2 class="section-rule"><span>This week</span><span class="n">${counts(papers)}</span></h2>`);
         if (queue.length) {
             rows.push(`<section class="rest" aria-label="The rest of the week">
-                <h2 class="section-rule"><span>The rest of the week</span><span class="n">${queue.length} ${queue.length === 1 ? 'paper' : 'papers'}</span></h2>
+                <h2 class="section-rule"><span>The rest of the week</span></h2>
                 <div class="rest-list">${queue.map((p) => story(p, 'line')).join('')}</div></section>`);
         }
         return rows.join('');
     }
 
-    /** "12 papers · 3 articles", leaving out a kind there's none of. */
-    function counts(stories) {
-        const articles = stories.filter((s) => s.via).length;
-        const papers = stories.length - articles;
-        const n = (c, one) => (c ? `${c} ${one}${c === 1 ? '' : 's'}` : '');
-        return [n(papers, 'paper'), n(articles, 'article')].filter(Boolean).join(' · ');
-    }
 
     // How tall a story's own content is (the grid stretches the story itself to its row).
     const natural = (el) => [...el.children].filter((c) => c.offsetHeight).pop().getBoundingClientRect().bottom - el.getBoundingClientRect().top;
@@ -234,7 +226,7 @@
             $('folio').textContent = 'The first issue is being set';
             $('edition').innerHTML = `<p class="press-empty">The first issue comes out ${esc(next)}.</p>`;
         } else {
-            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next ${esc(next)}</span>`}`;
+            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span class="folio-next">Next ${esc(next)}</span>`}`;
             $('edition').innerHTML = data.stories.length ? compose(data.stories) : '<p class="press-empty">Nothing this week.</p>';
             fit();
             // The lead's figure sets the front row's height once it's in.
