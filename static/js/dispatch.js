@@ -323,20 +323,22 @@
         </article>`;
     }
 
+    const said = (q) => `${q.yours == null ? 'You didn’t answer' : `You said ${pct(q.yours)}`}; the crowd ${pct(q.crowd)}.`;
+
     /** What happened, what you said and what the crowd said, in a sentence. */
     function outcome(q) {
-        const said = q.yours == null ? 'You didn’t answer' : `You said ${pct(q.yours)}`;
         const scored = q.score ? ` Brier score: you ${q.score.yours.toFixed(2)}, the crowd ${q.score.crowd.toFixed(2)}.` : '';
         const waiting = q.state === 'closed' ? ' Polymarket hasn’t settled it yet; it stays here until it does.' : '';
-        return `${esc(OUTCOME[q.state])}. ${said}; the crowd ${pct(q.crowd)}.${scored}${waiting}`;
+        return `${esc(OUTCOME[q.state])}. ${said(q)}${scored}${waiting}`;
     }
 
     /** Your answer beside the question: the slider while it's open (saved when you let go of
-     * it), what came of it after. */
+     * it), what you and the crowd said once it's closed. What came of it is news for the next
+     * issue, as last week's question, not this one. */
     function answer(q) {
         if (q.state !== 'open') {
-            return `<article class="story open w4"><p class="kicker"><span class="journal">${q.state === 'closed' ? 'Closed' : 'The result'}</span></p>
-                <p class="abstract">${outcome(q)}</p></article>`;
+            return `<article class="story open w4"><p class="kicker"><span class="journal">Closed</span></p>
+                <p class="abstract">${said(q)} The result is in the next issue.</p></article>`;
         }
         const set = q.yours != null;
         return `<div class="story open w4 answer" data-edition="${esc(q.edition)}">
