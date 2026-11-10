@@ -4,8 +4,27 @@
 .dispatch-page { height: auto; }
 .press { max-width: 1280px; margin: 0 auto; padding: 0 var(--space-8) calc(var(--space-8) + env(safe-area-inset-bottom)); }
 
-/* ---- masthead ---- */
+/* ---- masthead: the nameplate and its seal, the folio, the woodcut ---- */
 .masthead { padding-top: var(--space-8); text-align: center; }
+.plate { display: flex; align-items: center; justify-content: center; gap: var(--space-4); }
+.seal { width: 54px; height: 54px; flex: none; }
+.seal rect { fill: var(--color-seal); }
+.seal text { font: 600 var(--text-xl) var(--font-song); fill: var(--color-bg-base); text-anchor: middle; }
+/* Engraved in the page's own light lines on its glass (woodcut.js draws it, in user units the size of pixels). */
+.woodcut { margin: var(--space-4) 0 0; }
+.woodcut[hidden] { display: none; }
+.woodcut svg { display: block; width: 100%; height: auto; }
+.woodcut .line { stroke: var(--color-text-secondary); }
+.woodcut .sea-line { stroke: var(--color-bg-base); }
+.woodcut .paper { fill: var(--color-bg-base); }
+.woodcut .ink { fill: var(--color-text-secondary); }
+.woodcut .lit { fill: var(--color-text-primary); }
+.woodcut :is(.hatch, .faint) { opacity: 0.55; }
+.woodcut .sky { opacity: 0.8; }
+.woodcut text { font: var(--text-xs) var(--font-song); }
+.woodcut .place { font-size: var(--text-sm); letter-spacing: var(--tracking-label); }
+.woodcut .title { font-size: var(--text-lg); letter-spacing: var(--tracking-wide); }
+.woodcut .mono { font-family: var(--font-mono); letter-spacing: var(--tracking-label); text-transform: uppercase; }
 .nameplate {
     margin: 0; padding-left: var(--tracking-nameplate);   /* gives back the tracking's trailing space, so it centres */
     font: 600 var(--text-xl)/var(--leading-none) var(--font-mono); letter-spacing: var(--tracking-nameplate); text-transform: uppercase; color: var(--color-text-primary);
@@ -185,6 +204,8 @@
 @media (max-width: 860px) {
     .press { padding: 0 var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
     .masthead { padding-top: var(--space-6); }
+    .plate { gap: var(--space-3); }
+    .seal { width: 44px; height: 44px; }
     /* The issue line on one line: set closer, between narrow steps that keep a finger-sized target (.tap). */
     .folio { grid-template-columns: var(--space-6) minmax(0, 1fr) var(--space-6); gap: var(--space-1); letter-spacing: var(--tracking-label); }
     .folio-line { flex-wrap: nowrap; white-space: nowrap; }

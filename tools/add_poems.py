@@ -4,7 +4,7 @@ chinese-poetry collection (MIT, github.com/chinese-poetry/chinese-poetry): its
 Kong's forms (為, not 爲): the Song file from simplified, the Tang from older traditional. A
 title with a variant ("早發白帝城 / 白帝下江陵") keeps the first. Then it cuts the poem's typeface,
 昭源宋體 (Chiron Sung HK, SIL Open Font License, github.com/chiron-fonts/chiron-sung-hk: its
-STATIC_TTF/ChironSungHK-R.ttf and -SB.ttf), down to the characters the poems use:
+STATIC_TTF/ChironSungHK-R.ttf and -SB.ttf), down to the characters the poems and the page use:
 
     uv run --with opencc-python-reimplemented --with 'fonttools[woff]' python -I tools/add_poems.py \
         tangshisanbaishou.json 宋词三百首.json ChironSungHK-R.ttf ChironSungHK-SB.ttf
@@ -18,7 +18,9 @@ from opencc import OpenCC
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FONTS = ROOT / "static" / "fonts"
-SHOWN = "三百首"     # what the page adds: the section head's 唐詩三百首 or 宋詞三百首
+# What else the page sets in it: the section head's 唐詩三百首 or 宋詞三百首, the seal, and the
+# woodcut's names and moons (static/js/woodcut.js).
+SHOWN = "三百首" + "邸報" + "珠江口香港澳門廣州北織女牛郎" + "新月蛾眉上弦盈凸滿虧下殘"
 
 
 def main(tang_src, song_src, regular, semibold):

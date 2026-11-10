@@ -215,9 +215,11 @@
         const e = data.edition;
         const next = new Date(data.next_out).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
         if (!e) {
+            Woodcut.draw($('woodcut'), null);
             $('folio').textContent = 'The first issue is being set';
             $('edition').innerHTML = `<p class="press-empty">The first issue comes out ${esc(next)}.</p>`;
         } else {
+            Woodcut.draw($('woodcut'), e.out);
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next ${esc(next)}</span>`}`;
             $('edition').innerHTML = data.stories.length ? compose(data.stories) : '<p class="press-empty">Nothing this week.</p>';
             fit();
@@ -522,7 +524,10 @@
     const start = place();
     load(start.edition, { y: start.y });
     let resizing = 0;
-    window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(fit, 150); });
+    window.addEventListener('resize', () => {
+        clearTimeout(resizing);
+        resizing = setTimeout(() => { fit(); Woodcut.draw($('woodcut'), data?.edition?.out); }, 150);
+    });
     // Turned wide (a tablet, a window), the desktop's slots need every figure's proportions.
     narrow.addEventListener('change', () => data && !narrow.matches && measure(data.stories).then(() => drawEdition()));
     document.fonts?.ready.then(fit);

@@ -66,6 +66,7 @@
     --color-priority: #5aa9ff;
     --color-signal: #ff7b6b;               /* a disaster alert or strong earthquake (signals.py): neither tier */
     --color-selected: #fff;
+    --color-seal: #c8402a;                 /* Dispatch's seal: vermilion */
 
     /* The map */
     --color-sea: #0c0e10;
