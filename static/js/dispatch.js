@@ -323,32 +323,29 @@
         </article>`;
     }
 
-    const said = (q) => `${q.yours == null ? 'You didn’t answer' : `You said ${pct(q.yours)}`}; the crowd ${pct(q.crowd)}.`;
-
     /** What happened, what you said and what the crowd said, in a sentence. */
     function outcome(q) {
         const scored = q.score ? ` Brier score: you ${q.score.yours.toFixed(2)}, the crowd ${q.score.crowd.toFixed(2)}.` : '';
         const waiting = q.state === 'closed' ? ' Polymarket hasn’t settled it yet; it stays here until it does.' : '';
-        return `${esc(OUTCOME[q.state])}. ${said(q)}${scored}${waiting}`;
+        const said = q.yours == null ? 'You didn’t answer' : `You said ${pct(q.yours)}`;
+        return `${esc(OUTCOME[q.state])}. ${said}; the crowd ${pct(q.crowd)}.${scored}${waiting}`;
     }
 
-    /** Your answer beside the question: the slider while it's open (saved when you let go of
-     * it), what you and the crowd said once it's closed. What came of it is news for the next
-     * issue, as last week's question, not this one. */
+    /** Your answer beside the question: the slider, saved when you let go of it, and greyed out
+     * once the question closes. What came of it is news for the next issue, not this one. */
     function answer(q) {
-        if (q.state !== 'open') {
-            return `<article class="story open w4"><p class="kicker"><span class="journal">Closed</span></p>
-                <p class="abstract">${said(q)} The result is in the next issue.</p></article>`;
-        }
         const set = q.yours != null;
+        const live = q.state === 'open';
+        const note = !live ? `Closed ${esc(on(q.closes))}${set ? `; the crowd said ${pct(q.crowd)} when you answered` : ''}. The result is in the next issue.`
+            : set ? `Saved. The crowd said ${pct(q.crowd)} when you did. You can change it until ${esc(on(q.closes))}.`
+                : 'Slide to answer. The crowd’s odds show once you have.';
         return `<div class="story open w4 answer" data-edition="${esc(q.edition)}">
             <p class="kicker"><label class="journal" for="fcChance">Your chance of Yes</label></p>
             <output class="story-title" for="fcChance">${set ? pct(q.yours) : '—'}</output>
             <input class="range${set ? '' : ' unset'}" id="fcChance" type="range" min="0" max="100" step="5" value="${set ? q.yours : 50}"
-                style="--v: ${set ? q.yours : 50}%" aria-valuetext="${set ? pct(q.yours) : 'not set'}">
+                style="--v: ${set ? q.yours : 50}%" aria-valuetext="${set ? pct(q.yours) : 'not set'}"${live ? '' : ' disabled'}>
             <div class="range-scale" aria-hidden="true"><span>No</span><span>50</span><span>Yes</span></div>
-            <p class="byline" role="status">${set ? `Saved. The crowd said ${pct(q.crowd)} when you did. You can change it until ${esc(on(q.closes))}.`
-                : 'Slide to answer. The crowd’s odds show once you have.'}</p></div>`;
+            <p class="byline" role="status">${note}</p></div>`;
     }
 
     /** How you've done, in sentences: against the crowd, how often what you said came true, by subject. */
