@@ -131,8 +131,10 @@
 
 /* The week's poem, question and holidays are set in these same modules, but they don't open. */
 .still .story { cursor: auto; }
-/* The poem's lines, to read aloud: at title size, one to a line. */
-#poem .abstract { font-size: var(--text-lg); line-height: var(--leading-read); color: var(--color-text-primary); }
+/* The poem in Song type, its title and lines one size, to read aloud: one line to a line. */
+#poem :is(.section-head .n, .kicker, .story-title, .abstract) { font-family: var(--font-song); }
+#poem :is(.story-title, .abstract) { font-size: var(--text-lg); color: var(--color-text-primary); }
+#poem .abstract { line-height: var(--leading-read); }
 /* Your answer: what's asked beside your number, then the slider, its scale and a line on what's saved. */
 .answer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-3); }
 .answer > :not(.kicker, .story-title) { grid-column: 1 / -1; }

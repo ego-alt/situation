@@ -46,7 +46,7 @@ The second tab is a weekly issue to read, out each Wednesday (8am in Hong Kong) 
 The journals are read once a day from [Europe PMC](https://europepmc.org/) (abstracts, article types, free copies and PubMed's commentary links), with Crossref for a commentary's references and the publishers' pages for figures. Science's site turns automated readers away, so its papers have no figure. `uv run flask --app app:create_app papers --weeks 6` reads further back to fill earlier issues.
 
 
-**The week's poem.** One poem from 唐詩三百首 or 宋詞三百首, drawn at random as the issue is published and never one still in a kept issue, set line by line in Hong Kong's characters. The 600 poems are in `data/poems.json`, built from the [chinese-poetry](https://github.com/chinese-poetry/chinese-poetry) collection by `tools/add_poems.py`.
+**The week's poem.** One poem from 唐詩三百首 or 宋詞三百首, drawn at random as the issue is published and never one still in a kept issue, set line by line in Hong Kong's characters, in Song type. The 600 poems are in `data/poems.json`, built from the [chinese-poetry](https://github.com/chinese-poetry/chinese-poetry) collection by `tools/add_poems.py`, which also cuts the typeface down to their characters.
 
 **The week's question.** Each issue asks one yes/no question about the world from [Polymarket](https://polymarket.com) (read only; nothing is traded), to build better models of how it works by finding out whether you were right. You answer with your chance of Yes on a slider; the next issue says what happened, what you said and what the crowd said, with a Brier score for both, and keeps your record: against the crowd, how often what you said came true, and by subject.
 
@@ -106,4 +106,4 @@ Outlets, their weights and regions are in `sources.py`.
 - `instance/snapshots/`: the articles as they were when you labelled (one every 6 hours while you do; ones without labels go after 30 days).
 - The map is built from Natural Earth's 1:110m countries (public domain) with `python -I tools/build_map.py <countries.geojson>`; it writes `static/map/world.json` and `data/countries.json`.
 - The zoomed-in map and the place names come from Natural Earth's 1:10m countries and states/provinces, and GeoNames' towns of over 15,000 people (CC BY 4.0, [geonames.org](https://www.geonames.org/)). `tools/build_regions.py` writes `static/map/regions/<country>.json` (loaded as you zoom) and `data/gazetteer.json`; its docstring says how to run it.
-- Fonts: Inter and IBM Plex Mono (SIL Open Font License), served by the app.
+- Fonts: Inter, IBM Plex Mono and, for the poem, 昭源宋體 Chiron Sung HK cut to the poems' characters (all SIL Open Font License), served by the app.

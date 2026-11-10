@@ -1,0 +1,16 @@
+/* 昭源宋體 (Chiron Sung HK, SIL Open Font License 1.1), self-hosted: only the characters the
+ * poems use (tools/add_poems.py), so it's fetched only where a poem shows. */
+@font-face {
+  font-family: 'Chiron Sung HK';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(chironsung-400.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Chiron Sung HK';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(chironsung-600.woff2) format('woff2');
+}
