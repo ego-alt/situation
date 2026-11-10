@@ -4,9 +4,11 @@ records shaped like Europe PMC's."""
 from datetime import UTC, datetime
 
 import pytest
+import requests
 
 import dispatch
 import papers
+import polymarket
 from models import Issue, Paper, SourceStatus, db
 
 LONG = "Neurons in the cortex " + "and their synapses " * 30     # an abstract, not front matter
@@ -152,6 +154,43 @@ def test_the_holidays_ahead_are_hong_kongs_in_english():
     assert days[0]["name"] == "Christmas Day"
     assert dispatch.holidays_ahead(date(2027, 3, 22))[0]["name"] == "Good Friday"     # a general holiday counts too
     assert dispatch.holidays_ahead(date(2026, 11, 9)) == []                            # no section that week
+
+
+def event(title, end, volume=50_000, tags=("economy",)):
+    return {"title": title, "endDate": end, "tags": [{"slug": t} for t in tags], "markets": [{"volumeNum": volume}]}
+
+
+def test_coming_up_is_what_is_scheduled_once_each_the_most_traded():
+    start, end = datetime(2026, 11, 11, tzinfo=UTC), datetime(2026, 11, 25, tzinfo=UTC)
+    events = [event("November CPI YoY", "2026-11-13T12:30:00Z", 900_000),
+              event("November CPI MoM", "2026-11-13T12:30:00Z", 400_000),           # the same release: one entry
+              event("Ljubljana mayoral election", "2026-11-22T20:00:00Z", 60_000, ("elections",)),
+              event("Will gold hit $5,000 in November?", "2026-11-20T00:00:00Z", 2_000_000),   # a price bet
+              event("Bank of Israel decision", "2026-11-24T12:00:00Z", 10_000),      # too little traded
+              event("Fed decision in December", "2026-12-10T19:00:00Z", 5_000_000),  # after the fortnight
+              event("Super Bowl winner", "2026-11-15T00:00:00Z", 9_000_000, ("sports",))]          # never shown
+    assert dispatch.scheduled(events, start, end) == [
+        {"date": "2026-11-13", "title": "November CPI YoY", "subject": "economics"},
+        {"date": "2026-11-22", "title": "Ljubljana mayoral election", "subject": "elections"}]
+    gdp = dispatch.scheduled([event("UK GDP growth in Q3?", "2026-11-13T07:00:00Z")], start, end)
+    assert gdp[0]["title"] == "UK GDP growth in Q3"
+    many = [event(f"Release {n} figures", f"2026-11-{12 + n}T12:00:00Z", 30_000 + n) for n in range(10)]
+    assert [e["title"] for e in dispatch.scheduled(many, start, end)] == [f"Release {n} figures" for n in range(2, 10)]
+
+
+def test_an_issue_keeps_the_events_ahead_or_comes_out_without_them(app, journals, monkeypatch):
+    with app.app_context():
+        papers.fetch(NOW)
+        monkeypatch.setattr(polymarket, "read_events", lambda start, end: [event("UK GDP QoQ", "2026-11-12T07:00:00Z")])
+        dispatch.publish(NOW)
+        coming = dispatch.issue("2026-W44", NOW)["coming"]
+        assert coming["events"] == [{"date": "2026-11-12", "title": "UK GDP QoQ", "subject": "economics"}]
+        assert dispatch.issue("2026-W43", NOW)["coming"]["where"] == "Hong Kong"
+
+        def down(start, end):
+            raise requests.ConnectionError
+        monkeypatch.setattr(polymarket, "read_events", down)
+        assert dispatch.events_ahead(NOW) == []
 
 
 def test_an_issue_is_kept_as_it_came_out_and_a_late_paper_is_in_the_next(app, journals):

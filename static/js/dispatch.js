@@ -1,6 +1,6 @@
 /* Dispatch: one week's issue, laid out as a front page. The neuroscience comes first: the
  * cover story leads, the papers with a commentary come next and larger, the rest fill the
- * columns; then the week's question and the holidays coming up. Everything is read here: a
+ * columns; then the week's question and what's coming up. Everything is read here: a
  * story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
@@ -276,7 +276,7 @@
                 await measure(data.papers);
                 drawEdition();
                 drawForecast();
-                drawHolidays();
+                drawComing();
                 const id = data.edition?.id;
                 if (push && id) history.pushState({ edition: id }, '', url(`/dispatch/${id}`));
                 else if (edition && fromPath() !== edition) history.replaceState({ edition: id }, '', url(`/dispatch/${edition}`));
@@ -357,14 +357,18 @@
             When you said ${bands}, it happened that often. By subject: ${subjects}.</p></article>`;
     }
 
-    /** The public holidays in the two weeks from when the issue comes out: a section only when there are some. */
-    function drawHolidays() {
-        const h = data?.holidays;
-        const el = $('holidays');
-        el.hidden = !h?.days.length;
-        el.innerHTML = el.hidden ? '' : `<h2 class="section-rule"><span>Holidays</span><span class="n">${esc(h.where)} · the next two weeks</span></h2>
-            <div class="rest-list">${h.days.map((d) => `<article class="story s-line"><p class="kicker"><span class="journal">${esc(day(d.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</span></p>
-                <h2 class="story-title">${esc(d.name)}</h2></article>`).join('')}</div>`;
+    /** The two weeks from when the issue comes out: the public holidays and the scheduled
+     *  events, in date order (a holiday first on its day). A section only when there's something. */
+    function drawComing() {
+        const c = data?.coming;
+        const el = $('coming');
+        const rows = c ? [...c.holidays.map((h) => ({ date: h.date, title: h.name, what: `Holiday, ${c.where}` })),
+            ...c.events.map((e) => ({ date: e.date, title: e.title, what: e.subject }))] : [];
+        rows.sort((a, b) => a.date.localeCompare(b.date));
+        el.hidden = !rows.length;
+        el.innerHTML = el.hidden ? '' : `<h2 class="section-rule"><span>Coming up</span><span class="n">The next two weeks</span></h2>
+            <div class="rest-list">${rows.map((r) => `<article class="story s-line"><p class="kicker"><span class="journal">${esc(day(r.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</span><span>${esc(r.what)}</span></p>
+                <h2 class="story-title">${esc(r.title)}</h2></article>`).join('')}</div>`;
     }
 
     function drawForecast() {

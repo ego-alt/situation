@@ -1,13 +1,13 @@
 """Forecast: one question about the world in each issue of Dispatch, from Polymarket.
 
 Each issue comes out on a Wednesday (dispatch.out) and asks one yes/no question that resolves
-before the next one; you answer with your chance of Yes, and the next edition says what happened, what
-you said, and what the crowd said. Polymarket is only read (its public API); nothing is traded.
+before the next one; you answer with your chance of Yes, and the next issue says what happened,
+what you said, and what the crowd said. The markets are read in polymarket.py.
 
-Choosing (eligible and choose, pure): a yes/no market open when the edition comes out and
-closing before the next, not blocked, with the crowd between 20% and 80% and at least
-MIN_VOLUME traded; one market per event, the one nearest 50%. The most traded wins, never
-the event asked last week; one within TIE of it is a tie, drawn at random once.
+Choosing (eligible and choose, pure): a yes/no market open when the issue comes out and closing
+before the next, not blocked, with the crowd between 20% and 80% and at least MIN_VOLUME traded;
+one market per event, the one nearest 50%. The most traded wins, never the event asked last
+week; one within TIE of it is a tie, drawn at random once.
 
 A question's state is one of STATES and moves only along MOVES, in _move and nowhere else:
 none (nothing was eligible) is final; open becomes closed when trading stops; open or closed
@@ -16,54 +16,27 @@ the questions and your guesses, never stored.
 """
 import json
 import random
-import re
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import requests
 
 from dispatch import latest, out, previous
 from models import Article, Guess, Question, SourceStatus, db, utcnow
-from papers import get
+from polymarket import BLOCK_WORDS, MIN_VOLUME, outcome, read_events, read_market, subject, time, yes
 from sources import BY_KEY
 from text import cosine, tfidf, tokens
 
-EVENTS = "https://gamma-api.polymarket.com/events"
-MARKET = "https://gamma-api.polymarket.com/markets/"
 EVERY = timedelta(hours=1)          # how often open questions are checked for a result
 ASK_WITHIN = timedelta(days=1)      # a question is asked as its issue comes out, or not at all
 
-# The four numbers that decide everything.
+# The numbers that decide which question, with polymarket.MIN_VOLUME.
 CROWD = (0.2, 0.8)                  # the crowd must be this unsure
-MIN_VOLUME = 25_000                 # dollars traded, so the odds mean something
 TIE = 0.1                           # within this share of the most traded is a tie
 STEP = 5                            # the slider's step, in percent
 
 STATES = ("none", "open", "closed", "yes", "no", "void")
 MOVES = {"open": {"closed", "yes", "no", "void"}, "closed": {"yes", "no", "void"}}
 FINAL = set(STATES) - set(MOVES)
-
-# Polymarket's categories to read, and the subject each counts as in the record (first match).
-CATEGORIES = ["politics", "elections", "world", "geopolitics", "economy", "fed", "finance", "business",
-              "tech", "ai", "science", "climate", "weather", "commodities", "oil"]
-SUBJECTS = [
-    ("elections", {"elections", "global-elections", "us-election", "midterms", "primaries"}),
-    ("commodities", {"commodities", "oil", "gold", "silver", "natural-gas"}),
-    ("economics", {"economy", "fed", "fed-rates", "finance", "business", "inflation", "gdp", "jobs", "tariffs",
-                   "stocks", "earnings", "macro-indicators"}),
-    ("science & tech", {"tech", "ai", "science", "space"}),
-    ("climate", {"climate", "climate-science", "weather", "hurricanes"}),
-    ("geopolitics", {"geopolitics", "world", "foreign-affairs", "international-affairs"}),
-    ("politics", {"politics"}),
-]
-
-# What's never asked: subjects you don't want, and markets that are coin flips, not questions.
-BLOCK_TAGS = {"sports", "esports", "crypto", "crypto-prices", "bitcoin", "ethereum", "solana", "memecoins",
-              "pop-culture", "culture", "entertainment", "games", "awards", "movies", "music", "celebrities",
-              "mentions", "tweet-markets", "elon-tweets", "up-or-down", "combos", "parlays", "midterm-combos"}
-BLOCK_WORDS = re.compile(
-    r"\b(die[sd]?|death|dead|kill\w*|assassinat\w*|attack\w*|strikes?|struck|bomb\w*|shoot\w*|invade[sd]?|"
-    r"invasion|missiles?|drones?|casualt\w*|hostages?|war|ceasefire|ukmto|incidents?|"
-    r"up or down|temperature|precipitation|tweets?|posts|truth social|say|mentions?|combo)\b", re.I)
 
 
 # ---------- the issue's week ----------
@@ -74,81 +47,33 @@ def window(edition: str) -> tuple[datetime, datetime]:
     return start, start + timedelta(days=7)
 
 
-# ---------- Polymarket ----------
-
-def read_events(start: datetime, end: datetime) -> list[dict]:
-    """Open events with a market closing in the window, from every category read."""
-    seen = {}
-    for slug in CATEGORIES:
-        for offset in range(0, 2000, 100):
-            batch = get(EVENTS, tag_slug=slug, closed="false", end_date_min=start.isoformat(),
-                        end_date_max=end.isoformat(), limit=100, offset=offset).json()
-            seen.update((e["id"], e) for e in batch)
-            if len(batch) < 100:
-                break
-    return list(seen.values())
-
-
-def read_market(market: str) -> dict:
-    return get(MARKET + market).json()
-
-
-def _time(text: str | None) -> datetime | None:
-    if not text:
-        return None
-    text = text.replace(" ", "T").replace("Z", "+00:00")
-    if re.search(r"[+-]\d\d$", text):
-        text += ":00"
-    return datetime.fromisoformat(text).astimezone(UTC)
-
-
-def _yes(market: dict) -> float | None:
-    """The price of Yes: the crowd's chance."""
-    prices = json.loads(market.get("outcomePrices") or "[]")
-    return float(prices[0]) if prices else None
-
-
-def outcome(market: dict) -> str | None:
-    """What a settled market came to: yes, no or void (refunded at 50/50); None until settled."""
-    if not market.get("closed") or market.get("umaResolutionStatus") != "resolved":
-        return None
-    yes = _yes(market)
-    return None if yes is None else "yes" if yes > 0.99 else "no" if yes < 0.01 else "void"
-
-
 # ---------- choosing (pure) ----------
-
-def subject_of(tags: set[str]) -> str | None:
-    return next((name for name, slugs in SUBJECTS if tags & slugs), None)
-
 
 def _askable(m: dict, start: datetime, end: datetime) -> bool:
     """A yes/no market already trading at `start`, closing by `end`, traded enough, not blocked."""
-    made, ends = _time(m.get("createdAt") or m.get("startDate")), _time(m.get("endDate"))
+    made, ends = time(m.get("createdAt") or m.get("startDate")), time(m.get("endDate"))
     return (json.loads(m.get("outcomes") or "[]") == ["Yes", "No"] and not m.get("closed")
-            and not BLOCK_WORDS.search(m.get("question") or "") and _yes(m) is not None
+            and not BLOCK_WORDS.search(m.get("question") or "") and yes(m) is not None
             and bool(made and ends) and made <= start < ends <= end
             and float(m.get("volumeNum") or 0) >= MIN_VOLUME)
 
 
 def eligible(events: list[dict], start: datetime, end: datetime) -> list[dict]:
-    """Every question an edition out at `start` could ask, one per event: its market nearest 50%."""
-    out = []
+    """Every question an issue out at `start` could ask, one per event: its market nearest 50%."""
+    found = []
     for e in events:
-        tags = {t.get("slug", "").lower() for t in e.get("tags") or []}
-        subject = subject_of(tags)
         markets = [m for m in e.get("markets") or [] if _askable(m, start, end)]
-        if not subject or tags & BLOCK_TAGS or BLOCK_WORDS.search(e.get("title") or "") or not markets:
+        if not subject(e) or not markets:
             continue
-        m = min(markets, key=lambda m: abs(_yes(m) - 0.5))
-        if not CROWD[0] <= _yes(m) <= CROWD[1]:
+        m = min(markets, key=lambda m: abs(yes(m) - 0.5))
+        if not CROWD[0] <= yes(m) <= CROWD[1]:
             continue
         source = m.get("resolutionSource") or e.get("resolutionSource") or ""
-        out.append({"market": str(m["id"]), "event": str(e["id"]), "slug": e.get("slug"), "title": m["question"],
-                    "rule": (m.get("description") or e.get("description") or "").strip(),
-                    "source": source if source.startswith("https://") else None, "subject": subject,
-                    "closes": _time(m["endDate"]), "crowd": _yes(m), "volume": float(m.get("volumeNum") or 0)})
-    return out
+        found.append({"market": str(m["id"]), "event": str(e["id"]), "slug": e.get("slug"), "title": m["question"],
+                      "rule": (m.get("description") or e.get("description") or "").strip(),
+                      "source": source if source.startswith("https://") else None, "subject": subject(e),
+                      "closes": time(m["endDate"]), "crowd": yes(m), "volume": float(m.get("volumeNum") or 0)})
+    return found
 
 
 def choose(candidates: list[dict], last_event: str | None, rng: random.Random) -> dict | None:
@@ -239,10 +164,10 @@ def answer(edition: str, user: str, chance: int, now: datetime) -> Guess:
     if not 0 <= chance <= 100 or chance % STEP:
         raise ValueError(f"A chance is 0 to 100, in steps of {STEP}.")
     m = read_market(q.market)
-    if m.get("closed") or _yes(m) is None:
+    if m.get("closed") or yes(m) is None:
         raise ValueError("This question has closed.")
     g = db.session.get(Guess, (edition, user)) or Guess(edition=edition, user=user)
-    g.chance, g.crowd, g.at = chance, _yes(m), now
+    g.chance, g.crowd, g.at = chance, yes(m), now
     db.session.add(g)
     db.session.commit()
     return g

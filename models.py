@@ -181,13 +181,14 @@ class Paper(db.Model):
 
 
 class Issue(db.Model):
-    """An issue of Dispatch as it came out (dispatch.publish): its papers and the holidays ahead
-    of it, written once and shown unchanged from then on."""
+    """An issue of Dispatch as it came out (dispatch.publish): its papers, and the holidays and
+    scheduled events ahead of it, written once and shown unchanged from then on."""
     __tablename__ = "issues"
     edition = db.Column(db.String, primary_key=True)            # 2026-W45: the week it covers
     out = db.Column(UtcDateTime, nullable=False)
     papers = db.Column(db.JSON, nullable=False)                 # papers.section, as it stood
     holidays = db.Column(db.JSON, nullable=False)
+    events = db.Column(db.JSON)                                 # polymarket.scheduled; None before there were any
 
 
 class Question(db.Model):
@@ -227,9 +228,11 @@ def migrate():
     """Add columns that create_all() can't add to an existing table."""
     def columns(table):
         return {row[1] for row in db.session.execute(db.text(f"PRAGMA table_info({table})"))}
-    stories = columns("stories")
+    stories, issues = columns("stories"), columns("issues")
     if stories and "shown" not in stories:
         db.session.execute(db.text("ALTER TABLE stories ADD COLUMN shown BOOLEAN NOT NULL DEFAULT 0"))
         # Its tier now is all there is to go on for a story from before.
         db.session.execute(db.text("UPDATE stories SET shown = 1 WHERE tier != 'background'"))
+    if issues and "events" not in issues:
+        db.session.execute(db.text("ALTER TABLE issues ADD COLUMN events JSON"))
     db.session.commit()
