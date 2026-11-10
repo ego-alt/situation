@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import pytest
 
 import pipeline
+import quanta
 from app import create_app
 from models import db
 from sources import BY_KEY
@@ -33,6 +34,12 @@ def snapshot_items(path=SNAPSHOT):
         i["published"] = datetime.fromisoformat(i["published"]) if i["published"] else None
         items.append(i)
     return items, data["itn"]
+
+
+@pytest.fixture(autouse=True)
+def no_quanta(monkeypatch):
+    """Publishing an issue reads Quanta's feed: empty, unless a test gives it entries."""
+    monkeypatch.setattr(quanta, "read", lambda: [])
 
 
 @pytest.fixture(autouse=True)

@@ -1,6 +1,7 @@
 /* Dispatch: one week's issue, laid out as a front page. The neuroscience comes first: the
  * cover story leads, the papers with a commentary come next and larger, the rest fill the
- * columns; then the week's question and the holidays coming up. Everything is read here: a
+ * columns; then Quanta's articles in the same modules, the week's question and the holidays
+ * coming up. Everything is read here: a
  * story opens in place, and only an opened one links out to the publisher. */
 (() => {
     const ROOT = window.APP_ROOT || '';
@@ -80,7 +81,7 @@
 
     /** The way out, shown only in an opened story: everything else is read here. */
     function links(p) {
-        const all = [away(p.url, `Paper · ${p.journal}`), p.free && away(p.free.url, `Free · ${p.free.label}`, 'free'),
+        const all = [away(p.url, p.via ? `Article · ${p.via}` : `Paper · ${p.journal}`), p.free && away(p.free.url, `Free · ${p.free.label}`, 'free'),
             ...p.commentary.map((c) => away(c.url, c.label))].filter(Boolean);
         return all.length ? `<p class="links">${all.join('')}</p>` : '';
     }
@@ -144,16 +145,7 @@
         const rows = [rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
             : `<div class="row">${story(lead, 'lead')}</div>`];
         // A list of one isn't worth it: one over the limit goes in the modules.
-        const modules = queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length);
-        for (let s = 0; modules.length; s++) {
-            let shape = SHAPES[s % SHAPES.length];
-            if (modules.length < shape.length) shape = modules.length === 1 ? [12] : [7, 5];
-            const items = modules.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
-            const slots = shape.map((w, i) => ({ w, i })).sort((a, b) => b.w - a.w);
-            const placed = [];
-            slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
-            rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
-        }
+        rows.push(...modules(queue.splice(0, queue.length > MODULES + 1 ? MODULES : queue.length)));
         rows.unshift(`<h2 class="section-rule"><span>${esc($('edition').dataset.subject)}</span><span class="n">${papers.length} ${papers.length === 1 ? 'paper' : 'papers'}</span></h2>`);
         if (queue.length) {
             rows.push(`<section class="rest" aria-label="The rest of the week">
@@ -161,6 +153,28 @@
                 <div class="rest-list">${queue.map((p) => story(p, 'line')).join('')}</div></section>`);
         }
         return rows.join('');
+    }
+
+    /** Rows of modules in changing shapes, the widest figure in the widest slot. */
+    function modules(list) {
+        const rows = [];
+        for (let s = 0; list.length; s++) {
+            let shape = SHAPES[s % SHAPES.length];
+            if (list.length < shape.length) shape = list.length === 1 ? [12] : [7, 5];
+            const items = list.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
+            const slots = shape.map((w, i) => ({ w, i })).sort((a, b) => b.w - a.w);
+            const placed = [];
+            slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
+            rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
+        }
+        return rows;
+    }
+
+    /** Quanta's articles from the week before the issue, after the papers, in the same modules. */
+    function magazine(articles) {
+        if (!articles.length) return '';
+        return `<h2 class="section-rule"><span>${esc(articles[0].via)}</span><span class="n">${articles.length} ${articles.length === 1 ? 'article' : 'articles'}</span></h2>
+            ${modules([...articles]).join('')}`;
     }
 
     // How tall a story's own content is (the grid stretches the story itself to its row).
@@ -226,7 +240,7 @@
             $('edition').innerHTML = `<p class="press-empty">The first issue comes out ${esc(next)}.</p>`;
         } else {
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next ${esc(next)}</span>`}`;
-            $('edition').innerHTML = data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>';
+            $('edition').innerHTML = (data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>') + magazine(data.quanta);
             fit();
             // The lead's figure sets the front row's height once it's in.
             $('edition').querySelector('.s-lead img')?.addEventListener('load', fit);
@@ -273,7 +287,7 @@
             else {
                 data = await res.json();
                 failure = null;
-                await measure(data.papers);
+                await measure([...data.papers, ...data.quanta]);
                 drawEdition();
                 drawForecast();
                 drawHolidays();

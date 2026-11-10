@@ -1,17 +1,20 @@
 """Dispatch: the weekly issue to read, one an ISO week, out the Wednesday after.
 
-It carries the week's neuroscience (papers.py), the week's question (forecast.py, added by
-the app, which knows who's reading) and the public holidays coming up. An issue comes out on
-the Wednesday after its week, once the journals have mostly been listed, and is published then
-(publish): its papers and holidays are kept as they stood and shown unchanged from then on. A
+It carries the week's neuroscience (papers.py), Quanta Magazine's articles from the week
+before it came out (quanta.py), the week's question (forecast.py, added by the app, which knows
+who's reading) and the public holidays coming up. An issue comes out on the Wednesday after its
+week, once the journals have mostly been listed, and is published then (publish): what it
+carries is kept as it stood and shown unchanged from then on. A
 paper listed too late for its own week's issue is in the next one, marked with its date. A
 periodical, not an archive: the last KEEP_WEEKS issues are kept.
 """
 from datetime import UTC, date, datetime, timedelta
 
 import holidays
+import requests
 
 import papers
+import quanta
 from models import Issue, db
 
 KEEP_WEEKS = 4                  # the last four issues, then they go
@@ -68,6 +71,15 @@ def holidays_ahead(start: date) -> list[dict]:
     return [{"date": d.isoformat(), "name": name} for d, name in sorted(found.items()) if start <= d < end]
 
 
+def quanta_before(end: datetime) -> list[dict]:
+    """Quanta's articles in the week before an issue comes out; none when it doesn't answer (the
+    issue still comes out, without them)."""
+    try:
+        return quanta.articles(quanta.read(), end)
+    except requests.RequestException:
+        return []
+
+
 def publish(now: datetime) -> list[str]:
     """Publish every issue that's out by `now` and not yet published, once the journals have
     been read since it came out, from the first week they were read in full (and no further
@@ -86,7 +98,7 @@ def publish(now: datetime) -> list[str]:
             # Listed too late for last week's issue: in this one. (The first issue has none to catch up on.)
             late = papers.research_between(week - timedelta(days=7), week) - shown if shown is not None else set()
             db.session.add(Issue(edition=edition, out=out(edition), papers=papers.section(week, late),
-                                 holidays=holidays_ahead(out(edition).date())))
+                                 quanta=quanta_before(out(edition)), holidays=holidays_ahead(out(edition).date())))
             db.session.commit()
             done.append(edition)
         week += timedelta(days=7)
@@ -109,11 +121,11 @@ def issue(which: str | None, now: datetime) -> dict:
     base = {"editions": editions, "next_out": out(edition_id(week_of(latest(now)) + timedelta(days=7))).isoformat(),
             "sources": papers.status(), "fetched": papers.last_fetched().isoformat() if papers.last_fetched() else None}
     if not which:
-        return {**base, "edition": None, "papers": [], "holidays": {"where": HOLIDAYS[1], "days": []}}
+        return {**base, "edition": None, "papers": [], "quanta": [], "holidays": {"where": HOLIDAYS[1], "days": []}}
     i = db.session.get(Issue, which)
     start, at = week_of(which), editions.index(which)
     return {**base, "edition": {"id": which, "number": int(which[6:8]), "out": i.out.isoformat(),
                                 "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
                                 "prev": editions[at - 1] if at else None,
                                 "next": editions[at + 1] if at + 1 < len(editions) else None},
-            "papers": i.papers, "holidays": {"where": HOLIDAYS[1], "days": i.holidays}}
+            "papers": i.papers, "quanta": i.quanta or [], "holidays": {"where": HOLIDAYS[1], "days": i.holidays}}
