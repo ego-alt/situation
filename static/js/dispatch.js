@@ -140,7 +140,9 @@
     function compose(papers) {
         const [lead, ...queue] = papers;
         const art = cover(lead);
-        const rail = queue.splice(0, art ? 1 : 2);   // with the cover at its head, the rail has room for one
+        // The rail runs as long as the lead: two stories, one less with the cover at its head or,
+        // on a desktop, beside a lead without a figure (its text is short).
+        const rail = queue.splice(0, 2 - !!art - (!narrow.matches && !ratio(lead)));
         const rows = [rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
             : `<div class="row">${story(lead, 'lead')}</div>`];
         // A list of one isn't worth it: one over the limit goes in the modules.
@@ -391,7 +393,7 @@
         // before there were questions) none was ever asked, and then there's nothing to say.
         const none = f.pending ? 'This week’s question is being chosen.'
             : f.asked ? 'No question this week: nothing big enough closes before the next issue.' : '';
-        const results = f.results.map((r, i) => `<article class="story open ${i ? 'w12' : 'w8'}">
+        const results = f.results.map((r, i) => `<article class="story open ${i || !f.record.answered ? 'w12' : 'w8'}">
             <p class="kicker"><span class="journal">${i ? 'Settled late' : 'Last week’s question'}</span><span>${esc(r.subject)}</span></p>
             <h2 class="story-title">${esc(r.title)}</h2><p class="byline">${outcome(r)}</p></article>`);
         const second = [results[0], record(f.record)].filter(Boolean).join('');

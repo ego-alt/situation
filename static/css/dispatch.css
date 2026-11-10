@@ -129,8 +129,13 @@
     .bare .fig { display: none; }
 }
 
-/* The week's poem, question and holidays are set in these same modules, but they don't open. */
+/* The week's poem, question and holidays are set in these same modules, but they don't open.
+   The poem and the question share a row: the poem a column wide, the question beside it. */
 .still .story { cursor: auto; }
+.back { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--space-8); }
+.back > #poem { grid-column: span 4; }
+.back > #forecast { grid-column: span 8; }
+.back > [hidden] + #forecast, .back > #poem:has(+ [hidden]) { grid-column: 1 / -1; }
 /* The poem in Song type, its title and lines one size, to read aloud: one line to a line. */
 #poem :is(.section-head .n, .kicker, .story-title, .abstract) { font-family: var(--font-song); }
 #poem :is(.story-title, .abstract) { font-size: var(--text-lg); color: var(--color-text-primary); }
@@ -223,11 +228,9 @@
     .rail-cover { margin: 0; padding: var(--space-4) 0; }
     .rail-cover img { width: 40%; }
     .rest-list { columns: auto; }
+    .back { display: block; }
     /* One rule between sections: the last story or item before one goes without its own. */
     .row:is(:has(+ section), :last-child) .story:last-child, .rest .s-line:last-child { border-bottom: 0; }
     /* The bar: the dot and the tabs, and SRC only when a journal didn't answer. */
     .dispatch-page #updatedReadout, .dispatch-page #journalsReadout:not(.warn) { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
 }
