@@ -336,8 +336,10 @@
     function answer(q) {
         const set = q.yours != null;
         const live = q.state === 'open';
-        // One line, so the module keeps its size from week to week; the kicker beside it says when it closes.
-        const note = `${live ? (set ? 'Saved' : 'Slide to answer') : 'Closed'}.${set ? ` The crowd said ${pct(q.crowd)}.` : ''}`;
+        // Much the same length whatever it says, a line on a desktop, so the module keeps its size from week to week.
+        const by = new Date(q.closes).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        const note = !live ? `Closed ${by}. The result is in the next issue.`
+            : set ? `Saved; the crowd said ${pct(q.crowd)}. Change by ${by}.` : `Answer by ${by} to see the crowd’s odds.`;
         return `<div class="story open w4 answer" data-edition="${esc(q.edition)}">
             <p class="kicker"><label class="journal" for="fcChance">Your chance of Yes</label></p>
             <output class="story-title" for="fcChance">${set ? pct(q.yours) : '—'}</output>
