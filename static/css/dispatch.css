@@ -145,6 +145,7 @@
 .answer > :not(.kicker, .story-title) { grid-column: 1 / -1; }
 .answer .kicker { margin: 0; }
 .answer .range { margin-top: var(--space-3); }
+.answer .byline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* one line, whatever it says */
 
 /* A section's heading (situation.css), set between rules across the page. */
 .press .section-head { padding: var(--space-2) 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border-soft); }

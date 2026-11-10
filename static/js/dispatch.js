@@ -336,9 +336,8 @@
     function answer(q) {
         const set = q.yours != null;
         const live = q.state === 'open';
-        const note = !live ? `Closed ${esc(on(q.closes))}${set ? `; the crowd said ${pct(q.crowd)} when you answered` : ''}. The result is in the next issue.`
-            : set ? `Saved. The crowd said ${pct(q.crowd)} when you did. You can change it until ${esc(on(q.closes))}.`
-                : 'Slide to answer. The crowd’s odds show once you have.';
+        // One line, so the module keeps its size from week to week; the kicker beside it says when it closes.
+        const note = `${live ? (set ? 'Saved' : 'Slide to answer') : 'Closed'}.${set ? ` The crowd said ${pct(q.crowd)}.` : ''}`;
         return `<div class="story open w4 answer" data-edition="${esc(q.edition)}">
             <p class="kicker"><label class="journal" for="fcChance">Your chance of Yes</label></p>
             <output class="story-title" for="fcChance">${set ? pct(q.yours) : '—'}</output>
@@ -422,11 +421,11 @@
                 body: JSON.stringify({ chance: Number(e.target.value) }),
             });
             const body = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(body.error || 'Couldn’t save it. Let go of the slider again to retry.');
+            if (!res.ok) throw new Error(body.error || 'Not saved. Let go again to retry.');
             data.forecast = body;
             drawForecast();
         } catch (err) {
-            status.textContent = err.message === 'Failed to fetch' ? 'Can’t reach the server, so it isn’t saved yet. Try again.' : err.message;
+            status.textContent = err.message === 'Failed to fetch' ? 'Offline, so not saved. Try again.' : err.message;
         }
     });
 
