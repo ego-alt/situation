@@ -7,10 +7,10 @@ import pytest
 
 import dispatch
 import papers
-from models import Paper, db
+from models import Issue, Paper, SourceStatus, db
 
 LONG = "Neurons in the cortex " + "and their synapses " * 30     # an abstract, not front matter
-NOW = datetime(2026, 11, 2, 9, 0, tzinfo=UTC)                     # a Monday: last week's edition is out
+NOW = datetime(2026, 11, 4, 9, 0, tzinfo=UTC)                     # a Wednesday: last week's issue is out
 
 
 def record(doi, title, types=("Journal Article",), abstract=LONG, first="2026-10-28", online=None, issn="0896-6273",
@@ -111,7 +111,8 @@ def test_fetch_stores_the_neuroscience_and_ties_commentary(app, journals):
 def test_an_edition_leads_with_the_cover_then_commentary(app, journals):
     with app.app_context():
         papers.fetch(NOW)
-        e = dispatch.issue(None, NOW.date())
+        assert dispatch.publish(NOW) == ["2026-W43", "2026-W44"]
+        e = dispatch.issue(None, NOW)
         assert e["edition"]["id"] == "2026-W44" and e["edition"]["start"] == "2026-10-26"
         order = [p["doi"] for p in e["papers"]]
         assert order[0] == "10.1038/s41586-1"                                   # the cover story
@@ -140,7 +141,8 @@ def test_only_the_last_four_issues_are_kept(app, journals):
         db.session.commit()
         assert db.session.get(Paper, "10.1016/j.neuron.sept") is None
         assert db.session.get(Paper, "10.1016/j.neuron.old")             # from August, but its Preview is recent
-        assert all(dispatch.week_of(e) >= dispatch.kept_from(NOW.date()) for e in dispatch.editions(NOW.date()))
+        dispatch.publish(NOW)
+        assert all(dispatch.week_of(i.edition) >= dispatch.kept_from(NOW.date()) for i in Issue.query)
 
 
 def test_the_holidays_ahead_are_hong_kongs_in_english():
@@ -150,3 +152,36 @@ def test_the_holidays_ahead_are_hong_kongs_in_english():
     assert days[0]["name"] == "Christmas Day"
     assert dispatch.holidays_ahead(date(2027, 3, 22))[0]["name"] == "Good Friday"     # a general holiday counts too
     assert dispatch.holidays_ahead(date(2026, 11, 9)) == []                            # no section that week
+
+
+def test_an_issue_is_kept_as_it_came_out_and_a_late_paper_is_in_the_next(app, journals):
+    """Once out, an issue never changes; a paper listed after its week's issue came out is in the
+    next issue (marked earlier), and only there."""
+    from datetime import date, timedelta
+    with app.app_context():
+        papers.fetch(NOW)
+        dispatch.publish(NOW)
+        before = dispatch.issue("2026-W44", NOW)["papers"]
+        db.session.add(Paper(doi="10.1016/j.neuron.late", journal="neuron", kind="research", title="Listed late",
+                             published=date(2026, 10, 30)))
+        db.session.commit()
+        assert dispatch.issue("2026-W44", NOW)["papers"] == before                    # unchanged
+        assert dispatch.publish(NOW) == []                                             # nothing new out yet
+        later = NOW + timedelta(days=7)
+        status = db.session.get(SourceStatus, "papers:neuron")
+        status.last_ok = later                                                          # read since No. 45 came out
+        db.session.commit()
+        assert dispatch.publish(later) == ["2026-W45"]
+        w45 = {p["doi"]: p for p in dispatch.issue("2026-W45", later)["papers"]}
+        assert w45["10.1016/j.neuron.late"]["earlier"]
+        status.last_ok = later + timedelta(days=7)
+        db.session.commit()
+        dispatch.publish(later + timedelta(days=7))
+        assert "10.1016/j.neuron.late" not in {p["doi"] for p in dispatch.issue("2026-W46", later)["papers"]}
+
+
+def test_an_issue_comes_out_on_the_wednesday_after_its_week():
+    from datetime import datetime as dt
+    assert dispatch.out("2026-W45") == dt(2026, 11, 11, tzinfo=UTC)
+    assert dispatch.latest(dt(2026, 11, 10, 23, tzinfo=UTC)) == "2026-W44"
+    assert dispatch.latest(dt(2026, 11, 11, 1, tzinfo=UTC)) == "2026-W45"

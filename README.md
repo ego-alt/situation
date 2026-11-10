@@ -34,13 +34,13 @@ How importance is decided, and what comes next: [`docs/design.md`](docs/design.m
 
 ## Dispatch
 
-The second tab is a weekly issue to read, out each Monday: the week's neuroscience research, one question about the world, and the public holidays coming up.
+The second tab is a weekly issue to read, out each Wednesday (8am in Hong Kong) for the week before: the week's neuroscience research, one question about the world, and the public holidays coming up.
 
-- **One issue a week.** A paper belongs to the week it first came out, online or in print. The tab opens on last week's issue; this week's fills in as papers come out. Step through issues with ‹ and › or the arrow keys; each has its own address (`/dispatch/2026-W44`; the old `/papers` addresses still lead there).
+- **One issue a week, kept as it came out.** A paper belongs to the week it first came out, online or in print. Its issue comes out on the Wednesday after, once the journals have mostly been listed, and is fixed from then on. A paper listed too late for its own week's issue is in the next one, marked with its date. Step through issues with ‹ and › or the arrow keys; each has its own address (`/dispatch/2026-W44`; the old `/papers` addresses still lead there).
 - **Laid out by what the journals made of it.** The cover story leads when it's a neuroscience paper (Nature's issue page names it; Science and Neuron don't say in a form that can be read reliably). Papers the journal commissioned a commentary on (News & Views, Perspective, Preview) come next, larger, with the commentary's headline under their own. The rest fill rows of modules that change shape from row to row, the widest figure taking the widest slot; each story's text runs to the foot of its row, and in a long week what's left is a list, a line each. On a phone it's all a list.
 - **Enough to skim without clicking.** The real title, first and last author, the abstract and the first figure or graphical abstract, with links to the paper, the commentary and a free copy (PubMed Central, open access or the preprint) when there is one.
 - **Late commentary still counts.** Neuron's Previews come with its print issue, weeks after a paper went online: the paper appears again, with its commentary, as a story in the issue of the week the commentary came out (marked *From* its date).
-- **The last four issues.** Dispatch is a periodical, not an archive: older papers are forgotten after each daily read, unless a commentary on one is in an issue still kept.
+- **The last four issues.** Dispatch is a periodical, not an archive: older issues and papers are forgotten after each daily read.
 - **Nothing filtered out.** Which journals, and how each one's neuroscience is found, is in `journals.py`: all of a neuroscience journal, a publisher's own subject feed (Nature), or the nervous-system words in the title and abstract (Science, which files nothing by subject).
 
 The journals are read once a day from [Europe PMC](https://europepmc.org/) (abstracts, article types, free copies and PubMed's commentary links), with Crossref for a commentary's references and the publishers' pages for figures. Science's site turns automated readers away, so its papers have no figure. `uv run flask --app app:create_app papers --weeks 6` reads further back to fill earlier issues.

@@ -180,6 +180,16 @@ class Paper(db.Model):
     enriched = db.Column(UtcDateTime)                           # when its figure was looked for
 
 
+class Issue(db.Model):
+    """An issue of Dispatch as it came out (dispatch.publish): its papers and the holidays ahead
+    of it, written once and shown unchanged from then on."""
+    __tablename__ = "issues"
+    edition = db.Column(db.String, primary_key=True)            # 2026-W45: the week it covers
+    out = db.Column(UtcDateTime, nullable=False)
+    papers = db.Column(db.JSON, nullable=False)                 # papers.section, as it stood
+    holidays = db.Column(db.JSON, nullable=False)
+
+
 class Question(db.Model):
     """The forecast question an edition of Papers asks (forecast.py), one per edition. Its
     state is one of forecast.STATES and is changed only there: none (nothing was eligible),

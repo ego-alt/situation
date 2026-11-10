@@ -58,13 +58,12 @@ def create_app(config=None):
 
     @app.route("/api/dispatch")
     def dispatch_api():
-        """One week's issue (?edition=2026-W44; the latest finished week by default), with its question."""
+        """One published issue (?edition=2026-W44; the newest by default), with its question."""
         import dispatch
         import forecast
-        import papers
         from pipeline import clock
         now = clock()
-        data = dispatch.issue(request.args.get("edition"), now.date(), papers.last_fetched())
+        data = dispatch.issue(request.args.get("edition"), now)
         data["forecast"] = forecast.view((data["edition"] or {}).get("id"), _user(), now)
         return jsonify(data)
 
@@ -241,6 +240,7 @@ def create_app(config=None):
         import papers
         print(papers.fetch(window=timedelta(weeks=weeks)))
         dispatch.prune(datetime.now(UTC).date())
+        print("published:", dispatch.publish(datetime.now(UTC)))
 
     @app.cli.command("forecast")
     def forecast_command():
@@ -356,8 +356,9 @@ def start_loop(app):
                     if papers.due(datetime.now(UTC)):
                         papers.fetch()
                         dispatch.prune(datetime.now(UTC).date())
+                    dispatch.publish(datetime.now(UTC))
             except Exception:  # noqa: BLE001 — nor a bad journal
-                app.logger.exception("papers fetch failed")
+                app.logger.exception("reading the journals or publishing Dispatch failed")
             try:
                 import forecast
                 with app.app_context():

@@ -1,7 +1,7 @@
 """Forecast: one question about the world in each issue of Dispatch, from Polymarket.
 
-Each edition comes out on a Monday and asks one yes/no question that resolves before the
-next one; you answer with your chance of Yes, and the next edition says what happened, what
+Each issue comes out on a Wednesday (dispatch.out) and asks one yes/no question that resolves
+before the next one; you answer with your chance of Yes, and the next edition says what happened, what
 you said, and what the crowd said. Polymarket is only read (its public API); nothing is traded.
 
 Choosing (eligible and choose, pure): a yes/no market open when the edition comes out and
@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 
 import requests
 
-from dispatch import edition_id, monday, week_of
+from dispatch import latest, out, previous
 from models import Article, Guess, Question, SourceStatus, db, utcnow
 from papers import get
 from sources import BY_KEY
@@ -30,6 +30,7 @@ from text import cosine, tfidf, tokens
 EVENTS = "https://gamma-api.polymarket.com/events"
 MARKET = "https://gamma-api.polymarket.com/markets/"
 EVERY = timedelta(hours=1)          # how often open questions are checked for a result
+ASK_WITHIN = timedelta(days=1)      # a question is asked as its issue comes out, or not at all
 
 # The four numbers that decide everything.
 CROWD = (0.2, 0.8)                  # the crowd must be this unsure
@@ -65,26 +66,12 @@ BLOCK_WORDS = re.compile(
     r"up or down|temperature|precipitation|tweets?|posts|truth social|say|mentions?|combo)\b", re.I)
 
 
-# ---------- an edition's week ----------
-
-def opens(edition: str) -> datetime:
-    """When an edition comes out: the Monday after its week, at midnight UTC."""
-    return datetime.combine(week_of(edition) + timedelta(days=7), datetime.min.time(), UTC)
-
+# ---------- the issue's week ----------
 
 def window(edition: str) -> tuple[datetime, datetime]:
-    """From when an edition comes out until the next one does: its question closes in here."""
-    start = opens(edition)
+    """From when an issue comes out until the next one does: its question closes in here."""
+    start = out(edition)
     return start, start + timedelta(days=7)
-
-
-def previous(edition: str) -> str:
-    return edition_id(week_of(edition) - timedelta(days=7))
-
-
-def out_now(now: datetime) -> str:
-    """The edition that's out: last week's."""
-    return edition_id(monday(now.date()) - timedelta(days=7))
 
 
 # ---------- Polymarket ----------
@@ -263,19 +250,25 @@ def answer(edition: str, user: str, chance: int, now: datetime) -> Guess:
 
 # ---------- the job (the server's loop, hourly) ----------
 
+def askable(edition: str, now: datetime) -> bool:
+    """Whether an issue's question can still be asked: it's just come out, and it hasn't been."""
+    return now < out(edition) + ASK_WITHIN and not db.session.get(Question, edition)
+
+
 def due(now: datetime) -> bool:
-    if not db.session.get(Question, out_now(now)):
+    if askable(latest(now), now):
         return True
     status = db.session.get(SourceStatus, "forecast")
     return not status or not status.last_try or now - status.last_try >= EVERY
 
 
 def run(now: datetime | None = None):
-    """Ask the edition that's out, if it hasn't been, and look for results."""
+    """Ask the question of the issue just out, if it hasn't been, and look for results."""
     now = now or utcnow()
     error = None
     try:
-        ask(out_now(now), now)
+        if askable(latest(now), now):
+            ask(latest(now), now)
         settle(now)
     except (requests.RequestException, ValueError, KeyError) as e:
         db.session.rollback()
@@ -344,15 +337,15 @@ def record(user: str) -> dict:
 def view(edition: str | None, user: str, now: datetime) -> dict | None:
     """An edition's forecast: its question, the results it reports (last week's, and any older
     one still waiting when last week's edition came out), and your record. None until it's out."""
-    if not edition or opens(edition) > now:
+    if not edition or out(edition) > now:
         return None
     q = db.session.get(Question, edition)
     guesses = {g.edition: g for g in Guess.query.filter_by(user=user)}
     before = previous(edition)
     report = [p for p in Question.query.filter(Question.edition < edition, Question.state != "none")
               .order_by(Question.edition.desc())
-              if p.edition == before or not p.settled or p.settled >= opens(before)]
+              if p.edition == before or not p.settled or p.settled >= out(before)]
     return {"question": _question(q, guesses.get(edition), now) if q and q.state != "none" else None,
-            "asked": q is not None,
+            "asked": q is not None, "pending": askable(edition, now),
             "results": [_question(p, guesses.get(p.edition), now) for p in report],
             "record": record(user)}

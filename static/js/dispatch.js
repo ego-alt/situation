@@ -217,16 +217,15 @@
         }
     }
 
+    /** An issue as it came out. The newest also says when the next one comes out. */
     function drawEdition() {
         const e = data.edition;
-        const n = data.next_edition;
-        const due = day(n.out, { weekday: 'long', day: 'numeric', month: 'short' });
-        const sofar = n.so_far ? `${n.so_far} ${n.so_far === 1 ? 'paper' : 'papers'} so far` : 'No papers yet';
+        const next = new Date(data.next_out).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
         if (!e) {
-            $('folio').textContent = 'The first edition is being set';
-            $('edition').innerHTML = `<p class="press-empty">The first edition comes out ${esc(due)}. ${esc(sofar)}.</p>`;
+            $('folio').textContent = 'The first issue is being set';
+            $('edition').innerHTML = `<p class="press-empty">The first issue comes out ${esc(next)}.</p>`;
         } else {
-            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.in_progress ? '<span>So far</span>' : ''}`;
+            $('folio').innerHTML = `<span>No. ${e.number}</span><span>${span(e.start, e.end)}</span>${e.next ? '' : `<span>Next ${esc(next)}</span>`}`;
             $('edition').innerHTML = data.papers.length ? compose(data.papers) : '<p class="press-empty">No papers this week.</p>';
             fit();
             // The lead's figure sets the front row's height once it's in.
@@ -235,9 +234,6 @@
         step('prev', e?.prev);
         step('next', e?.next);
         $('turn').hidden = !e?.prev && !e?.next;
-        // The foot says only that this week's issue is still filling in; otherwise there's no foot.
-        $('foot').hidden = !e?.in_progress;
-        $('foot').innerHTML = e?.in_progress ? `<p>This week’s edition fills in as papers come out, until ${esc(due)}.</p>` : '';
         document.title = e ? `Situation · Dispatch No. ${e.number}` : 'Situation · Dispatch';
     }
 
@@ -377,13 +373,17 @@
         el.hidden = !f;
         if (!f) { el.innerHTML = ''; return; }
         const q = f.question;
-        const none = f.asked ? 'No question this week: nothing big enough closes before the next edition.' : 'This week’s question is being chosen.';
+        // No question: being chosen as the issue comes out, none was eligible, or (an issue from
+        // before there were questions) none was ever asked, and then there's nothing to say.
+        const none = f.pending ? 'This week’s question is being chosen.'
+            : f.asked ? 'No question this week: nothing big enough closes before the next issue.' : '';
         const results = f.results.map((r, i) => `<article class="story open ${i ? 'w12' : 'w8'}">
             <p class="kicker"><span class="journal">${i ? 'Settled late' : 'Last week’s question'}</span><span>${esc(r.subject)}</span></p>
             <h2 class="story-title">${esc(r.title)}</h2><p class="byline">${outcome(r)}</p></article>`);
         const second = [results[0], record(f.record)].filter(Boolean).join('');
+        if (!q && !none && !second) { el.hidden = true; el.innerHTML = ''; return; }
         el.innerHTML = `<h2 class="section-rule"><span>The week’s question</span><span class="n">From Polymarket</span></h2>
-            ${q ? `<div class="row">${asked(q, 'Forecast')}${answer(q)}</div>` : `<p class="press-empty">${none}</p>`}
+            ${q ? `<div class="row">${asked(q, 'Forecast')}${answer(q)}</div>` : none ? `<p class="press-empty">${none}</p>` : ''}
             ${second ? `<div class="row">${second}</div>` : ''}
             ${results.slice(1).map((r) => `<div class="row">${r}</div>`).join('')}`;
     }

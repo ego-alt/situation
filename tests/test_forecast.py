@@ -10,11 +10,11 @@ import pytest
 import forecast
 from models import Article, Guess, Question, db
 
-OUT = datetime(2026, 11, 9, tzinfo=UTC)        # edition 2026-W45 comes out
+OUT = datetime(2026, 11, 11, tzinfo=UTC)       # issue 2026-W45 comes out
 EDITION = "2026-W45"
 
 
-def market(id, question, yes, volume, ends="2026-11-12T00:00:00Z", made="2026-10-01T00:00:00Z", **extra):
+def market(id, question, yes, volume, ends="2026-11-14T00:00:00Z", made="2026-10-01T00:00:00Z", **extra):
     return {"id": id, "question": question, "outcomes": '["Yes", "No"]',
             "outcomePrices": json.dumps([str(yes), str(1 - yes)]), "volumeNum": volume, "endDate": ends,
             "createdAt": made, "closed": False, "description": f"{question} Rules.", **extra}
@@ -66,7 +66,7 @@ def test_what_is_never_asked():
         event(7, "Sure thing", [market(7, "Will the sun rise?", 0.95, 1e6)]),                 # the crowd is sure
         event(8, "Quiet", [market(8, "Will a small thing happen?", 0.5, 1e4)]),                 # too little traded
         event(9, "Later", [market(9, "Will it happen next month?", 0.5, 1e6, ends="2026-12-01T00:00:00Z")]),
-        event(10, "New", [market(10, "Did it start yesterday?", 0.5, 1e6, made="2026-11-10T00:00:00Z")]),
+        event(10, "New", [market(10, "Did it start after?", 0.5, 1e6, made="2026-11-12T00:00:00Z")]),
         event(11, "Untagged", [market(11, "Will anything happen?", 0.5, 1e6)], tags=("misc",)),
     ]
     assert forecast.eligible(cases, OUT, OUT + timedelta(days=7)) == []
@@ -115,6 +115,14 @@ def test_nothing_eligible_is_said_and_final(app):
     assert q.state == "none"
     with pytest.raises(ValueError):
         forecast._move(q, "open", OUT)
+
+
+def test_asked_as_its_issue_comes_out_or_not_at_all(app):
+    """An issue that came out before there were questions doesn't get one days later."""
+    forecast.run(OUT + timedelta(days=2))
+    assert db.session.get(Question, EDITION) is None
+    shown = forecast.view(EDITION, "ellery", OUT + timedelta(days=2))
+    assert (shown["question"], shown["asked"], shown["pending"]) == (None, False, False)
 
 
 def test_settling(app, polymarket):
@@ -168,7 +176,7 @@ def test_a_chance_is_0_to_100_in_steps(app, polymarket, chance):
 def test_no_answers_once_it_closes(app, polymarket):
     ask()
     with pytest.raises(ValueError):
-        forecast.answer(EDITION, "ellery", 50, OUT + timedelta(days=4))                 # it closed on the 12th
+        forecast.answer(EDITION, "ellery", 50, OUT + timedelta(days=4))                 # it closed on the 14th
 
 
 # ---------- what the page shows ----------

@@ -355,12 +355,10 @@ def covered_from() -> date | None:
     return covered.last_ok.date() if covered and covered.last_ok else None
 
 
-def published_days(start: date, end: date) -> set[date]:
-    """The days from `start` until `end` with a paper out (or a commentary on an earlier one)."""
-    days = (db.session.query(Paper.published).distinct()
-            .filter(db.or_(Paper.kind == "research", db.and_(Paper.kind == "commentary", Paper.on.isnot(None))),
-                    Paper.published >= start, Paper.published < end))
-    return {d for (d,) in days}
+def research_between(start: date, end: date) -> set[str]:
+    """The research papers out from `start` until `end`, by DOI."""
+    return {doi for (doi,) in db.session.query(Paper.doi).filter(Paper.kind == "research", Paper.published >= start,
+                                                                   Paper.published < end)}
 
 
 def prune(cutoff: date) -> int:
@@ -375,14 +373,15 @@ def prune(cutoff: date) -> int:
     return len(gone)
 
 
-def section(start: date) -> list[dict]:
+def section(start: date, late: set[str] = frozenset()) -> list[dict]:
     """The week from `start`, in layout order: the cover story, those with a commentary, the
-    rest; within each by journal rank, newest first. A commentary out this week brings its
-    earlier paper into the week (Neuron's Previews come with its print issue): a late
-    commentary is news in its own issue, with its paper."""
+    rest; within each by journal rank, newest first. Earlier papers come in too, marked as
+    such: `late` ones (listed after their own week's issue came out), and any whose commentary
+    is out this week (Neuron's Previews come with its print issue): a late commentary is news
+    in its own issue, with its paper."""
     in_week = (Paper.published >= start, Paper.published < start + timedelta(days=7))
     commentary = (Paper.kind == "commentary", Paper.on.isnot(None))
-    late = {on for (on,) in db.session.query(Paper.on).filter(*commentary, *in_week)}
+    late = set(late) | {on for (on,) in db.session.query(Paper.on).filter(*commentary, *in_week)}
     papers = Paper.query.filter(Paper.kind == "research",
                                 db.or_(db.and_(*in_week), db.and_(Paper.doi.in_(late), Paper.published < start))).all()
     notes: dict[str, list[Paper]] = {}
