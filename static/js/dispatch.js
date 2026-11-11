@@ -17,6 +17,7 @@
     const ROW_MAX = 600;     // the most a row of modules runs to before its text is cut
     const MIN_LINES = 4;     // a story shows at least this much of its abstract
     const narrow = window.matchMedia('(max-width: 860px)');
+    const NIGHT = [19, 7];   // from 7pm to 7am on your clock, the papers' white figures are dimmed
 
     let data = null;
     let failure = null;
@@ -531,6 +532,12 @@
     // Turned wide (a tablet, a window), the desktop's slots need every figure's proportions.
     narrow.addEventListener('change', () => data && !narrow.matches && measure(data.stories).then(() => drawEdition()));
     document.fonts?.ready.then(fit);
-    setInterval(drawStatus, 60000);
+    /** Night or day on your clock: at night the figures, drawn on white, are dimmed. */
+    const dusk = () => {
+        const h = new Date().getHours();
+        document.body.classList.toggle('night', h >= NIGHT[0] || h < NIGHT[1]);
+    };
+    dusk();
+    setInterval(() => { drawStatus(); dusk(); }, 60000);
     setInterval(() => !document.hidden && !viewing && load(data?.edition?.id), 30 * 60000);
 })();

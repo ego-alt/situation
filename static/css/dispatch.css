@@ -193,6 +193,8 @@
 .viewer-stage img { display: block; max-width: 100%; max-height: 100%; border-radius: var(--radius-sm); cursor: zoom-in; }
 .viewer-stage.zoomed { align-items: flex-start; justify-content: flex-start; }
 .viewer-stage.zoomed img { flex: none; width: 250%; max-width: none; max-height: none; cursor: zoom-out; }
+/* At night (dispatch.js) the papers' images, drawn on white, are dimmed to sit with the glass. */
+.night :is(.fig, .rail-cover, .viewer-stage) img { filter: brightness(0.7); }
 .viewer-hint {
     margin: 0; padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom));
     text-align: center; font: var(--text-xs) var(--font-mono); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-text-muted);
