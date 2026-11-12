@@ -26,6 +26,7 @@ from datetime import timedelta
 from functools import lru_cache
 
 from geo import ALIASES, DEMONYMS, country, place_names, places
+from sources import outlet
 from text import STOPWORDS, names, tokens, where
 
 DAY = timedelta(hours=24)        # the burst: the last day...
@@ -49,12 +50,8 @@ _CALENDAR = set("monday tuesday wednesday thursday friday saturday sunday tonigh
                 "weekend morning evening night week month".split())
 
 
-def _outlet(article: dict) -> str:
-    return article.get("outlet") or article["source"]
-
-
 def outlets(group: list[dict]) -> int:
-    return len({_outlet(a) for a in group})
+    return len({outlet(a) for a in group})
 
 
 def words(article: dict) -> set[str]:
@@ -78,7 +75,7 @@ def bursting(day: list[dict], usual: Counter, days: int) -> dict[str, set[int]]:
     for k, a in enumerate(day):
         for t in words(a):
             used[t].add(k)
-            carried[t].add(_outlet(a))
+            carried[t].add(outlet(a))
     return {t: arts for t, arts in used.items()
             if len(arts) >= MIN_ARTICLES and len(carried[t]) >= MIN_OUTLETS and not t.isdigit()
             and t not in _CALENDAR and t.strip("'’") not in common

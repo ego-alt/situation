@@ -155,7 +155,7 @@ def test_a_story_that_faded_is_closed_not_deleted(app):
     faded.rank("Quake", BACKGROUND, 1)
     never.rank("Fete", BACKGROUND, 1)
     db.session.flush()
-    _close({faded.id, never.id})
+    _close([faded, never])
     db.session.commit()
     assert [(s.headline, s.closed) for s in Story.query] == [("Quake", True)]
 

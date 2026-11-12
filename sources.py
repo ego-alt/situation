@@ -55,6 +55,12 @@ SOURCES = [
 
 BY_KEY = {s.key: s for s in SOURCES}
 
+
+def outlet(article: dict) -> str:
+    """The newsroom an article is from (its feed, unless the newsroom has several)."""
+    return article.get("outlet") or article["source"]
+
+
 # Wikipedia's "In the news" box: a few items a day picked by editors with a
 # high, global bar, plus an "Ongoing" list of long-running situations.
 ITN_URL = ("https://en.wikipedia.org/w/api.php?action=parse&page=Template:In_the_news"

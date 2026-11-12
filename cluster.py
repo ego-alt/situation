@@ -10,6 +10,7 @@
 """
 from collections import Counter
 
+from sources import outlet
 from text import cosine, document, names, tfidf, where
 
 # How much two articles must resemble each other to be linked...
@@ -162,16 +163,19 @@ def by_rules(articles: list[dict]) -> list[list[int]]:
             i = parent[i]
         return i
 
-    index: dict[str, list[int]] = {}
+    # Each article against the ones before it, through the terms they share: an article's
+    # likeness to another (their cosine) is the sum, over those terms, of the two weights.
+    index: dict[str, list[tuple[int, float]]] = {}
     for i, v in enumerate(vectors):
-        for t in v:
-            index.setdefault(t, []).append(i)
-    for i, v in enumerate(vectors):
-        candidates = {j for t in v for j in index[t] if j > i}
-        for j in candidates:
-            if articles[i].get("outlet", articles[i]["source"]) == articles[j].get("outlet", articles[j]["source"]):
-                continue
-            if cosine(v, vectors[j]) >= THRESHOLD and _shared_enough(v, vectors[j], named):
+        alike: dict[int, float] = {}
+        for t, x in v.items():
+            holders = index.setdefault(t, [])
+            for j, y in holders:
+                alike[j] = alike.get(j, 0.0) + x * y
+            holders.append((i, x))
+        for j, likeness in alike.items():
+            if (likeness >= THRESHOLD and outlet(articles[i]) != outlet(articles[j])
+                    and _shared_enough(v, vectors[j], named)):
                 parent[find(i)] = find(j)
     groups: dict[int, list[int]] = {}
     for i in range(len(articles)):

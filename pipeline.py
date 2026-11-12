@@ -5,6 +5,7 @@ consistent; a story keeps its id when most of its articles are the same as
 last time. A story whose articles have all left the window is closed, not
 deleted, so it keeps its id for the weekly view and the notifications."""
 import re
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 
 import situations
@@ -82,10 +83,10 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
     first_seen = itn_first_seen()
     today = now - SHOWN
     active = len({i["outlet"] for i in items if i["published"] >= today})
-    old = _open(running=False)
+    old, holding = _open(running=False)
     claimed, keep = set(), []
     for k, group in enumerate(groups):
-        story = _carry_over(group, old, claimed, now, running=False)
+        story = _carry_over(group, old, holding, claimed, now, running=False)
         place = locate(group)
         item = matched.get(k)
         fresh = item is not None and now - first_seen.get(item, now) <= ITN_FRESH
@@ -97,7 +98,7 @@ def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]
         story.articles = [by_id[i["id"]] for i in group]
         story.run_id = None                 # (set again below if it's part of a running story)
         keep.append(story)
-    _close(set(old) - claimed)
+    _close([s for sid, s in old.items() if sid not in claimed])
     db.session.flush()
     runs = regroup_running(groups, keep, topics, by_id, now, active)
     db.session.commit()
@@ -111,11 +112,11 @@ def regroup_running(groups: list[list[dict]], events: list[Story], topics: list[
     story, named for the phrase its headlines use; its events point to it, and
     the page shows it in their place. A running story keeps its id while most
     of its articles do."""
-    old = _open(running=True)
+    old, holding = _open(running=True)
     claimed, out = set(), []
     for f in situations.find(groups, topics):
         union = [a for k in f["events"] for a in groups[k]]
-        story = _carry_over(union, old, claimed, now, running=True)
+        story = _carry_over(union, old, holding, claimed, now, running=True)
         place = locate(union)
         a = assess(union, place, None, now, active=active)
         tier, score = running_tier(a, [groups[k] for k in f["events"]], now, active)
@@ -128,27 +129,31 @@ def regroup_running(groups: list[list[dict]], events: list[Story], topics: list[
         for k in f["events"]:
             events[k].run_id = story.id
         out.append(story)
-    _close(set(old) - claimed)
+    _close([s for sid, s in old.items() if sid not in claimed])
     return out
 
 
-def _open(running: bool) -> dict[int, set[int]]:
-    """Open stories (events, or running stories) and their articles' ids."""
-    return {s.id: {a.id for a in s.articles} for s in Story.query.filter_by(closed=False, running=running)}
+def _open(running: bool) -> tuple[dict[int, Story], dict[int, list[int]]]:
+    """Open stories (events, or running stories) by id, and which of them hold each article."""
+    stories = {s.id: s for s in Story.query.filter_by(closed=False, running=running)}
+    holding: dict[int, list[int]] = {}
+    for s in stories.values():
+        for a in s.articles:
+            holding.setdefault(a.id, []).append(s.id)
+    return stories, holding
 
 
-def _carry_over(group: list[dict], old: dict[int, set[int]], claimed: set[int], now: datetime,
-                running: bool) -> Story:
+def _carry_over(group: list[dict], old: dict[int, Story], holding: dict[int, list[int]], claimed: set[int],
+                now: datetime, running: bool) -> Story:
     """The story a group continues (it has at least half of its articles), else a new one."""
-    ids = {a["id"] for a in group}
-    best = max(((len(ids & arts), sid) for sid, arts in old.items() if sid not in claimed), default=(0, None))
-    story = db.session.get(Story, best[1]) if best[0] * 2 >= len(ids) else None
-    if story is None:
+    shared = Counter(sid for a in group for sid in holding.get(a["id"], ()) if sid not in claimed)
+    best = max(shared, key=lambda sid: (shared[sid], sid), default=None)
+    if best is None or shared[best] * 2 < len(group):
         story = Story(headline="", tier=BACKGROUND, running=running, first_seen=now)
         db.session.add(story)
-    else:
-        claimed.add(story.id)
-    return story
+        return story
+    claimed.add(best)
+    return old[best]
 
 
 def _set_place(story: Story, place: dict | None):
@@ -157,11 +162,10 @@ def _set_place(story: Story, place: dict | None):
         story.x, story.y = place["x"], place["y"]
 
 
-def _close(ids: set[int]):
+def _close(stories: list[Story]):
     """Stories no longer in the window: closed if they were ever shown (kept for the
     week and so nothing is pushed twice), else deleted: nothing to remember."""
-    for sid in ids:
-        story = db.session.get(Story, sid)
+    for story in stories:
         if story.shown:
             story.closed = True
         else:

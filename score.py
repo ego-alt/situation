@@ -23,7 +23,7 @@ from collections import Counter
 from datetime import datetime
 
 from geo import places
-from sources import BY_KEY
+from sources import BY_KEY, outlet
 from text import cosine, document, tfidf, tokens, where
 
 HOME_REGIONS = {"HK", "TW", "CN", "GB"}
@@ -46,7 +46,7 @@ def need(outlets: int, active: int | None) -> int:
 
 def copies(articles: list[dict]) -> set[str]:
     """Outlets whose article here is a wire's, word for word."""
-    terms = [(a.get("outlet") or a["source"], a["source"] in WIRES, set(tokens(a["title"]))) for a in articles]
+    terms = [(outlet(a), a["source"] in WIRES, set(tokens(a["title"]))) for a in articles]
     wire = [t for _, is_wire, t in terms if is_wire and len(t) >= 5]
     return {o for o, is_wire, t in terms
             if not is_wire and len(t) >= 5 and any(len(t & w) / len(t | w) >= COPY for w in wire)}
@@ -128,7 +128,7 @@ def match_itn(groups_articles: list[list[dict]], itn_items: list[str], threshold
     if not itn_items or not groups_articles:
         return {}
     eligible = [i for i, arts in enumerate(groups_articles)
-                if len({a.get("outlet") or a["source"] for a in arts}) >= 2]
+                if len({outlet(a) for a in arts}) >= 2]
     owners, docs = [], []
     for i in eligible:
         for a in groups_articles[i][:15]:
@@ -153,10 +153,10 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     leads = set()
     for a in articles:
         source = BY_KEY.get(a["source"])
-        outlet = a.get("outlet") or a["source"]
-        per_outlet[outlet] = max(per_outlet.get(outlet, 0.0), source.weight if source else 0.5)
+        o = outlet(a)
+        per_outlet[o] = max(per_outlet.get(o, 0.0), source.weight if source else 0.5)
         if source and source.ordered and a.get("position") is not None and a["position"] < 3:
-            leads.add(outlet)
+            leads.add(o)
     outlets = len(per_outlet)                       # shown: everyone carrying it
     for o in copies(articles):
         per_outlet.pop(o, None)
@@ -171,12 +171,11 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     newest = max(times) if times else now
     first_by_outlet: dict[str, datetime] = {}
     for a in articles:
-        outlet = a.get("outlet") or a["source"]
-        first_by_outlet[outlet] = min(first_by_outlet.get(outlet, when(a)), when(a))
+        first_by_outlet[outlet(a)] = min(first_by_outlet.get(outlet(a), when(a)), when(a))
     starts = sorted(first_by_outlet.values())
     broke = starts[1] if len(starts) > 1 else starts[0] if starts else now
     hours = lambda t: max(0.0, (now - t).total_seconds() / 3600)  # noqa: E731
-    recent = {a.get("outlet") or a["source"] for a in articles if hours(when(a)) <= DEVELOPING_HOURS}
+    recent = {outlet(a) for a in articles if hours(when(a)) <= DEVELOPING_HOURS}
     age = hours(broke)
     fade = 1.0 if age <= FRESH_HOURS else max(OLD_FLOOR, 0.5 ** ((age - FRESH_HOURS) / HALF_LIFE_HOURS))
     if len(recent) >= DEVELOPING_OUTLETS:
@@ -198,7 +197,7 @@ def assess(articles: list[dict], place: dict | None, itn_item: str | None, now: 
     else:
         tier = BACKGROUND
     recent_articles = [a for a in articles if hours(when(a)) <= HEADLINE_HOURS]
-    if len({a.get("outlet") or a["source"] for a in recent_articles}) < HEADLINE_OUTLETS:
+    if len({outlet(a) for a in recent_articles}) < HEADLINE_OUTLETS:
         recent_articles = articles
     return {
         "headline": pick_headline(recent_articles, _main_country(articles)),
