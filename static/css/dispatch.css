@@ -205,6 +205,7 @@
 @media (max-width: 860px) {
     .press { padding: 0 var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
     .masthead { padding-top: var(--space-6); }
+    .woodcut { margin-inline: calc(-1 * var(--space-4)); }   /* a banner across the whole screen (woodcut.js) */
     .plate { gap: var(--space-3); }
     .seal { width: 44px; height: 44px; }
     /* The issue line on one line: set closer, between narrow steps that keep a finger-sized target (.tap). */

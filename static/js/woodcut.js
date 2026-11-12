@@ -7,11 +7,12 @@
     const ROOT = window.APP_ROOT || '';
     const LAT = 22.3, LON = 114.17;          // Hong Kong
     const EVENING = 13;                      // 9pm in Hong Kong, in UTC hours
-    // Each shape: its size, the part of the map it shows (the map's own units), where the sky,
-    // the moon, the title and the compass go.
+    // Each shape: its size, how far in its frame's sides stand (off the picture on a phone: a banner
+    // from edge to edge, ruled above and below), the part of the map it shows (the map's own units),
+    // where the sky, the moon, the title and the compass go.
     const SHAPES = {
-        wide: { w: 1216, h: 250, view: [806.0, 204.4, 24.0, 4.95], sky: [0.72, 0.6, 0.2, 0.5], moon: [-150, 64], title: [28, 26, 1], compass: [-70, -62] },
-        tall: { w: 358, h: 300, view: [810.6, 203.4, 12.6, 10.6], sky: [0.5, 0.86, 0.44, 0.34], moon: [-36, 140], title: [214, 22, 0.8], compass: [52, -50] },
+        wide: { w: 1216, h: 250, side: 10, view: [806.0, 204.4, 24.0, 4.95], sky: [0.72, 0.6, 0.2, 0.5], moon: [-150, 64], title: [28, 26, 1], compass: [-70, -62] },
+        narrow: { w: 390, h: 180, side: -8, view: [810.0, 205.0, 14.4, 5.7], sky: [0.48, 0.82, 0.32, 0.5], moon: [-44, 58], title: [12, 18, 0.8], compass: [-44, -44] },
     };
     const PLACES = [['香港', 817.15, 207.35, 14, 30], ['澳門', 815.75, 207.55, -34, 30], ['廣州', 815.6, 205.6, 10, 4]];
     // The brightest stars of a November evening: RA and Dec (degrees), magnitude, and the two named.
@@ -155,22 +156,22 @@
     const read = () => coast || (coast = Promise.all(['CN', 'HK', 'MO'].map((iso) => fetch(`${ROOT}/static/map/regions/${iso}.json`).then((r) => r.json())))
         .then((all) => all.map((r) => r.outline)).catch(() => { coast = null; return null; }));
 
-    /** Draw the woodcut of the issue out on `out` (an ISO date) into `box`: wide, or tall where the
-     * box is narrow (a phone). Drawn again only when the issue or the shape changes. */
+    /** Draw the woodcut of the issue out on `out` (an ISO date) into `box`: wide, or a shorter banner where
+     * the box is narrow (a phone). Drawn again only when the issue or the shape changes. */
     async function draw(box, out) {
         box.hidden = !out;
         if (!out) return;
-        const tall = box.clientWidth < 600;
-        const drawn = `${out} ${tall}`;
+        const narrow = box.clientWidth < 600;
+        const drawn = `${out} ${narrow}`;
         if (box.dataset.drawn === drawn) return;
         const outlines = await read();
         if (!outlines) { box.hidden = true; return; }
-        const shape = SHAPES[tall ? 'tall' : 'wide'];
-        const { w, h } = shape, [x0, y0, vw, vh] = shape.view;
-        const id = tall ? 't' : 'w';
-        const [iw, ih] = [w - 20, h - 20];
+        const shape = SHAPES[narrow ? 'narrow' : 'wide'];
+        const { w, h, side } = shape, [x0, y0, vw, vh] = shape.view;
+        const id = narrow ? 'n' : 'w';
+        const [iw, ih] = [w - 2 * side, h - 20];
         const k = Math.max(iw / vw, ih / vh);                   // fill the frame, cropping the map's longer side
-        const [tx, ty] = [10 + (iw - vw * k) / 2 - x0 * k, 10 + (ih - vh * k) / 2 - y0 * k];
+        const [tx, ty] = [side + (iw - vw * k) / 2 - x0 * k, 10 + (ih - vh * k) / 2 - y0 * k];
         const at = `matrix(${k.toFixed(4)},0,0,${k.toFixed(4)},${tx.toFixed(2)},${ty.toFixed(2)})`;
         const paths = (extra = '') => outlines.map((d) => `<path d="${d}" vector-effect="non-scaling-stroke"${extra}/>`).join('');
         // The sea lined along the shore: rings of the coast, each an inked line edged in the sea's colour.
@@ -183,7 +184,7 @@
         const [sx, sy, srx, sry] = shape.sky;
         box.dataset.drawn = drawn;
         box.innerHTML = el('svg', { viewBox: `0 0 ${w} ${h}`, role: 'img', 'aria-label': `The mouth of the Pearl River, engraved, with the sky over Hong Kong that evening: ${m.name}` },
-            el('defs', {}, el('clipPath', { id: `frame-${id}` }, el('rect', { x: 10, y: 10, width: iw, height: ih }))
+            el('defs', {}, el('clipPath', { id: `frame-${id}` }, el('rect', { x: side, y: 10, width: iw, height: ih }))
                 + el('pattern', { id: `hatch-${id}`, patternUnits: 'userSpaceOnUse', width: 3.2, height: 3.2, patternTransform: 'rotate(-38)' }, el('line', { x1: 0, y1: 0, x2: 0, y2: 3.2, class: 'line', 'stroke-width': 0.6 }))
                 + el('pattern', { id: `moon-${id}`, patternUnits: 'userSpaceOnUse', width: 2.2, height: 2.2, patternTransform: 'rotate(30)' }, el('line', { x1: 0, y1: 0, x2: 0, y2: 2.2, class: 'line', 'stroke-width': 0.7 }))
                 + el('mask', { id: `land-${id}`, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h }, el('g', { transform: at, fill: '#fff', class: 'coast' }, paths()))
@@ -196,8 +197,8 @@
                 + el('g', { class: 'peaks' })
                 + el('g', { mask: `url(#sea-${id})` }, sky(evening, w * sx, h * sy, w * srx, h * sry, rnd)))
             + el('g', { transform: `translate(${(shape.moon[0] + w) % w},${shape.moon[1]})` }, moon(11, m, id) + el('text', { y: 26, class: 'zh ink', 'text-anchor': 'middle' }, m.name))
-            + el('rect', { x: 10, y: 10, width: iw, height: ih, fill: 'none', class: 'line', 'stroke-width': 1.4 })
-            + el('rect', { x: 4, y: 4, width: w - 8, height: h - 8, fill: 'none', class: 'line', 'stroke-width': 0.6 })
+            + el('rect', { x: side, y: 10, width: iw, height: ih, fill: 'none', class: 'line', 'stroke-width': 1.4 })
+            + el('rect', { x: side - 6, y: 4, width: iw + 12, height: h - 8, fill: 'none', class: 'line', 'stroke-width': 0.6 })
             + title(...shape.title) + compass((shape.compass[0] + w) % w, (shape.compass[1] + h) % h) + places(k, tx, ty));
         const svg = box.querySelector('svg');
         svg.querySelector('.peaks').innerHTML = peaks(svg, shape, k, tx, ty, rnd);
