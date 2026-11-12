@@ -45,17 +45,17 @@ def create_app(config=None):
     @app.route("/dispatch")
     @app.route("/dispatch/<edition>")
     def dispatch_page(edition=None):
-        """Dispatch; /dispatch/2026-W44 is that week's issue (the page reads it from the address)."""
+        """Dispatch; /dispatch/2026-11-12 is that day's issue (the page reads it from the address)."""
         return render_template("dispatch.html")
 
     @app.route("/api/dispatch")
     def dispatch_api():
-        """One published issue (?edition=2026-W44; the newest by default), with its question."""
+        """One issue (?edition=2026-11-12; the newest by default), with its question."""
         import dispatch
         import forecast
         from pipeline import clock
         now = clock()
-        data = dispatch.issue(request.args.get("edition"), now)
+        data = dispatch.issue(request.args.get("edition"))
         data["forecast"] = forecast.view((data["edition"] or {}).get("id"), _user(), now)
         return jsonify(data)
 
@@ -224,19 +224,15 @@ def create_app(config=None):
         with _fetch_lock:
             print(fetch_once())
 
-    @app.cli.command("papers")
-    @click.option("--weeks", default=3, help="How many weeks back to read (more to fill earlier editions).")
-    def papers_command(weeks):
-        """Read the journals for Dispatch now (the server does once a day)."""
+    @app.cli.command("dispatch")
+    def dispatch_command():
+        """Make up today's issue of Dispatch now, if it isn't yet (the server does as it comes out)."""
         import dispatch
-        import papers
-        print(papers.fetch(window=timedelta(weeks=weeks)))
-        dispatch.prune(datetime.now(UTC).date())
         print("published:", dispatch.publish(datetime.now(UTC)))
 
     @app.cli.command("forecast")
     def forecast_command():
-        """Ask the edition's forecast question if it hasn't been, and look for results (the server does hourly)."""
+        """Ask today's forecast question if it hasn't been, and look for results (the server does hourly)."""
         import forecast
         from models import Question
         forecast.run()
@@ -343,14 +339,10 @@ def start_loop(app):
                 app.logger.exception("fetch failed")
             try:
                 import dispatch
-                import papers
                 with app.app_context():
-                    if papers.due(datetime.now(UTC)):
-                        papers.fetch()
-                        dispatch.prune(datetime.now(UTC).date())
                     dispatch.publish(datetime.now(UTC))
             except Exception:  # noqa: BLE001 — nor a bad journal
-                app.logger.exception("reading the journals or publishing Dispatch failed")
+                app.logger.exception("making up Dispatch failed")
             try:
                 import forecast
                 with app.app_context():

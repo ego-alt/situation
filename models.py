@@ -170,25 +170,28 @@ class Paper(db.Model):
     title = db.Column(db.String, nullable=False)                # plain text, with <i>, <sub>, <sup> kept
     authors = db.Column(db.JSON)                                # surnames, in order
     abstract = db.Column(db.String)
-    published = db.Column(db.Date, index=True)                  # first out, online or in print: its edition's week
+    published = db.Column(db.Date, index=True)                  # first out, online or in print
     url = db.Column(db.String)
     figure = db.Column(db.String)                               # an image of its first figure or graphical abstract
     free = db.Column(db.JSON)                                   # {"url", "label"}: a copy anyone can read
     on = db.Column(db.String, index=True)                       # commentary: the DOI it's about
     cover = db.Column(db.String)                                # research: the cover image, when it's the cover story
+    ran = db.Column(db.String, index=True)                      # the issue it was in (papers.take): once only
     fetched = db.Column(UtcDateTime, default=utcnow)
     enriched = db.Column(UtcDateTime)                           # when its figure was looked for
 
 
 class Issue(db.Model):
-    """An issue of Dispatch as it came out (dispatch.publish): its papers, its poem and the
-    holidays ahead of it, written once and shown unchanged from then on."""
+    """An issue of Dispatch as it came out (dispatch.publish): everything it carries, written
+    once and shown unchanged from then on."""
     __tablename__ = "issues"
-    edition = db.Column(db.String, primary_key=True)            # 2026-W45: the week it covers
+    edition = db.Column(db.String, primary_key=True)            # 2026-11-12: the day it came out
     out = db.Column(UtcDateTime, nullable=False)
-    papers = db.Column(db.JSON, nullable=False)                 # papers.section, as it stood
-    poem = db.Column(db.JSON)                                   # dispatch.draw_poem; None in issues from before it
+    stories = db.Column(db.JSON, nullable=False)                # the front page: papers.take and features.take
+    print = db.Column(db.JSON)                                  # one of data/prints.json
+    poem = db.Column(db.JSON)                                   # one of data/poems.json
     holidays = db.Column(db.JSON, nullable=False)
+    climbing = db.Column(db.JSON, nullable=False)               # climbing.ahead
 
 
 class Question(db.Model):
@@ -197,11 +200,11 @@ class Question(db.Model):
     open, closed (trading stopped, the result not in yet), then yes, no or void. Kept for
     good, unlike papers: the record is made of them."""
     __tablename__ = "questions"
-    edition = db.Column(db.String, primary_key=True)            # the edition it's in: 2026-W45
+    edition = db.Column(db.String, primary_key=True)            # the edition it's in: 2026-11-12
     state = db.Column(db.String, nullable=False)
     asked = db.Column(UtcDateTime, nullable=False)
     market = db.Column(db.String)                               # Polymarket's market id
-    event = db.Column(db.String)                                # its event id: never asked two weeks running
+    event = db.Column(db.String)                                # its event id: never asked twice
     slug = db.Column(db.String)                                 # the event's page, polymarket.com/event/<slug>
     title = db.Column(db.String)                                # the question, as Polymarket words it
     rule = db.Column(db.String)                                 # how it resolves, in Polymarket's words

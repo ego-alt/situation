@@ -56,7 +56,7 @@ def test_links_carry_the_stack_prefix(app):
     assert b'href="/situation/static/css/situation.css' in page.data
     assert b'window.APP_ROOT = "/situation"' in page.data
     assert b"js/signed_out.js" in page.data                        # the stack's "signed out" bar
-    page = app.test_client().get("/dispatch/2026-W44", headers={"X-Forwarded-Prefix": "/situation"})
+    page = app.test_client().get("/dispatch/2026-11-12", headers={"X-Forwarded-Prefix": "/situation"})
     assert b'href="/situation/static/css/dispatch.css' in page.data and b"js/woodcut.js" in page.data
 
 

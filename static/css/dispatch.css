@@ -1,6 +1,6 @@
-/* Dispatch: the week's issue as a front page, in the map's glass and type: a nameplate and
- * folio, then its sections. The neuroscience leads with a rail, then rows of modules whose
- * shape changes row to row; the week's poem, question and holidays use the same modules. */
+/* Dispatch: the day's issue as a front page, in the map's glass and type: a nameplate and
+ * folio, then its sections. A story leads with a rail, then rows of modules whose shape changes
+ * row to row; the day's print, poem and question, the climbing and the holidays use the same modules. */
 .dispatch-page { height: auto; }
 .press { max-width: 1280px; margin: 0 auto; padding: 0 var(--space-8) calc(var(--space-8) + env(safe-area-inset-bottom)); }
 
@@ -72,8 +72,9 @@
     display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: 0 0 var(--space-2);
     font: 600 var(--text-xs)/var(--leading-label) var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-text-muted);
 }
-.kicker .journal { color: var(--color-text-secondary); font-weight: 600; }
-.mark-cover { color: var(--color-flash); }
+.kicker-k { color: var(--color-text-secondary); }
+.kicker-flash { color: var(--color-flash); }
+.kicker-flash:empty { display: none; }
 /* Says the story opens, and turns over once it has. */
 .story-title { margin: 0; font: 600 var(--text-base)/var(--leading-title) var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); letter-spacing: var(--tracking-tight); text-wrap: balance; }
@@ -84,7 +85,8 @@
    rule, kept to a few lines until the story is opened. */
 .standfirst { margin: var(--space-3) 0 0; padding-left: var(--space-3); border-left: 2px solid var(--color-border); }
 .standfirst-head { margin: 0; font-size: var(--text-sm); line-height: var(--leading-text); color: var(--color-text-primary); }
-.standfirst-head a { color: inherit; text-decoration: none; }
+/* A link in a line of text reads as the text; its arrow says it goes out. */
+:is(.standfirst-head, .s-line .story-title) a { color: inherit; text-decoration: none; }
 .s-lead .standfirst-head { font-size: var(--text-base); }
 .standfirst-sum {
     margin: var(--space-1) 0 0; font-size: var(--text-sm); line-height: var(--leading-text); font-style: italic; color: var(--color-text-secondary);
@@ -95,9 +97,10 @@
 .standfirst-sum i { font-style: normal; }
 .standfirst-k { margin-right: var(--space-1); font: 600 var(--text-xs) var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-text-muted); }
 .abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: var(--leading-read); color: var(--color-text-secondary); hyphens: auto; }
+.flow .abstract { white-space: pre-line; }   /* a feature's paragraphs come parted by a blank line */
 .s-lead .abstract { margin-top: 0; font-size: var(--text-base); }
 .s-lead:not(.has-fig) .abstract { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
-/* The way out to the publisher, in an opened story only. */
+/* The way out to where it's from, in an opened story only. */
 .story:not(.open) .links { display: none; }
 .links {
     display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-3) 0 0;
@@ -106,7 +109,7 @@
 .links a { color: var(--color-text-secondary); text-decoration: none; }
 .links .free { color: var(--color-accent); }
 
-/* Figures, drawn on white: cropped to the top in a module, whole in the lead or an opened story. */
+/* Figures: cropped to the top in a module, whole in the lead or an opened story. */
 .fig { margin: 0 0 var(--space-4); border-radius: var(--radius-sm); overflow: hidden; }
 .fig img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
 .s-mod .fig { aspect-ratio: 4 / 3; }
@@ -120,6 +123,7 @@
 .s-lead .fig { float: left; width: calc(50% - var(--space-3)); margin: var(--space-1) var(--space-6) var(--space-3) 0; }
 .s-lead .fig img { max-height: 440px; object-fit: contain; }
 .side .fig { float: left; width: 45%; margin: var(--space-1) var(--space-6) var(--space-3) 0; }
+.side .story-head { display: flow-root; }   /* beside the figure: the title, a button, can't wrap round it */
 /* A mid-width module sets its headline over the figure. */
 .head-first .fig { margin: var(--space-4) 0 0; }
 /* The issue's cover, at the head of the rail: the cover beside its caption. */
@@ -129,27 +133,30 @@
 .rail-cover-k { font: 600 var(--text-xs) var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-flash); }
 .rail-cover-note { font: italic var(--text-sm)/var(--leading-text) var(--font-sans); color: var(--color-text-secondary); }
 
-/* ---- the sections after the papers; the holidays one line each, down two columns ---- */
+/* ---- the sections after the stories; the climbing and the holidays one line each, down two columns ---- */
 .rest { margin-top: var(--space-8); }
 .rest-list { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 .s-line { break-inside: avoid; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-soft); }
 .s-line .kicker { margin-bottom: var(--space-1); }
 .s-line .story-title { font-weight: 500; }
 @media (hover: hover) {
-    .links a:hover, .standfirst-head a:hover { color: var(--color-text-primary); }
+    :is(.links, .standfirst-head) a:hover { color: var(--color-text-primary); }
+    .s-line .story-title a:hover { color: var(--color-accent); }
 }
-/* On a desktop the rail, and a narrow slot with a wide figure, go without theirs. */
+/* On a desktop a commentary's paper in the rail, and a narrow slot with a wide figure, go without
+   theirs; the print is as wide as its height allows. */
 @media (min-width: 861px) {
     .bare .fig { display: none; }
+    #print .fig { width: min(45%, calc(520px * var(--r))); }
 }
 
-/* The week's poem, question and holidays are set in these same modules, but they don't open.
-   The poem and the question share a row: the poem a column wide, the question beside it. */
+/* The day's print, poem and question, the climbing and the holidays are set in these same modules, but they don't open.
+   The print and the poem share a row: the print with its text, the poem a column wide beside it. */
 .still .story { cursor: auto; }
 .back { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--space-8); }
+.back > #print { grid-column: span 8; }
 .back > #poem { grid-column: span 4; }
-.back > #forecast { grid-column: span 8; }
-.back > [hidden] + #forecast, .back > #poem:has(+ [hidden]) { grid-column: 1 / -1; }
+.back > [hidden] + #poem, .back > #print:has(+ [hidden]) { grid-column: 1 / -1; }
 /* The poem in Song type, its title and lines one size, to read aloud: one line to a line. */
 #poem :is(.section-head .n, .kicker, .story-title, .abstract) { font-family: var(--font-song); }
 #poem :is(.story-title, .abstract) { font-size: var(--text-lg); color: var(--color-text-primary); }
@@ -193,7 +200,7 @@
 .viewer-stage img { display: block; max-width: 100%; max-height: 100%; border-radius: var(--radius-sm); cursor: zoom-in; }
 .viewer-stage.zoomed { align-items: flex-start; justify-content: flex-start; }
 .viewer-stage.zoomed img { flex: none; width: 250%; max-width: none; max-height: none; cursor: zoom-out; }
-/* At night (dispatch.js) the papers' images, drawn on white, are dimmed to sit with the glass. */
+/* At night (dispatch.js) the images, mostly drawn on white, are dimmed to sit with the glass. */
 .night :is(.fig, .rail-cover, .viewer-stage) img { filter: brightness(0.7); }
 .viewer-hint {
     margin: 0; padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom));
@@ -241,7 +248,7 @@
     .s-mod .story-title { font-size: var(--text-base); }
     .s-lead .standfirst-head { font-size: var(--text-sm); }
     .links { row-gap: 0; }
-    .links a { display: inline-flex; align-items: center; min-height: var(--tap); }
+    :is(.links, .s-line .story-title) a { display: inline-flex; align-items: center; min-height: var(--tap); }
     .s-lead .abstract, .s-lead:not(.has-fig) .abstract { columns: auto; margin-top: var(--space-3); font-size: var(--text-sm); }
     .s-lead:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
     .rail-cover { margin: 0; padding: var(--space-4) 0; }

@@ -1,14 +1,14 @@
 """Forecast: one question about the world in each issue of Dispatch, from Polymarket.
 
-Each issue comes out on a Wednesday (dispatch.out) and asks one yes/no question that resolves
-before the next one; you answer with your chance of Yes, and the next edition says what happened, what
-you said, and what the crowd said. Polymarket is only read (its public API); nothing is traded.
+Each morning's issue (dispatch.out) asks one yes/no question that resolves within the week;
+you answer with your chance of Yes, and the issue after it settles says what happened, what you
+said, and what the crowd said. Polymarket is only read (its public API); nothing is traded.
 
-Choosing (eligible and choose, pure): a yes/no market open when the edition comes out and
-closing before the next, but no sooner than TO_ANSWER after, not blocked, with the crowd
+Choosing (eligible and choose, pure): a yes/no market open when the issue comes out and
+closing within AHEAD of it, but no sooner than TO_ANSWER after, not blocked, with the crowd
 between 20% and 80% and at least MIN_VOLUME traded; one market per event, the one nearest
 50%. The most traded in the past week wins (what people are trading on now, not what has run
-longest), never the event asked last week; one within TIE of it is a tie, drawn at random once.
+longest), never an event asked before; one within TIE of it is a tie, drawn at random once.
 
 A question's state is one of STATES and moves only along MOVES, in _move and nowhere else:
 none (nothing was eligible) is final; open becomes closed when trading stops; open or closed
@@ -22,8 +22,8 @@ from datetime import UTC, datetime, timedelta
 
 import requests
 
-from dispatch import latest, out, previous
-from models import Article, Guess, Question, SourceStatus, db, utcnow
+from dispatch import latest, out
+from models import Article, Guess, Issue, Question, SourceStatus, db, utcnow
 from papers import get
 from sources import BY_KEY
 from text import cosine, tfidf, tokens
@@ -31,12 +31,13 @@ from text import cosine, tfidf, tokens
 EVENTS = "https://gamma-api.polymarket.com/events"
 MARKET = "https://gamma-api.polymarket.com/markets/"
 EVERY = timedelta(hours=1)          # how often open questions are checked for a result
-ASK_WITHIN = timedelta(days=1)      # a question is asked as its issue comes out, or not at all
-TO_ANSWER = timedelta(days=2)       # the least time there is to answer it
+TO_ANSWER = timedelta(days=1)       # the least time there is to answer it
+AHEAD = timedelta(days=7)           # how soon it must close: the result is news while the question is remembered
+REPORTED = timedelta(days=1)        # a result is in the issue after it came in
 
 # The four numbers that decide everything.
 CROWD = (0.2, 0.8)                  # the crowd must be this unsure
-MIN_VOLUME = 25_000                 # dollars traded in all, so the odds mean something
+MIN_VOLUME = 5_000                  # dollars traded in all, so the odds mean something
 TIE = 0.1                           # within this share of the most traded is a tie
 STEP = 5                            # the slider's step, in percent
 
@@ -68,12 +69,12 @@ BLOCK_WORDS = re.compile(
     r"up or down|temperature|precipitation|tweets?|posts|truth social|say|mentions?|combo)\b", re.I)
 
 
-# ---------- the issue's week ----------
+# ---------- the week ahead of an issue ----------
 
 def window(edition: str) -> tuple[datetime, datetime]:
-    """From when an issue comes out until the next one does: its question closes in here."""
+    """From when an issue comes out until AHEAD of it: its question closes in here."""
     start = out(edition)
-    return start, start + timedelta(days=7)
+    return start, start + AHEAD
 
 
 # ---------- Polymarket ----------
@@ -135,7 +136,7 @@ def _askable(m: dict, start: datetime, end: datetime) -> bool:
 
 
 def eligible(events: list[dict], start: datetime, end: datetime) -> list[dict]:
-    """Every question an edition out at `start` could ask, one per event: its market nearest 50%."""
+    """Every question an issue out at `start` could ask, one per event: its market nearest 50%."""
     out = []
     for e in events:
         tags = {t.get("slug", "").lower() for t in e.get("tags") or []}
@@ -154,15 +155,15 @@ def eligible(events: list[dict], start: datetime, end: datetime) -> list[dict]:
     return out
 
 
-def choose(candidates: list[dict], last_event: str | None, rng: random.Random) -> dict | None:
-    """The most traded in the past week, never last week's event; a tie within TIE is drawn at random."""
-    fresh = sorted((c for c in candidates if c["event"] != last_event), key=lambda c: -c["volume"])
+def choose(candidates: list[dict], asked: set[str], rng: random.Random) -> dict | None:
+    """The most traded in the past week, never an event in `asked`; a tie within TIE is drawn at random."""
+    fresh = sorted((c for c in candidates if c["event"] not in asked), key=lambda c: -c["volume"])
     if not fresh:
         return None
     return rng.choice([c for c in fresh if c["volume"] >= (1 - TIE) * fresh[0]["volume"]])
 
 
-# ---------- the reading: what the newsrooms Situation reads wrote that week ----------
+# ---------- the reading: what the newsrooms Situation reads wrote the week before ----------
 
 # Capitalised, so tokens() counts them as names, but they name no one: "in October".
 NOT_NAMES = set(tokens("x January February March April May June July August September October November December "
@@ -205,14 +206,14 @@ def _move(q: Question, state: str, now: datetime):
 
 
 def ask(edition: str, now: datetime, events: list[dict] | None = None, rng: random.Random | None = None) -> Question:
-    """Choose an edition's question, once. With nothing eligible it's 'none', and stays so."""
+    """Choose an issue's question, once. With nothing eligible it's 'none', and stays so."""
     q = db.session.get(Question, edition)
     if q:
         return q
     start, end = window(edition)
-    last = db.session.get(Question, previous(edition))
-    pick = choose(eligible(read_events(start, end) if events is None else events, start, end),
-                  last.event if last else None, rng or random.Random())
+    asked = {e for (e,) in db.session.query(Question.event) if e}
+    events = read_events(start, end) if events is None else events
+    pick = choose(eligible(events, start, end), asked, rng or random.Random())
     q = Question(edition=edition, state="open" if pick else "none", asked=now, **(pick or {}))
     if pick:
         q.news = coverage(q.title, start)
@@ -254,8 +255,8 @@ def answer(edition: str, user: str, chance: int, now: datetime) -> Guess:
 # ---------- the job (the server's loop, hourly) ----------
 
 def askable(edition: str, now: datetime) -> bool:
-    """Whether an issue's question can still be asked: it's just come out, and it hasn't been."""
-    return now < out(edition) + ASK_WITHIN and not db.session.get(Question, edition)
+    """Whether an issue's question can still be asked: it's today's, it's out, and it hasn't been."""
+    return edition == latest(now) and bool(db.session.get(Issue, edition)) and not db.session.get(Question, edition)
 
 
 def due(now: datetime) -> bool:
@@ -338,16 +339,14 @@ def record(user: str) -> dict:
 
 
 def view(edition: str | None, user: str, now: datetime) -> dict | None:
-    """An edition's forecast: its question, the results it reports (last week's, and any older
-    one still waiting when last week's edition came out), and your record. None until it's out."""
+    """An issue's forecast: its question, the results it reports (of earlier questions, come in
+    during the REPORTED before it came out), and your record. None until it's out."""
     if not edition or out(edition) > now:
         return None
     q = db.session.get(Question, edition)
     guesses = {g.edition: g for g in Guess.query.filter_by(user=user)}
-    before = previous(edition)
-    report = [p for p in Question.query.filter(Question.edition < edition, Question.state != "none")
-              .order_by(Question.edition.desc())
-              if p.edition == before or not p.settled or p.settled >= out(before)]
+    report = (Question.query.filter(Question.edition < edition, Question.settled >= out(edition) - REPORTED,
+                                    Question.settled < out(edition)).order_by(Question.edition.desc()).all())
     return {"question": _question(q, guesses.get(edition), now) if q and q.state != "none" else None,
             "asked": q is not None, "pending": askable(edition, now),
             "results": [_question(p, guesses.get(p.edition), now) for p in report],

@@ -1,67 +1,44 @@
-"""Dispatch: the weekly issue to read, one an ISO week, out the Wednesday after.
+"""Dispatch: the daily issue to read, out each morning at 8 in Hong Kong.
 
-It carries the week's neuroscience the journals made more of (papers.py), a poem from 唐詩三百首
-or 宋詞三百首 to learn by heart, the week's question (forecast.py, added by the app, which knows
-who's reading) and the public holidays coming up. An issue comes out on the Wednesday after its
-week, once the journals have mostly been listed, and is published then (publish): what it
-carries is kept as it stood and shown unchanged from then on.
-A paper listed too late for its own week's issue is in the next one, marked with its date. A
-periodical, not an archive: the last KEEP_WEEKS issues are kept.
+Its front page is read in place: the papers the journals made more of (papers.py) and a piece
+from each of features.py's places. Under it, a print from the Cleveland Museum of Art with what
+the museum says of it, a poem from 唐詩三百首 or 宋詞三百首 to learn by heart, the day's question
+(forecast.py, added by the app, which knows who's reading), the World Cup climbing to watch
+(climbing.py) and the public holidays coming up. An issue is made up when it comes out
+(publish), from what its sources say then, and shown unchanged from then on. A periodical, not
+an archive: a week of issues is kept.
 """
 import json
 import pathlib
 import random
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import holidays
 
+import climbing
+import features
 import papers
-from models import Issue, db
+from journals import JOURNALS
+from models import Issue, SourceStatus, db
 
-KEEP_WEEKS = 4                  # the last four issues, then they go
-OUT = timedelta(days=9)         # from the Monday a week starts until its issue comes out: Wednesday after
+KEEP = timedelta(days=7)        # a week of issues, then they go (longer than features.FRESH, so no piece comes twice)
 HOLIDAYS = ("HK", "Hong Kong")  # whose public holidays it lists (the holidays library's code), and its name
 AHEAD = timedelta(days=14)      # how far ahead from when an issue comes out
+DATA = pathlib.Path(__file__).parent / "data"
 # 唐詩三百首 and 宋詞三百首, in Hong Kong's characters (tools/add_poems.py).
-POEMS = json.loads((pathlib.Path(__file__).parent / "data" / "poems.json").read_text(encoding="utf-8"))
-
-
-# ---------- weeks ----------
-
-def monday(d: date) -> date:
-    return d - timedelta(days=d.weekday())
-
-
-def edition_id(d: date) -> str:
-    y, w, _ = d.isocalendar()
-    return f"{y}-W{w:02d}"
-
-
-def week_of(edition: str) -> date | None:
-    try:
-        return date.fromisocalendar(int(edition[:4]), int(edition[6:8]), 1)
-    except (ValueError, IndexError):
-        return None
-
-
-def previous(edition: str) -> str:
-    return edition_id(week_of(edition) - timedelta(days=7))
+POEMS = json.loads((DATA / "poems.json").read_text(encoding="utf-8"))
+# Japanese and Chinese prints with the museum's text (tools/add_prints.py).
+PRINTS = json.loads((DATA / "prints.json").read_text(encoding="utf-8"))
 
 
 def out(edition: str) -> datetime:
-    """When an issue comes out: the Wednesday after its week, at midnight UTC (8am in Hong Kong)."""
-    return datetime.combine(week_of(edition) + OUT, datetime.min.time(), UTC)
+    """When an issue comes out: on its day at midnight UTC (8am in Hong Kong)."""
+    return datetime.combine(date.fromisoformat(edition), time.min, UTC)
 
 
 def latest(now: datetime) -> str:
-    """The newest issue out by `now`."""
-    edition = edition_id(monday(now.date()) - timedelta(days=7))
-    return edition if out(edition) <= now else previous(edition)
-
-
-def kept_from(today: date) -> date:
-    """The first day of the oldest issue kept."""
-    return monday(today) - timedelta(weeks=KEEP_WEEKS)
+    """The issue out by `now`: an issue is named for its day (2026-11-12)."""
+    return now.date().isoformat()
 
 
 # ---------- publishing ----------
@@ -74,61 +51,66 @@ def holidays_ahead(start: date) -> list[dict]:
     return [{"date": d.isoformat(), "name": name} for d, name in sorted(found.items()) if start <= d < end]
 
 
-def draw_poem(shown: list[dict], rng: random.Random) -> dict:
-    """A poem at random, never one in an issue still kept."""
-    seen = {(p["author"], p["lines"][0]) for p in shown}
-    return rng.choice([p for p in POEMS if (p["author"], p["lines"][0]) not in seen])
+def turn(items: list, name: str, day: date):
+    """The one of `items` whose turn it is on `day`: each comes round once, in an order of its
+    own, before any comes again."""
+    round_, at = divmod(day.toordinal(), len(items))
+    return random.Random(f"{name}:{round_}").sample(items, len(items))[at]
 
 
-def publish(now: datetime) -> list[str]:
-    """Publish every issue that's out by `now` and not yet published, once the journals have
-    been read since it came out, from the first week they were read in full (and no further
-    back than the issues kept). Returns the editions published."""
-    covered, fetched = papers.covered_from(), papers.last_fetched()
-    if not covered or not fetched:
-        return []
-    first = max(covered if covered.weekday() == 0 else monday(covered) + timedelta(days=7), kept_from(now.date()))
-    done = []
-    week = first
-    while out(edition_id(week)) <= min(now, fetched):
-        edition = edition_id(week)
-        if not db.session.get(Issue, edition):
-            before = db.session.get(Issue, previous(edition))
-            shown = {p["doi"] for p in before.papers} if before else None
-            # Listed too late for last week's issue: in this one. (The first issue has none to catch up on.)
-            late = papers.research_between(week - timedelta(days=7), week) - shown if shown is not None else set()
-            db.session.add(Issue(edition=edition, out=out(edition), papers=papers.section(week, late),
-                                 holidays=holidays_ahead(out(edition).date()),
-                                 poem=draw_poem([i.poem for i in Issue.query if i.poem], random.Random())))
-            db.session.commit()
-            done.append(edition)
-        week += timedelta(days=7)
-    return done
+def front(stories: list[dict]) -> list[dict]:
+    """The front page's order: a cover story leads, else the longest read; the rest as they came."""
+    lead = max(stories, key=lambda s: (s["cover"], len(s["abstract"])), default=None)
+    return [lead, *(s for s in stories if s is not lead)] if lead else []
 
 
-def prune(today: date) -> int:
-    """Forget the papers and issues older than the issues kept."""
-    cutoff = kept_from(today)
-    Issue.query.filter(Issue.edition < edition_id(cutoff)).delete()
-    return papers.prune(cutoff)
+def publish(now: datetime) -> str | None:
+    """Make up today's issue, if it isn't yet, and drop those older than KEEP; returns its
+    edition when it was made. It waits for the journals to have answered since it came out (a
+    place that doesn't answer is only late: its pieces wait for tomorrow), and a day missed
+    altogether has no issue."""
+    edition = latest(now)
+    if db.session.get(Issue, edition):
+        return None
+    if not papers.read_since(out(edition)):
+        papers.fetch(now)
+        if not papers.read_since(out(edition)):
+            return None
+    day = now.date()
+    Issue.query.filter(Issue.edition < (day - KEEP).isoformat()).delete()
+    carried = {s["id"] for i in Issue.query for s in i.stories}
+    stories = papers.take(edition, day) + features.take(now, carried)
+    db.session.add(Issue(edition=edition, out=out(edition), stories=front(stories), print=turn(PRINTS, "print", day),
+                         poem=turn(POEMS, "poem", day), holidays=holidays_ahead(day), climbing=climbing.ahead(now)))
+    db.session.commit()
+    return edition
 
 
 # ---------- reading ----------
 
+def sources() -> dict:
+    """How the places an issue is made from last answered: {"total", "failing": [names]}, and when one last did."""
+    names = {f"papers:{j.key}": j.name for j in JOURNALS} | {f"features:{f.key}": f.name for f in features.FEATURES}
+    names[climbing.KEY] = climbing.NAME
+    rows = {r.key: r for r in SourceStatus.query.filter(SourceStatus.key.in_(names))}
+    answered = max((r.last_ok for r in rows.values() if r.last_ok), default=None)
+    failing = [name for key, name in names.items() if key in rows and rows[key].error]
+    return {"sources": {"total": len(names), "failing": failing},
+            "fetched": answered.isoformat() if answered else None}
 
-def issue(which: str | None, now: datetime) -> dict:
-    """One published issue, as it came out (the newest by default), and its place among the others."""
+
+def issue(which: str | None) -> dict:
+    """One issue, as it came out (the newest by default), and its place among the others."""
     editions = [e for (e,) in db.session.query(Issue.edition).order_by(Issue.edition)]
     which = which if which in editions else (editions or [None])[-1]
-    base = {"editions": editions, "next_out": out(edition_id(week_of(latest(now)) + timedelta(days=7))).isoformat(),
-            "sources": papers.status(), "fetched": papers.last_fetched().isoformat() if papers.last_fetched() else None}
+    base = {"editions": editions, **sources(), "holidays": {"where": HOLIDAYS[1], "days": []}}
     if not which:
-        return {**base, "edition": None, "stories": [], "poem": None, "holidays": {"where": HOLIDAYS[1], "days": []}}
+        return {**base, "edition": None, "stories": [], "print": None, "poem": None, "climbing": []}
     i = db.session.get(Issue, which)
-    start, at = week_of(which), editions.index(which)
-    return {**base, "edition": {"id": which, "number": int(which[6:8]), "out": i.out.isoformat(),
-                                "start": start.isoformat(), "end": (start + timedelta(days=6)).isoformat(),
+    at = editions.index(which)
+    # Numbered by the day of the year.
+    return {**base, "edition": {"id": which, "number": i.out.timetuple().tm_yday, "out": i.out.isoformat(),
                                 "prev": editions[at - 1] if at else None,
                                 "next": editions[at + 1] if at + 1 < len(editions) else None},
-            "stories": i.papers, "poem": i.poem,
+            "stories": i.stories, "print": i.print, "poem": i.poem, "climbing": i.climbing,
             "holidays": {"where": HOLIDAYS[1], "days": i.holidays}}

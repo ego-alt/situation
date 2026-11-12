@@ -19,8 +19,8 @@
 <body class="dispatch-page">
     <header class="bar">
         <div class="brand"><span class="brand-name">SITUATION</span>{% include '_tabs.html' %}</div>
-        <!-- One status, as on News: how fresh the papers are; amber when a journal couldn't be read. -->
-        <span class="status" id="paperStatus"><span class="status-dot" aria-hidden="true"></span><span id="updated">—</span></span>
+        <!-- One status, as on News: how fresh the issue's sources are; amber when one couldn't be read. -->
+        <span class="status" id="sourceStatus"><span class="status-dot" aria-hidden="true"></span><span id="updated">—</span></span>
     </header>
 
     <main class="press">
@@ -49,15 +49,19 @@
         </header>
         <div id="notice" class="notice" role="status" hidden></div>
         <div id="edition" class="edition"><p class="press-empty">Loading…</p></div>
-        <!-- The back of the issue, side by side on a desktop: the week's poem, to learn by heart, and
-             the week's question about the world (forecast.py), drawn on its own so answering redraws only it. -->
+        <!-- The back of the issue, side by side on a desktop: a print, with what its museum says
+             of it, and the day's poem, to learn by heart. -->
         <div class="back">
-            <section id="poem" class="rest still" aria-label="The week’s poem" hidden></section>
-            <section id="forecast" class="rest still" aria-label="The week’s question" hidden></section>
+            <section id="print" class="rest still" aria-label="The day’s print" hidden></section>
+            <section id="poem" class="rest still" aria-label="The day’s poem" hidden></section>
         </div>
+        <!-- The day's question about the world (forecast.py), drawn on its own so answering redraws only it. -->
+        <section id="forecast" class="rest still" aria-label="The day’s question" hidden></section>
+        <!-- The World Cup climbing to watch this week (climbing.py); only when there is some. -->
+        <section id="climbing" class="rest still" aria-label="Climbing" hidden></section>
         <!-- Public holidays in the two weeks from when the issue comes out; only when there are some. -->
         <section id="holidays" class="rest still" aria-label="Holidays" hidden></section>
-        <nav class="turn" id="turn" aria-label="Editions" hidden>
+        <nav class="turn" id="turn" aria-label="Issues" hidden>
             <button type="button" class="btn btn-ghost folio-step" data-dir="prev" disabled><span aria-hidden="true">‹</span> <span class="folio-step-label"></span></button>
             <button type="button" class="btn btn-ghost folio-step" data-dir="next" disabled><span class="folio-step-label"></span> <span aria-hidden="true">›</span></button>
         </nav>

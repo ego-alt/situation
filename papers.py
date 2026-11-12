@@ -1,26 +1,31 @@
-"""Papers: the neuroscience in the journals in journals.py, the first section of Dispatch.
+"""Papers: what the journals in journals.py made more of, for Dispatch's front page.
 
-Once a day the last three weeks of each journal are read from Europe PMC: abstracts,
-article types, free copies and PubMed's commentary links. A paper belongs to the
-week it first came out. An issue carries the ones its journal made more of: the cover story,
-which leads, and those it commissioned a commentary on.
-Which weeks make an issue, and what else is in it, is dispatch.py's.
+Once a day, as an issue is made up, the last three weeks of each journal are read from
+Europe PMC: abstracts, article types, free copies and PubMed's commentary links. A paper is
+worth an issue's space when its journal made more of it: put it on the cover, or commissioned
+a commentary on it. Each runs once (take), a few a day, the longest out first, so a journal's
+weekly batch lasts until its next.
 """
 import html
+import math
 import re
 from datetime import UTC, date, datetime, timedelta
 
 import feedparser
 import requests
 
-from journals import BY_KEY, JOURNALS, NEURO_WORDS
+from journals import BY_KEY, FIELDS, JOURNALS, Journal
 from models import Paper, SourceStatus, db, utcnow
+from pipeline import record_sources
 from sources import USER_AGENT
 
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CROSSREF = "https://api.crossref.org/works/"
 WINDOW = timedelta(days=21)     # commentaries and free copies come later, so look back this far
-EVERY = timedelta(days=1)
+KEEP = WINDOW + timedelta(days=7)   # how long what's read is remembered: past the window, or it's read as new again
+MOST = 3                        # the most papers in one issue
+SPREAD = 3                      # the days the papers waiting are spread over
+EARLIER = timedelta(days=7)     # a paper out longer ago than this is dated
 TIMEOUT = 20
 NOT_RESEARCH = {"Review", "News", "Editorial", "Letter", "Published Erratum", "Retraction of Publication",
                 "Retracted Publication", "Expression of Concern", "Comment"}
@@ -56,11 +61,19 @@ def plain(text: str) -> str:
     return re.sub(r"<[^>]+>", "", html.unescape(text or ""))
 
 
-def about_the_brain(title: str, abstract: str) -> bool:
-    """The "words" scope: a nervous-system word in the title, or two different ones in the abstract."""
-    if NEURO_WORDS.search(plain(title)):
-        return True
-    return len({m.lower() for m in NEURO_WORDS.findall(plain(abstract))}) >= 2
+def paragraphs(parts) -> str:
+    """Pieces of a page's text as one: a blank line between paragraphs, a <br> a new line. Links,
+    spans and a link's icon dissolve first (clean leaves a space where a tag was)."""
+    inline = re.compile(r"<svg\b.*?</svg>|</?(?:a|span|strong|b|u)\b[^>]*>", re.S)
+    lines = (re.split(r"<br\s*/?>", inline.sub("", part or "")) for part in parts)
+    return "\n\n".join(filter(None, ("\n".join(filter(None, map(clean, part))) for part in lines)))
+
+
+def in_a_field(title: str, abstract: str) -> bool:
+    """The "words" scope: a word of one of FIELDS in the title, or two different ones of one in the abstract."""
+    title, abstract = plain(title), plain(abstract)
+    return any(words.search(title) or len({m.lower() for m in words.findall(abstract)}) >= 2
+               for words in FIELDS.values())
 
 
 # ---------- what Europe PMC says ----------
@@ -156,7 +169,7 @@ def page_meta(url: str) -> dict:
 
 
 def subject_dois(feed_url: str) -> set[str]:
-    """The DOIs in a publisher's subject feed (Nature's neuroscience papers)."""
+    """The DOIs in one of a publisher's subject feeds (Nature's)."""
     feed = feedparser.parse(get(feed_url).content)
     out = set()
     for e in feed.entries:
@@ -200,29 +213,23 @@ def figure_for(doi: str) -> str | None:
 
 # ---------- a fetch ----------
 
-def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
-    """Read every journal for the last `window`; returns papers per journal."""
+def fetch(now: datetime | None = None) -> dict:
+    """Read every journal for the last WINDOW and forget what's older than KEEP; returns
+    {status key: (papers, error)}."""
     now = now or datetime.now(UTC)
-    since, until = (now - window).date(), now.date()
+    since, until = (now - WINDOW).date(), now.date()
     report = {}
     for j in JOURNALS:
-        status = db.session.get(SourceStatus, f"papers:{j.key}") or SourceStatus(key=f"papers:{j.key}")
-        db.session.add(status)
-        status.last_try = now
         try:
-            report[j.key] = _read(j, since, until)
-            status.last_ok, status.items, status.error = now, report[j.key], None
+            report[f"papers:{j.key}"] = (_read(j, since, until), None)
         except (requests.RequestException, ValueError, KeyError) as e:
-            status.error = type(e).__name__
-            report[j.key] = status.error
-        db.session.commit()
-    covered = db.session.get(SourceStatus, "papers:since") or SourceStatus(key="papers:since")
-    start = datetime.combine(since, datetime.min.time(), UTC)
-    covered.last_ok = min(covered.last_ok or start, start)    # where the issues begin
-    db.session.add(covered)
+            db.session.rollback()
+            report[f"papers:{j.key}"] = (0, type(e).__name__)
+    record_sources(report, now)
     _link_commentaries(since)
-    _enrich()
     _covers()
+    _enrich()
+    prune(now - KEEP)
     db.session.commit()
     return report
 
@@ -230,7 +237,7 @@ def fetch(now: datetime | None = None, window: timedelta = WINDOW) -> dict:
 def _read(j, since: date, until: date) -> int:
     """Store a journal's papers in scope and its commentaries; returns how many papers."""
     known = {p.doi: p for p in Paper.query.filter(Paper.journal == j.key, Paper.published >= since)}
-    in_subject = subject_dois(j.subject_feed) if j.scope == "subject" else set()
+    in_subject = set().union(*map(subject_dois, j.subject_feeds))
     count = 0
     for r in europe_pmc(j.issn, since, until):
         doi = (r.get("doi") or "").lower()
@@ -242,7 +249,7 @@ def _read(j, since: date, until: date) -> int:
         if kind == "research":
             if j.scope == "subject" and doi not in in_subject and doi not in known:
                 continue
-            if j.scope == "words" and not about_the_brain(title, abstract):
+            if j.scope == "words" and not in_a_field(title, abstract):
                 continue
             count += 1
         elif kind == "news":
@@ -281,51 +288,34 @@ def _store(j, r: dict, kind: str, p: Paper | None = None) -> Paper:
     return p
 
 
-def _adopt(doi: str) -> bool:
-    """Add an older paper a commentary is about, if it's in scope here."""
+def _adopt(doi: str, j: Journal) -> bool:
+    """Add an older paper of journal `j` that a commentary there is about, if it's in scope here."""
     found = get(EUROPE_PMC, query=f'DOI:"{doi}"', format="json", resultType="core").json()
     r = next(iter(found.get("resultList", {}).get("result", [])), None)
     info = (r or {}).get("journalInfo", {}).get("journal", {})
-    j = next((j for j in JOURNALS if j.issn in (info.get("issn"), info.get("essn"))), None)
-    if not (r and j and published_on(r) and kind_of(r) == "research"):
+    if not (r and j.issn in (info.get("issn"), info.get("essn")) and published_on(r) and kind_of(r) == "research"):
         return False
-    if j.scope == "words" and not about_the_brain(r.get("title", ""), r.get("abstractText", "")):
+    if j.scope == "words" and not in_a_field(r.get("title", ""), r.get("abstractText", "")):
         return False
     _store(j, r, "research")
     return True
 
 
 def _link_commentaries(since: date):
-    """Tie each commentary to its paper: PubMed's link, else the first of its first few
-    references that's a paper here (an older one is added)."""
-    research = {d for (d,) in db.session.query(Paper.doi).filter(Paper.kind == "research")}
+    """Tie each commentary to its paper, one of its own journal's: PubMed's link, else the first
+    of its first few references that's one here (an older one is added)."""
+    research = {(j, d) for j, d in db.session.query(Paper.journal, Paper.doi).filter(Paper.kind == "research")}
     for c in Paper.query.filter(Paper.kind == "commentary", Paper.published >= since).all():
-        if c.on in research:
+        if (c.journal, c.on) in research:
             continue
         try:
             for doi in [c.on] if c.on else references(c.doi)[:3]:
-                if doi in research or _adopt(doi):
+                if (c.journal, doi) in research or _adopt(doi, BY_KEY[c.journal]):
                     c.on = doi
-                    research.add(doi)
+                    research.add((c.journal, doi))
                     break
         except (requests.RequestException, ValueError, KeyError):
             continue
-        db.session.commit()
-
-
-def _enrich(limit: int = 60):
-    """Look once for each new paper's figure, and for the summary of a commentary Europe PMC
-    has none for (Nature's News & Views: its page's description)."""
-    new = Paper.query.filter(Paper.kind.in_(["research", "commentary"]), Paper.enriched.is_(None)).limit(limit).all()
-    for p in new:
-        try:
-            if p.kind == "research":
-                p.figure = figure_for(p.doi)
-            elif not p.abstract and BY_KEY[p.journal].commentary_page_type:
-                p.abstract = clean(page_meta(p.url).get("description"))
-        except (requests.RequestException, ValueError, KeyError):
-            continue        # tried again next time
-        p.enriched = utcnow()
         db.session.commit()
 
 
@@ -339,70 +329,72 @@ def _covers():
             continue
         p = found and db.session.get(Paper, found[0])
         if p and p.kind == "research":
-            p.cover = found[1] or p.figure or "yes"
+            p.cover = found[1] or "yes"
+    db.session.commit()
 
 
-def due(now: datetime) -> bool:
-    last = (db.session.query(db.func.max(SourceStatus.last_try))
-            .filter(SourceStatus.key.like("papers:%"), SourceStatus.key != "papers:since").scalar())
-    return last is None or now - last >= EVERY
+def _enrich(limit: int = 60):
+    """Look once for the figure of each paper that will run, and for the summary of a commentary
+    Europe PMC has none for (Nature's News & Views: its page's description)."""
+    discussed = db.session.query(Paper.on).filter(Paper.kind == "commentary", Paper.on.isnot(None))
+    runs = db.and_(Paper.kind == "research", db.or_(Paper.cover.isnot(None), Paper.doi.in_(discussed)))
+    new = Paper.query.filter(db.or_(runs, Paper.kind == "commentary"), Paper.enriched.is_(None)).limit(limit).all()
+    for p in new:
+        try:
+            if p.kind == "research":
+                p.figure = figure_for(p.doi)
+            elif not p.abstract and BY_KEY[p.journal].commentary_page_type:
+                p.abstract = clean(page_meta(p.url).get("description"))
+        except (requests.RequestException, ValueError, KeyError):
+            continue        # tried again next time
+        p.enriched = utcnow()
+        db.session.commit()
+
+
+def prune(cutoff: datetime) -> int:
+    """Forget what was first read before `cutoff`. A paper stays while a commentary on it does."""
+    discussed = db.session.query(Paper.on).filter(Paper.on.isnot(None), Paper.fetched >= cutoff)
+    return Paper.query.filter(Paper.fetched < cutoff, Paper.doi.notin_(discussed)).delete(synchronize_session=False)
+
+
+def read_since(when: datetime) -> bool:
+    """Whether a journal has answered since `when`."""
+    return SourceStatus.query.filter(SourceStatus.key.like("papers:%"), SourceStatus.last_ok >= when).count() > 0
 
 
 # ---------- for the issue (dispatch.py) ----------
 
-def covered_from() -> date | None:
-    """The first day read in full: the issues begin with the first whole week after it."""
-    covered = db.session.get(SourceStatus, "papers:since")
-    return covered.last_ok.date() if covered and covered.last_ok else None
+def story(id: str, source: str, title: str, url: str, published: date, **more) -> dict:
+    """A story on the front page, whatever it's from (features.py makes them too)."""
+    return {"id": id, "source": source, "title": title, "url": url, "published": published.isoformat(),
+            "authors": [], "abstract": "", "figure": None, "figure_large": None, "free": None, "cover": False,
+            "cover_image": None, "commentary": [], "earlier": False, **more}
 
 
-def research_between(start: date, end: date) -> set[str]:
-    """The research papers out from `start` until `end`, by DOI."""
-    return {doi for (doi,) in db.session.query(Paper.doi).filter(Paper.kind == "research", Paper.published >= start,
-                                                                   Paper.published < end)}
-
-
-def prune(cutoff: date) -> int:
-    """Forget the papers out before `cutoff`, their commentaries and the rest. A paper stays
-    while a commentary on it is out after the cutoff (that issue shows it)."""
-    discussed = {on for (on,) in db.session.query(Paper.on).filter(Paper.kind == "commentary", Paper.on.isnot(None),
-                                                                    Paper.published >= cutoff)}
-    old = Paper.query.filter(Paper.published < cutoff).all()
-    gone = [p for p in old if p.doi not in discussed and (p.kind != "commentary" or p.on not in discussed)]
-    for p in gone:
-        db.session.delete(p)
-    return len(gone)
-
-
-def section(start: date, late: set[str] = frozenset()) -> list[dict]:
-    """The week's cover stories and papers with a commentary, from `start`, in layout order: the
-    cover story, then the rest by journal rank, newest first. Earlier papers come in too, marked as
-    such: `late` ones (listed after their own week's issue came out), and any whose commentary
-    is out this week (Neuron's Previews come with its print issue): a late commentary is news
-    in its own issue, with its paper."""
-    in_week = (Paper.published >= start, Paper.published < start + timedelta(days=7))
-    commentary = (Paper.kind == "commentary", Paper.on.isnot(None))
-    late = set(late) | {on for (on,) in db.session.query(Paper.on).filter(*commentary, *in_week)}
-    papers = Paper.query.filter(Paper.kind == "research",
-                                db.or_(db.and_(*in_week), db.and_(Paper.doi.in_(late), Paper.published < start))).all()
+def take(edition: str, day: date) -> list[dict]:
+    """The papers for the issue out on `day`, in layout order (the cover story, then by journal
+    rank), each marked as run in it. Waiting are a cover story and any paper with a commentary
+    that hasn't run; the cover story and the longest out go first, a SPREADth of them a day."""
     notes: dict[str, list[Paper]] = {}
-    for n in Paper.query.filter(Paper.kind == "commentary", Paper.on.in_([p.doi for p in papers])):
+    for n in Paper.query.filter(Paper.kind == "commentary", Paper.on.isnot(None)):
         notes.setdefault(n.on, []).append(n)
+    waiting = Paper.query.filter(Paper.kind == "research", Paper.ran.is_(None),
+                                 db.or_(Paper.cover.isnot(None), Paper.doi.in_(list(notes)))).all()
+    waiting.sort(key=lambda p: (not p.cover, p.published, BY_KEY[p.journal].rank, p.title))
+    taken = waiting[:min(MOST, math.ceil(len(waiting) / SPREAD))]
+    for p in taken:
+        p.ran = edition
+    taken.sort(key=lambda p: (not p.cover, BY_KEY[p.journal].rank))
+    return [_story(p, notes.get(p.doi, []), day) for p in taken]
 
-    papers = sorted((p for p in papers if p.cover or p.doi in notes),
-                    key=lambda p: (not p.cover, BY_KEY[p.journal].rank, -p.published.toordinal(), p.title))
-    return [{**_paper(p, notes.get(p.doi, [])), "earlier": p.published < start} for p in papers]
 
-
-def _paper(p: Paper, notes: list[Paper]) -> dict:
-    j = BY_KEY[p.journal]
-    cover_image = p.cover if (p.cover or "").startswith("https://") else None
-    return {"doi": p.doi, "journal": j.name, "title": p.title, "authors": p.authors or [], "abstract": p.abstract,
-            "published": p.published.isoformat(), "url": p.url, "figure": p.figure,
-            "figure_large": large(p.figure), "free": p.free, "cover": bool(p.cover),
-            "cover_image": cover_image,
-            "commentary": [{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary,
-                            "journal": BY_KEY[n.journal].name, "summary": n.abstract} for n in notes]}
+def _story(p: Paper, notes: list[Paper], day: date) -> dict:
+    return story(p.doi, BY_KEY[p.journal].name, p.title, p.url, p.published, authors=p.authors or [],
+                 abstract=p.abstract, figure=p.figure, figure_large=large(p.figure), free=p.free,
+                 cover=bool(p.cover), cover_image=p.cover if (p.cover or "").startswith("https://") else None,
+                 earlier=p.published < day - EARLIER,
+                 commentary=[{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary,
+                              "summary": n.abstract} for n in notes])
 
 
 def large(image: str | None) -> str | None:
@@ -411,17 +403,3 @@ def large(image: str | None) -> str | None:
         return None
     image = re.sub(r"^(https://media\.springernature\.com/)(m685|w440)/", r"\1lw1200/", image)
     return re.sub(r"(ars\.els-cdn\.com/.*-(?:ga|gr)\d+)\.jpg$", r"\1_lrg.jpg", image)
-
-
-def status() -> dict:
-    """Whether each journal answered on the last fetch."""
-    rows = {r.key: r for r in SourceStatus.query.filter(SourceStatus.key.like("papers:%"))}
-    failing = [j.name for j in JOURNALS if (r := rows.get(f"papers:{j.key}")) and r.error]
-    return {"ok": len(JOURNALS) - len(failing), "total": len(JOURNALS), "failing": failing}
-
-
-def last_fetched() -> datetime | None:
-    last = (db.session.query(db.func.max(SourceStatus.last_ok))
-            .filter(SourceStatus.key.like("papers:%"), SourceStatus.key != "papers:since").scalar())
-    return last
-
