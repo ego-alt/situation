@@ -66,9 +66,12 @@ def publish(now: datetime) -> str | None:
     day = now.date()
     Issue.query.filter(Issue.edition < (day - KEEP).isoformat()).delete()
     carried = {s["id"] for i in Issue.query for s in i.stories}
-    stories = papers.take(edition, day) + features.take(now, carried)
+    # What's read from elsewhere first (each read is noted as it's made); then the papers and the
+    # issue together, so a paper is run only in an issue that came out.
+    pieces, ahead = features.take(now, carried), dates.ahead(day, now)
+    stories = papers.take(edition, day) + pieces
     db.session.add(Issue(edition=edition, out=out(edition), stories=front(stories), print=turn(PRINTS, "print", day),
-                         poem=turn(POEMS, "poem", day), dates=dates.ahead(day, now)))
+                         poem=turn(POEMS, "poem", day), dates=ahead))
     db.session.commit()
     return edition
 

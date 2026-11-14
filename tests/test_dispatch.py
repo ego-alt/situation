@@ -370,6 +370,23 @@ def test_an_issue_waits_for_the_journals_to_answer(app, journals, monkeypatch):
     assert dispatch.publish(NOW + timedelta(minutes=10)) == "2026-11-04"                # the next round
 
 
+def test_a_paper_is_run_only_in_an_issue_that_came_out(app, journals, monkeypatch):
+    def read(now, carried):   # as the features are: noted, which saves what's in hand
+        SourceStatus.record({"features:earth": (0, None)}, now)
+        return []
+
+    turn = dispatch.turn
+    monkeypatch.setattr(features, "take", read)
+    monkeypatch.setattr(dispatch, "turn", lambda *_: 1 / 0)                              # the issue can't be made up
+    with pytest.raises(ZeroDivisionError):
+        dispatch.publish(NOW)
+    db.session.rollback()
+    assert Paper.query.count() and not Paper.query.filter(Paper.ran.isnot(None)).count()
+    monkeypatch.setattr(dispatch, "turn", turn)
+    assert dispatch.publish(NOW + timedelta(minutes=10)) == "2026-11-04"                # the next round, with them
+    assert Paper.query.filter_by(ran="2026-11-04").count()
+
+
 def test_the_cover_story_leads_else_the_longest_read():
     a, b, c = (papers.story(i, "A journal", i, "", date(2026, 11, 4), abstract=text, cover=cover)
                for i, text, cover in (("a", "short", False), ("b", "a good deal longer", False), ("c", "", True)))
