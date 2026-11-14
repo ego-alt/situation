@@ -6,9 +6,10 @@ Add a journal here to widen the paper. `scope` says which of its papers belong:
              as Nature does;
   "words"    the ones whose title or abstract talks about one of FIELDS, for a
              journal that files nothing by subject (Science).
-`commentary` is what the journal calls the pieces it commissions on its own
-papers (Nature files them with its news, so `commentary_page_type` picks them
-out); `rank` orders a day's papers.
+Whatever its scope, a paper about what's LEFT_OUT isn't taken. `commentary` is what
+the journal calls the pieces it commissions on its own papers. PubMed marks them, but
+Nature's are filed with its news, so `commentary_page_type` picks them out, and Current
+Biology's are marked only weeks on, so `commentary_title` does. `rank` orders a day's papers.
 """
 import re
 from dataclasses import dataclass
@@ -20,16 +21,17 @@ class Journal:
     name: str
     issn: str
     scope: str                      # all | subject | words
-    commentary: str                 # News & Views, Perspective, Preview
+    commentary: str                 # News & Views, Perspective, Preview…
     rank: int
     subject_feeds: tuple = ()
     cover_page: str = ""            # the current issue's page, which names the cover story
     commentary_page_type: str = ""  # when commentary is filed with the news: the dc.type its page gives it
+    commentary_title: str = ""      # when it isn't marked at first: the form its titles take, among the front matter
 
 
 # Nature's names for what FIELDS covers.
 SUBJECTS = ("neuroscience", "psychology", "human-behaviour", "social-sciences", "zoology", "animal-behaviour",
-            "evolution", "palaeontology", "climate-sciences")
+            "evolution", "palaeontology")
 
 JOURNALS = [
     Journal("nature", "Nature", "0028-0836", "subject", "News & Views", 1,
@@ -37,8 +39,10 @@ JOURNALS = [
             cover_page="https://www.nature.com/nature/current-issue", commentary_page_type="News And Views"),
     Journal("science", "Science", "0036-8075", "words", "Perspective", 2),
     Journal("neuron", "Neuron", "0896-6273", "all", "Preview", 3),
-    Journal("pnas", "PNAS", "0027-8424", "words", "Commentary", 4),
-    Journal("plosbiology", "PLOS Biology", "1544-9173", "words", "Primer", 5),
+    Journal("currentbiology", "Current Biology", "0960-9822", "words", "Dispatch", 4,
+            commentary_title=r"[^:]{3,40}: "),      # "Palaeobiology: The enzymes that made soft-tissue fossils scarce"
+    Journal("pnas", "PNAS", "0027-8424", "words", "Commentary", 5),
+    Journal("plosbiology", "PLOS Biology", "1544-9173", "words", "Primer", 6),
 ]
 
 BY_KEY = {j.key: j for j in JOURNALS}
@@ -48,9 +52,9 @@ def _words(*words: str):
     return re.compile(r"\b(" + "|".join(words) + r")\b", re.I)
 
 
-# What the paper is about: the brain, animals, people and the Earth, each by words only its
-# study uses. A paper is in when its title has one, or its abstract has two different ones of
-# one field ("neural network" doesn't count, nor a "random forest").
+# What the paper is about: the brain, animals, how life evolved and people, each by words only
+# its study uses. A paper is about one when its title has one of its words, or its abstract two
+# different ones ("neural network" doesn't count, nor "directed evolution").
 FIELDS = {
     "brain": _words(
         r"brains?", r"neur(?!al networks?)\w*", "cortex", "cortical", r"synap\w*", r"hippocamp\w*", r"cerebell\w*",
@@ -68,14 +72,22 @@ FIELDS = {
         "mating", "courtship", r"herbivor\w*", r"carnivor\w*", r"venom\w*", "camouflage", r"echolocat\w*",
         "wildlife", "wolves", "wolf", "lions?", "elephants?", "penguins?", "parrots?", "crows?", r"corvid\w*"),
     "people": _words(
-        r"psycholog\w*", r"societ\w*", r"linguist\w*", "languages?", r"econom\w*", r"inequalit\w*", r"cooperat\w*",
+        r"psycholog\w*", r"societ\w*", r"linguist\w*", "languages?", r"econom\w*", r"inequalit\w*", "cooperation",
         r"politic\w*", r"democra\w*", "voters?", "elections?", r"homin\w*", r"neanderthal\w*", r"archaeolog\w*",
         "marriage", "kinship", r"educat\w*", "poverty", r"wealth\w*", "cities", r"urban\w*", "childhood",
         r"beliefs?", r"moral\w*", r"religio\w*", "incomes?", "institutions?", "governments?", "misinformation",
         "happiness", "well-being", r"lonel\w*"),
-    "earth": _words(
-        r"climat\w*", "oceans?", r"glaci\w*", "ice ages?", "ice sheets?", r"volcan\w*", r"earthquak\w*", "rivers?",
-        r"(?<!random )forests?", "monsoons?", "sea levels?", r"atmospher\w*", r"geolog\w*", r"tecton\w*",
-        "droughts?", "floods?", "wildfires?", "deserts?", "arctic", r"antarctic\w*", "rainfall", "carbon cycle",
-        "biodiversity", "ecosystems?", r"extinct\w*"),
+    "evolution": _words(
+        r"(?<!directed )evolution\w*", r"co-?evol\w*", r"phylogen\w*", "speciation", "natural selection",
+        "sexual selection", "adaptive radiations?", r"ancestr\w*", "common ancestors?", r"domesticat\w*",
+        r"extinct\w*", r"pal(?:a|ae)?eontolog\w*", "cambrian", "clades?", "convergent", r"hybridi[sz]ation"),
 }
+
+# What it leaves out, whatever else a paper is about: the environment and its conservation.
+LEFT_OUT = _words(
+    r"climate (?:change|warming|crisis|polic\w*|mitigation|adaptation|hazards?|risks?|action)", "global warming",
+    r"carbon (?:emissions?|budgets?|sinks?|sequestration|storage|cycle|footprints?)", r"decarboni[sz]\w*", "greenhouse",
+    "net[- ]zero", "fossil fuels?", "renewable energy", r"deforest\w*", r"reforest\w*", "rewilding", "land[- ]use",
+    r"biodiversity (?:loss|decline|conservation)", r"(?<!sequence )(?<!evolutionary )conservation(?! of)",
+    "protected areas?", "habitat loss", "endangered", "extinction risk", "invasive species", "ecosystem services",
+    r"sustainab\w*", "pollution", "pollutants?", "pesticides?", "fisheries", r"overfish\w*")

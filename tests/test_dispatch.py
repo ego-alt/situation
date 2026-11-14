@@ -1,18 +1,18 @@
-"""Dispatch: what an issue is made from (the journals' papers, the features, the climbing calendar,
-the prints, the poems, the holidays), how it's made up each day and how it's kept. The journals are
-stood in for by records shaped like Europe PMC's, the feeds and the calendar by ones shaped like theirs."""
+"""Dispatch: what an issue is made from (the journals' papers, the feature, the dates coming up,
+the prints, the poems), how it's made up each day and how it's kept. The journals are stood in
+for by records shaped like Europe PMC's, the feed and the calendars by ones shaped like theirs."""
 import re
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 import requests
 
-import climbing
+import dates
 import dispatch
 import features
 import papers
+from journals import BY_KEY
 from models import Issue, Paper, SourceStatus, db
-from pipeline import record_sources
 
 LONG = "Neurons in the cortex " + "and their synapses " * 30     # an abstract, not front matter
 NOW = datetime(2026, 11, 4, 9, 0, tzinfo=UTC)                     # the day's issue is due
@@ -63,10 +63,10 @@ REFERENCES = {"10.1016/j.neuron.p1": ["10.1126/science.brain", "10.1016/j.neuron
 
 @pytest.fixture
 def journals(monkeypatch):
-    """The journals, the publishers' pages and Crossref, all stood in for; no features, no climbing."""
+    """The journals, the publishers' pages and Crossref, all stood in for; no feature, no dates."""
     monkeypatch.setattr(papers, "europe_pmc", lambda issn, since, until: [dict(r) for r in BY_ISSN.get(issn, [])])
     monkeypatch.setattr(features, "take", lambda now, carried: [])
-    monkeypatch.setattr(climbing, "ahead", lambda now: [])
+    monkeypatch.setattr(dates, "ahead", lambda day, now: [])
 
     class Found:
         def __init__(self, results):
@@ -75,9 +75,9 @@ def journals(monkeypatch):
         def json(self):
             return {"resultList": {"result": self.results}}
 
-    def get(url, **params):   # only _adopt asks Europe PMC for one DOI
-        doi = params["query"].split('"')[1]
-        return Found([r for rs in BY_ISSN.values() for r in rs if r["doi"] == doi])
+    def get(url, **params):   # Europe PMC, asked which of a journal's papers some DOIs are
+        issn, dois = re.search(r'ISSN:"(.+?)"', params["query"]).group(1), re.findall(r'DOI:"(.+?)"', params["query"])
+        return Found([r for r in BY_ISSN[issn] if r["doi"] in dois])
 
     monkeypatch.setattr(papers, "get", get)
     monkeypatch.setattr(papers, "subject_dois", lambda url: {"10.1038/s41586-1", "10.1038/s41586-2",
@@ -107,6 +107,17 @@ def test_paragraphs_are_parted_and_links_dissolve():
     assert papers.paragraphs(parts) == "The budget, in <i>full</i>.\n\nOne line\nand the next"
 
 
+def test_a_paper_belongs_by_its_words_and_never_when_its_the_environments():
+    science, neuron = BY_KEY["science"], BY_KEY["neuron"]
+    assert papers.belongs(science, "The phylogeny of early tetrapods", "")
+    assert papers.belongs(science, "A long road", "Sexual selection and speciation shaped these lizards.")
+    assert not papers.belongs(science, "A long road", "Evolution, once.")                 # one word in passing
+    assert not papers.belongs(science, "Directed evolution of an enzyme", "A neural network designs it.")
+    assert not papers.belongs(science, "Protected areas slow habitat loss for forest birds", "")
+    assert not papers.belongs(neuron, "A circuit for thirst", "Under drought and pollution, climate change…")
+    assert papers.belongs(neuron, "Sequence conservation of a cortical enhancer", "")     # not that conservation
+
+
 def test_fetch_stores_the_papers_in_scope_and_ties_commentary(app, journals):
     papers.fetch(NOW)
     research = {p.doi for p in Paper.query.filter_by(kind="research")}
@@ -122,6 +133,26 @@ def test_fetch_stores_the_papers_in_scope_and_ties_commentary(app, journals):
     assert first.free["label"] == "PubMed Central" and not first.figure                # no commentary: it won't run
     assert db.session.get(Paper, "10.1126/science.brain").figure == "https://img.example/10.1126/science.brain.png"
     assert db.session.get(Paper, "10.1038/s41586-1").cover == "https://img.example/cover.jpg"
+
+
+def test_a_dispatch_is_told_by_its_title_and_is_on_the_last_out_of_the_papers_it_cites(app, journals, monkeypatch):
+    monkeypatch.setitem(BY_ISSN, "0960-9822", [
+        record("10.1016/j.cub.owl", "An Eocene owl hunted by day", issn="0960-9822"),
+        record("10.1016/j.cub.eyes", "The eyes of owls", first="2025-03-01", printed="2025 Mar 1", issn="0960-9822"),
+        record("10.1016/j.cub.d1", "Palaeobiology: An owl by day", abstract="Its eyes say so.", issn="0960-9822"),
+        record("10.1016/j.cub.guide", "Stingless bees", abstract="A quick guide.", issn="0960-9822")])
+    monkeypatch.setitem(REFERENCES, "10.1016/j.cub.d1", ["10.1016/j.cub.eyes", "10.1016/j.cub.owl"])
+    papers.fetch(NOW)
+    piece = db.session.get(Paper, "10.1016/j.cub.d1")
+    assert (piece.kind, piece.on, piece.abstract) == ("commentary", "10.1016/j.cub.owl", "Its eyes say so.")
+    assert db.session.get(Paper, "10.1016/j.cub.guide") is None                        # front matter
+
+
+def test_a_piece_from_before_the_window_is_known_when_its_read_again(app, journals):
+    papers.fetch(NOW)
+    stored = Paper.query.count()
+    assert papers.fetch(NOW + timedelta(days=15))["papers:nature"] == (2, None)        # Europe PMC took them in late
+    assert Paper.query.count() == stored
 
 
 def test_the_papers_waiting_are_spread_over_the_days_and_each_runs_once(app, journals):
@@ -155,23 +186,11 @@ EARTH_ITEM = """<item><title>{title}</title><link>https://science.nasa.gov/earth
 <p class="wp-block-paragraph">The image shows the <em>Flow Country</em>.</p>
 <p class="wp-block-paragraph"><em>NASA Earth Observatory image by A. Mapper. Story by Kathryn Hansen.</em></p>
 <h2 class="wp-block-heading">Downloads</h2><p class="wp-block-paragraph">JPEG (4 MB)</p>]]></content:encoded></item>"""
-OWID_FEED = """<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom">
-<title>Data Insights</title><entry><title><![CDATA[How much CO2 can the world emit?]]></title>
-<id>https://ourworldindata.org/data-insights/co2</id><published>2026-11-03T00:00:00.000Z</published>
-<link rel="alternate" href="https://ourworldindata.org/data-insights/co2"/>
-<author><name>Hannah Ritchie</name></author><author><name>Pablo Rosado</name></author>
-<content type="html"><![CDATA[
-<img src="https://ourworldindata.org/cdn-cgi/imagedelivery/x/abc/w=1350" alt="Bar chart" width="1350" height="1350"/>
-<p class="article-block__text"><span class="">Carbon budgets (CO</span><sub><span class="">2</span></sub><span
- class="">) shrink.</span></p>
-<ul><li><span class="">The 1.5°C budget is 3.5 years of emissions.</span></li></ul>
-<p class="article-block__text"><a href="https://ourworldindata.org/co2"><span class="">Explore more →</span></a></p>
-]]></content></entry></feed>"""
 
 
 @pytest.fixture
 def feeds(monkeypatch):
-    """The two features' feeds: Earth Observatory with a stale piece, two fresh ones and one that isn't its own."""
+    """The feature's feed: Earth Observatory with a stale piece, two fresh ones and one that isn't its own."""
     earth = EARTH_FEED.format("".join(EARTH_ITEM.format(title=t, slug=s, day=d, category=c) for t, s, d, c in (
         ("A solar flare", "flare", "Tue, 03 Nov 2026", "Sun"),
         ("Tuesday’s image", "tue", "Tue, 03 Nov 2026", "Earth Observatory"),
@@ -182,11 +201,11 @@ def feeds(monkeypatch):
         def __init__(self, text):
             self.content = text.encode()
 
-    monkeypatch.setattr(features, "get", lambda url: Page(earth if "nasa" in url else OWID_FEED))
+    monkeypatch.setattr(features, "get", lambda url: Page(earth))
 
 
 def test_a_feature_is_read_whole_from_its_feed(feeds):
-    earth, owid = (features.pieces(f) for f in features.FEATURES)
+    [earth] = (features.pieces(f) for f in features.FEATURES)
     assert [s["title"] for s in earth] == ["Last week’s image", "Monday’s image", "Tuesday’s image"]   # oldest first
     s = earth[1]
     assert s["abstract"] == "Blanket bogs store vast amounts of carbon.\n\nThe image shows the <i>Flow Country</i>."
@@ -194,15 +213,11 @@ def test_a_feature_is_read_whole_from_its_feed(feeds):
     assert s["id"] == s["url"] == "https://science.nasa.gov/earth/earth-observatory/mon/"
     assert (s["figure"], s["figure_large"]) == ("https://assets.science.nasa.gov/mon.jpg?w=640&fit=clip",
                                                 "https://assets.science.nasa.gov/mon.jpg?w=1280&fit=clip")
-    [chart] = owid
-    assert chart["abstract"] == "Carbon budgets (CO<sub>2</sub>) shrink.\n\nThe 1.5°C budget is 3.5 years of emissions."
-    assert chart["authors"] == ["Hannah Ritchie", "Pablo Rosado"]
-    assert chart["figure"] == "https://ourworldindata.org/cdn-cgi/imagedelivery/x/abc/w=675"
 
 
-def test_an_issue_takes_each_features_oldest_fresh_piece_once(app, feeds):
+def test_an_issue_takes_the_features_oldest_fresh_piece_once(app, feeds):
     first = features.take(NOW, set())
-    assert [s["title"] for s in first] == ["Monday’s image", "How much CO2 can the world emit?"]   # not last week's
+    assert [s["title"] for s in first] == ["Monday’s image"]                            # not last week's
     second = features.take(NOW, {s["id"] for s in first})
     assert [s["title"] for s in second] == ["Tuesday’s image"]
     assert db.session.get(SourceStatus, "features:earth").items == 3
@@ -212,16 +227,16 @@ def test_a_feed_that_doesnt_answer_is_only_late(app, monkeypatch):
     def down(url):
         raise requests.ConnectionError
 
-    for module in (features, climbing):
+    for module in (features, dates):
         monkeypatch.setattr(module, "get", down)
-    monkeypatch.setattr(papers, "fetch", lambda now: record_sources({"papers:nature": (1, None)}, now))
+    monkeypatch.setattr(papers, "fetch", lambda now: SourceStatus.record({"papers:nature": (1, None)}, now))
     assert dispatch.publish(NOW) == "2026-11-04"
     shown = dispatch.issue(None)
-    assert (shown["stories"], shown["climbing"]) == ([], []) and shown["print"] and shown["poem"]
-    assert shown["sources"]["failing"] == ["NASA Earth Observatory", "Our World in Data", "the climbing calendar"]
+    assert (shown["stories"], shown["dates"]) == ([], []) and shown["print"] and shown["poem"]
+    assert shown["sources"]["failing"] == ["NASA Earth Observatory", "the climbing calendar", "the UFC’s schedule"]
 
 
-# ---------- the climbing ----------
+# ---------- the dates ----------
 
 def climb(name, kind, starts, disciplines=("boulder",)):
     return {"name": name, "kind": kind, "disciplines": list(disciplines), "starts_at": f"{starts}:00+02:00",
@@ -229,24 +244,99 @@ def climb(name, kind, starts, disciplines=("boulder",)):
 
 
 CALENDAR = {"events": [
-    {"league_name": climbing.LEAGUE, "location": "Innsbruck", "country_name": "Austria", "rounds": [
-        climb("Men's Boulder Final", "final", "2026-06-16T19:30"),                              # days ago
-        climb("Women's Boulder Qualification", "qualification", "2026-06-18T09:00"),
-        climb("Women's Boulder Final", "final", "2026-06-18T19:30"),                            # last night's: a replay
-        climb("Men's Speed Final", "final", "2026-06-19T19:30", ("speed",)),
-        climb("Men's & Women's Lead Semi-Final", "semi-final", "2026-06-20T19:35", ("lead",)),
-        climb("Men's & Women's Lead Final", "final", "2026-06-28T19:35", ("lead",))]},          # past the week ahead
-    {"league_name": "IFSC Paraclimbing", "location": "Innsbruck", "country_name": "Austria", "rounds": [
-        climb("Men's & Women's Lead Final", "final", "2026-06-19T16:00", ("lead",))]},
+    {"league_name": dates.LEAGUE, "name": "World Climbing Series Innsbruck 2026", "location": "Innsbruck",
+     "country_name": "Austria", "site_url": "https://ifsc.stream/innsbruck", "rounds": [
+         climb("Women's Boulder Qualification", "qualification", "2026-06-18T09:00"),
+         climb("Women's Boulder Final", "final", "2026-06-18T19:30"),                           # the 19th in Hong Kong
+         climb("Men's Speed Final", "final", "2026-06-19T19:30", ("speed",)),
+         climb("Men's & Women's Lead Semi-Final", "semi-final", "2026-06-20T10:00", ("lead",))]},
+    {"league_name": "IFSC Paraclimbing", "name": "Paraclimbing Innsbruck 2026", "location": "Innsbruck",
+     "country_name": "Austria", "rounds": [climb("Men's Lead Final", "final", "2026-06-19T16:00", ("lead",))]},
+    {"league_name": dates.LEAGUE, "name": "World Climbing Series Speed 2026", "location": "Bali",
+     "country_name": "Indonesia", "rounds": [climb("Men's Speed Final", "final", "2026-07-03T19:30", ("speed",))]},
+]}
+
+
+def bout(starts, *names):
+    return {"date": starts, "competitors": [{"order": n, "athlete": {"displayName": name}}
+                                            for n, name in reversed(list(enumerate(names, 1)))]}
+
+
+SCHEDULE = {"events": [
+    {"name": "UFC 334: Gane vs. Hokit", "date": "2026-11-15T02:00Z", "status": {"type": {"name": "STATUS_SCHEDULED"}},
+     "venues": [{"address": {"city": "New York", "country": "USA"}}], "links": [{"href": "https://espn.example/334"}],
+     "competitions": [bout("2026-11-14T22:00Z", "One", "Two"), bout("2026-11-15T02:00Z", "Harrison", "Nunes"),
+                      bout("2026-11-15T02:00Z", "Gane", "Hokit")]},
+    {"name": "Dana White's Contender Series", "date": "2026-11-18T00:00Z", "competitions": [],
+     "status": {"type": {"name": "STATUS_SCHEDULED"}}},
+    {"name": "UFC Fight Night: Off", "date": "2026-11-21T18:00Z", "status": {"type": {"name": "STATUS_CANCELED"}}},
 ]}
 
 
 def test_the_climbing_is_the_world_cups_boulder_and_lead_semis_and_finals():
-    found = climbing.rounds(CALENDAR, datetime(2026, 6, 19, tzinfo=UTC))
-    assert [r["round"] for r in found] == ["Women's Boulder Final", "Men's & Women's Lead Semi-Final"]
-    assert found[0] == {"round": "Women's Boulder Final", "place": "Innsbruck, Austria", "stream": "https://youtu.be/x",
-                        "starts": "2026-06-18T17:30:00+00:00", "ends": "2026-06-18T20:00:00+00:00"}
-    assert climbing.rounds(CALENDAR, datetime(2026, 11, 4, tzinfo=UTC)) == []                   # out of season
+    [cup] = dates.climbing(CALENDAR)
+    assert (cup["kind"], cup["title"], cup["place"]) == ("Climbing", "World Climbing Series Innsbruck 2026",
+                                                         "Innsbruck, Austria")
+    assert (cup["day"], cup["until"], cup["note"]) == ("2026-06-19", "2026-06-20", "Boulder and lead")
+    assert cup["link"] == "https://ifsc.stream/innsbruck"
+    assert cup["parts"] == [
+        {"name": "Women's Boulder Final", "starts": "2026-06-18T17:30:00+00:00", "ends": "2026-06-18T20:00:00+00:00",
+         "link": "https://youtu.be/x"},
+        {"name": "Men's & Women's Lead Semi-Final", "starts": "2026-06-20T08:00:00+00:00",
+         "ends": "2026-06-20T20:00:00+00:00", "link": "https://youtu.be/x"}]
+
+
+def test_a_ufc_card_is_on_the_day_of_its_main_card_with_its_bouts():
+    [card] = dates.cards(SCHEDULE)                                                      # no Contender Series
+    assert (card["kind"], card["title"], card["day"], card["until"]) == ("UFC", "UFC 334: Gane vs. Hokit",
+                                                                         "2026-11-15", "2026-11-15")
+    assert (card["place"], card["link"]) == ("New York, USA", "https://espn.example/334")
+    assert card["note"] == "Gane vs. Hokit; Harrison vs. Nunes"                         # the headline first, no prelims
+    assert card["parts"] == [{"name": "Prelims", "starts": "2026-11-14T22:00:00+00:00", "ends": None, "link": None},
+                             {"name": "Main card", "starts": "2026-11-15T02:00:00+00:00", "ends": None, "link": None}]
+
+
+def test_hong_kongs_holidays_run_together_as_breaks():
+    christmas, new_year = dates.breaks(date(2026, 12, 21), date(2027, 1, 4))
+    assert (christmas["title"], christmas["day"], christmas["until"]) == ("Christmas Day", "2026-12-25", "2026-12-26")
+    assert christmas["note"] == "The first weekday after Christmas Day"
+    assert (new_year["title"], new_year["day"], new_year["until"], new_year["note"]) == (
+        "The first day of January", "2027-01-01", "2027-01-01", None)
+    [lunar] = dates.breaks(date(2027, 2, 1), date(2027, 2, 15))                         # Saturday to Tuesday
+    assert (lunar["title"], lunar["day"], lunar["until"]) == ("Lunar New Year's Day", "2027-02-06", "2027-02-09")
+    [easter] = dates.breaks(date(2027, 3, 27), date(2027, 3, 27))                       # general holidays; begun
+    assert (easter["title"], easter["day"], easter["until"]) == ("Good Friday", "2027-03-26", "2027-03-29")
+    assert dates.breaks(date(2026, 11, 9), date(2026, 11, 23)) == []
+
+
+def test_a_date_is_said_two_weeks_a_week_and_a_day_ahead_and_while_its_on():
+    cup = dates.entry("Climbing", "A cup", date(2026, 6, 19), date(2026, 6, 21))
+    said = [d for d in range(1, 31) if dates.due(cup, date(2026, 6, d))]
+    assert said == [5, 12, 18, 19, 20, 21]
+
+
+def test_the_dates_ahead_are_the_three_calendars_soonest_first(app, monkeypatch):
+    class Page:
+        def __init__(self, found):
+            self.found = found
+
+        def json(self):
+            return self.found
+
+    asked = {}
+
+    def get(url, **params):
+        asked[url] = params
+        return Page(SCHEDULE if url == dates.UFC else CALENDAR)
+
+    monkeypatch.setattr(dates, "get", get)
+    monkeypatch.setattr(dates, "breaks", lambda first, last: [dates.entry("Holiday", "A day off", date(2026, 11, 14))])
+    day = date(2026, 11, 14)
+    assert [d["title"] for d in dates.ahead(day, NOW)] == ["A day off", "UFC 334: Gane vs. Hokit"]   # no climbing due
+    assert asked[dates.UFC] == {"dates": "20261113-20261129"}
+    assert [d["title"] for d in dates.ahead(date(2026, 11, 10), NOW)] == []            # four days ahead isn't a beat
+    read = {key: db.session.get(SourceStatus, key) for key in dates.SOURCES}
+    assert (read["dates:climbing"].items, read["dates:ufc"].items, read["dates:ufc"].error) == (1, 1, None)
 
 
 # ---------- an issue ----------
@@ -260,7 +350,7 @@ def test_one_issue_a_day_kept_as_it_came_out_for_a_week(app, journals):
     dispatch.publish(NOW + timedelta(days=1))
     again = dispatch.issue("2026-11-04")
     assert again["edition"]["next"] == "2026-11-05"
-    assert all(again[k] == first[k] for k in ("stories", "print", "poem", "holidays"))  # unchanged
+    assert all(again[k] == first[k] for k in ("stories", "print", "poem", "dates"))     # unchanged
     for d in range(2, 9):
         dispatch.publish(NOW + timedelta(days=d))
     newest = dispatch.issue("2026-11-04")                                               # gone: the newest instead
@@ -294,14 +384,6 @@ def test_each_has_its_turn_before_any_comes_again():
     rounds = [[dispatch.turn(items, "poem", start + timedelta(days=7 * r + d)) for d in range(7)] for r in range(3)]
     assert all(sorted(r) == items for r in rounds) and len({tuple(r) for r in rounds}) == 3    # each in its own order
     assert dispatch.turn(items, "poem", start) == rounds[0][0]                          # the same day, the same one
-
-
-def test_the_holidays_ahead_are_hong_kongs_in_english():
-    days = dispatch.holidays_ahead(date(2026, 12, 21))
-    assert [d["date"] for d in days] == ["2026-12-25", "2026-12-26", "2027-01-01"]
-    assert days[0]["name"] == "Christmas Day"
-    assert dispatch.holidays_ahead(date(2027, 3, 22))[0]["name"] == "Good Friday"     # a general holiday counts too
-    assert dispatch.holidays_ahead(date(2026, 11, 9)) == []                            # no section then
 
 
 def test_the_poems_are_the_two_anthologies_in_hong_kongs_characters():

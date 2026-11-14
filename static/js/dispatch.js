@@ -1,6 +1,6 @@
 /* Dispatch: one day's issue, laid out as a front page. Its stories come first, papers and
  * features alike: one leads, the others fill the rail and the rows under it; then the day's
- * print, poem and question, the climbing to watch and the holidays coming up. Everything is
+ * print, poem and question, and the dates coming up. Everything is
  * read here: a story opens in place, and only an opened one links out to where it's from. */
 (() => {
     const ROOT = window.APP_ROOT || '';
@@ -266,8 +266,7 @@
                 drawPrint();
                 drawPoem();
                 drawForecast();
-                drawClimbing();
-                drawHolidays();
+                drawDates();
                 const id = data.edition?.id;
                 if (push && id) history.pushState({ edition: id }, '', url(`/dispatch/${id}`));
                 else if (edition && fromPath() !== edition) history.replaceState({ edition: id }, '', url(`/dispatch/${edition}`));
@@ -347,28 +346,37 @@
             When you said ${bands}, it happened that often. By subject: ${subjects}.</p></article>`;
     }
 
-    /** The World Cup rounds to watch (climbing.py), by your clock: on now, to catch up on, or coming
-     * this week. Each is its stream, when it has one. A section only when there are some. */
-    function drawClimbing() {
-        const rounds = data?.climbing || [];
-        const el = $('climbing');
-        el.hidden = !rounds.length;
-        const state = (r) => (Date.now() < new Date(r.starts) ? '' : Date.now() < new Date(r.ends) ? 'Live' : 'Replay');
-        const at = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-        el.innerHTML = el.hidden ? '' : `<h2 class="section-head"><span>Climbing</span><span class="n">World Cup · the week ahead</span></h2>
-            <div class="rest-list">${rounds.map((r) => `<article class="story s-line"><p class="kicker"><span class="kicker-k">${esc(on(r.starts))} · ${esc(at(r.starts))}</span>
-                <span>${esc(r.place)}</span><span class="kicker-flash">${state(r)}</span></p>
-                <h2 class="story-title">${away(r.stream, r.round) || esc(r.round)}</h2></article>`).join('')}</div>`;
+    /** The days from the issue's to a date's first. */
+    const off = (d) => Math.round((Date.parse(d.day) - Date.parse(data.edition.id)) / 864e5);
+
+    /** How far off a date is: the beat it's said on (dates.py), in words. */
+    function beat(d) {
+        const days = off(d);
+        if (days > 1) return { 7: 'In a week', 14: 'In two weeks' }[days] || `In ${days} days`;
+        return days === 1 ? 'Tomorrow' : days === 0 ? 'Today' : d.until === data.edition.id ? 'Last day' : 'On now';
     }
 
-    /** The public holidays in the two weeks from when the issue comes out: a section only when there are some. */
-    function drawHolidays() {
-        const h = data?.holidays;
-        const el = $('holidays');
-        el.hidden = !h?.days.length;
-        el.innerHTML = el.hidden ? '' : `<h2 class="section-head"><span>Holidays</span><span class="n">${esc(h.where)} · the next two weeks</span></h2>
-            <div class="rest-list">${h.days.map((d) => `<article class="story s-line"><p class="kicker"><span class="kicker-k">${esc(day(d.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</span></p>
-                <h2 class="story-title">${esc(d.name)}</h2></article>`).join('')}</div>`;
+    /** Something of a date to watch, at its hour on your clock: its stream, when it has one. */
+    function part(p) {
+        const state = Date.now() < new Date(p.starts) || !p.ends ? '' : Date.now() < new Date(p.ends) ? 'Live · ' : 'Replay · ';
+        const label = `${state}${new Date(p.starts).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })} ${p.name}`;
+        return away(p.link, label) || `<span>${esc(label)}</span>`;
+    }
+
+    /** The dates coming (dates.py): a holiday, a climbing World Cup, a UFC card, each said two weeks
+     * ahead, a week ahead, the day before and while it's on. From the day before, what there is to
+     * watch of it. A section only when there are some. */
+    function drawDates() {
+        const dates = data?.dates || [];
+        const el = $('dates');
+        el.hidden = !dates.length;
+        const span = (d) => [...new Set([d.day, d.until])].map((iso) => day(iso, { weekday: 'short', day: 'numeric', month: 'short' })).join(' – ');
+        el.innerHTML = el.hidden ? '' : `<h2 class="section-head"><span>Dates</span><span class="n">the two weeks ahead</span></h2>
+            <div class="rest-list">${dates.map((d) => `<article class="story open s-line"><p class="kicker"><span class="kicker-k">${beat(d)}</span>
+                <span>${esc(span(d))}</span><span>${esc(d.kind)}</span>${d.place ? `<span>${esc(d.place)}</span>` : ''}</p>
+                <h2 class="story-title">${away(d.link, d.title) || esc(d.title)}</h2>
+                ${d.note ? `<p class="byline">${esc(d.note)}</p>` : ''}
+                ${d.parts.length && off(d) <= 1 ? `<p class="links">${d.parts.map(part).join('')}</p>` : ''}</article>`).join('')}</div>`;
     }
 
     /** The day's print with what its museum says of it: set as an opened story, the whole sheet beside the text. */

@@ -117,6 +117,17 @@ class SourceStatus(db.Model):
     items = db.Column(db.Integer, nullable=False, default=0)
     error = db.Column(db.String)
 
+    @classmethod
+    def record(cls, report: dict, now: datetime):
+        """Note one read of some sources: {key: (item count, error or None)}."""
+        for key, (count, error) in report.items():
+            row = db.session.get(cls, key) or cls(key=key)
+            row.last_try, row.items, row.error = now, count, error
+            if count:
+                row.last_ok = now
+            db.session.add(row)
+        db.session.commit()
+
 
 class Signal(db.Model):
     """What a monitoring service saw (signals.py): a disaster alert or a strong earthquake,
@@ -190,8 +201,7 @@ class Issue(db.Model):
     stories = db.Column(db.JSON, nullable=False)                # the front page: papers.take and features.take
     print = db.Column(db.JSON)                                  # one of data/prints.json
     poem = db.Column(db.JSON)                                   # one of data/poems.json
-    holidays = db.Column(db.JSON, nullable=False)
-    climbing = db.Column(db.JSON, nullable=False)               # climbing.ahead
+    dates = db.Column(db.JSON, nullable=False)                  # dates.ahead
 
 
 class Question(db.Model):

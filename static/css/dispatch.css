@@ -1,6 +1,6 @@
 /* Dispatch: the day's issue as a front page, in the map's glass and type: a nameplate and
  * folio, then its sections. A story leads with a rail, then rows of modules whose shape changes
- * row to row; the day's print, poem and question, the climbing and the holidays use the same modules. */
+ * row to row; the day's print, poem and question and the dates coming use the same modules. */
 .dispatch-page { height: auto; }
 .press { max-width: 1280px; margin: 0 auto; padding: 0 var(--space-8) calc(var(--space-8) + env(safe-area-inset-bottom)); }
 
@@ -36,8 +36,10 @@
 }
 .folio-line { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; color: var(--color-text-secondary); }
 .folio-line span + span::before { content: "·"; margin: 0 var(--space-2); color: var(--color-text-muted); }
-.folio-step { justify-self: start; min-height: var(--tap); padding: 0 var(--space-2); }
-.folio-step[data-dir="next"] { justify-self: end; }
+/* A step to the issue before or after: a drawn arrow and, where there's room, the day it goes to. */
+.folio-step { justify-self: start; gap: var(--space-2); min-height: var(--tap); padding: 0 var(--space-2); color: var(--color-text-secondary); text-transform: inherit; }
+.folio-step[data-dir="next"] { justify-self: end; flex-direction: row-reverse; }
+.folio-arrow { width: var(--space-6); height: var(--space-6); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .folio-step:disabled { visibility: hidden; }
 
 /* ---- rows: twelve columns, parted by hairlines ---- */
@@ -107,6 +109,7 @@
     font: 600 var(--text-xs)/var(--leading-label) var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase;
 }
 .links a { color: var(--color-text-secondary); text-decoration: none; }
+.links span { color: var(--color-text-muted); }
 .links .free { color: var(--color-accent); }
 
 /* Figures: cropped to the top in a module, whole in the lead or an opened story. */
@@ -133,7 +136,7 @@
 .rail-cover-k { font: 600 var(--text-xs) var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-flash); }
 .rail-cover-note { font: italic var(--text-sm)/var(--leading-text) var(--font-sans); color: var(--color-text-secondary); }
 
-/* ---- the sections after the stories; the climbing and the holidays one line each, down two columns ---- */
+/* ---- the sections after the stories; the dates coming a few lines each, down two columns ---- */
 .rest { margin-top: var(--space-8); }
 .rest-list { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 .s-line { break-inside: avoid; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-soft); }
@@ -150,7 +153,7 @@
     #print .fig { width: min(45%, calc(520px * var(--r))); }
 }
 
-/* The day's print, poem and question, the climbing and the holidays are set in these same modules, but they don't open.
+/* The day's print, poem and question and the dates coming are set in these same modules, but they don't open.
    The print and the poem share a row: the print with its text, the poem a column wide beside it. */
 .still .story { cursor: auto; }
 .back { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--space-8); }
@@ -248,7 +251,7 @@
     .s-mod .story-title { font-size: var(--text-base); }
     .s-lead .standfirst-head { font-size: var(--text-sm); }
     .links { row-gap: 0; }
-    :is(.links, .s-line .story-title) a { display: inline-flex; align-items: center; min-height: var(--tap); }
+    :is(.links, .s-line .story-title) a { display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--tap); }
     .s-lead .abstract, .s-lead:not(.has-fig) .abstract { columns: auto; margin-top: var(--space-3); font-size: var(--text-sm); }
     .s-lead:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
     .rail-cover { margin: 0; padding: var(--space-4) 0; }

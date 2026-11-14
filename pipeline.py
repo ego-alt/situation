@@ -238,18 +238,6 @@ def save_itn(itn: dict, now: datetime | None = None):
         db.session.commit()
 
 
-def record_sources(report: dict, now: datetime | None = None):
-    """{source key: (item count, error or None)} from one fetch."""
-    now = now or clock()
-    for key, (count, error) in report.items():
-        row = db.session.get(SourceStatus, key) or SourceStatus(key=key)
-        row.last_try, row.items, row.error = now, count, error
-        if count:
-            row.last_ok = now
-        db.session.add(row)
-    db.session.commit()
-
-
 def source_health(sources, now: datetime | None = None) -> dict:
     """{"ok": n, "total": n, "silent": [names]}: feeds with nothing for 6 hours.
     A feed that hasn't been tried yet isn't counted against it."""

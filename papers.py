@@ -14,9 +14,8 @@ from datetime import UTC, date, datetime, timedelta
 import feedparser
 import requests
 
-from journals import BY_KEY, FIELDS, JOURNALS, Journal
+from journals import BY_KEY, FIELDS, JOURNALS, LEFT_OUT, Journal
 from models import Paper, SourceStatus, db, utcnow
-from pipeline import record_sources
 from sources import USER_AGENT
 
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
@@ -26,6 +25,7 @@ KEEP = WINDOW + timedelta(days=7)   # how long what's read is remembered: past t
 MOST = 3                        # the most papers in one issue
 SPREAD = 3                      # the days the papers waiting are spread over
 EARLIER = timedelta(days=7)     # a paper out longer ago than this is dated
+RECENT = timedelta(days=180)    # the longest a paper is out before its journal's commentary on it
 TIMEOUT = 20
 NOT_RESEARCH = {"Review", "News", "Editorial", "Letter", "Published Erratum", "Retraction of Publication",
                 "Retracted Publication", "Expression of Concern", "Comment"}
@@ -69,11 +69,16 @@ def paragraphs(parts) -> str:
     return "\n\n".join(filter(None, ("\n".join(filter(None, map(clean, part))) for part in lines)))
 
 
-def in_a_field(title: str, abstract: str) -> bool:
-    """The "words" scope: a word of one of FIELDS in the title, or two different ones of one in the abstract."""
-    title, abstract = plain(title), plain(abstract)
-    return any(words.search(title) or len({m.lower() for m in words.findall(abstract)}) >= 2
-               for words in FIELDS.values())
+def about(words: re.Pattern, title: str, abstract: str) -> bool:
+    """Whether a paper is about what some words name: one in its title, or two different ones in its abstract."""
+    return bool(words.search(plain(title))) or len({m.lower() for m in words.findall(plain(abstract))}) >= 2
+
+
+def belongs(j: Journal, title: str, abstract: str) -> bool:
+    """Whether a paper's words let it in: nothing of LEFT_OUT, and for the "words" scope one of FIELDS."""
+    if about(LEFT_OUT, title, abstract):
+        return False
+    return j.scope != "words" or any(about(words, title, abstract) for words in FIELDS.values())
 
 
 # ---------- what Europe PMC says ----------
@@ -92,7 +97,7 @@ def europe_pmc(issn: str, since: date, until: date) -> list[dict]:
         cursor = nxt
 
 
-def kind_of(record: dict) -> str:
+def kind_of(record: dict, j: Journal) -> str:
     """research, commentary, news (where Nature files News & Views) or other."""
     types = set(record.get("pubTypeList", {}).get("pubType", []))
     if "Comment" in types:
@@ -103,7 +108,8 @@ def kind_of(record: dict) -> str:
         return "other"
     if "research-article" in types or len(record.get("abstractText") or "") >= 400:
         return "research"
-    return "other"   # front matter
+    # Front matter, and a commentary PubMed hasn't marked yet: its title tells.
+    return "commentary" if j.commentary_title and re.match(j.commentary_title, record.get("title") or "") else "other"
 
 
 def _links(record: dict, kind: str) -> list[str]:
@@ -225,7 +231,7 @@ def fetch(now: datetime | None = None) -> dict:
         except (requests.RequestException, ValueError, KeyError) as e:
             db.session.rollback()
             report[f"papers:{j.key}"] = (0, type(e).__name__)
-    record_sources(report, now)
+    SourceStatus.record(report, now)
     _link_commentaries(since)
     _covers()
     _enrich()
@@ -236,7 +242,7 @@ def fetch(now: datetime | None = None) -> dict:
 
 def _read(j, since: date, until: date) -> int:
     """Store a journal's papers in scope and its commentaries; returns how many papers."""
-    known = {p.doi: p for p in Paper.query.filter(Paper.journal == j.key, Paper.published >= since)}
+    known = {p.doi: p for p in Paper.query.filter_by(journal=j.key)}   # all: Europe PMC can take a piece in late
     in_subject = set().union(*map(subject_dois, j.subject_feeds))
     count = 0
     for r in europe_pmc(j.issn, since, until):
@@ -244,12 +250,12 @@ def _read(j, since: date, until: date) -> int:
         published = published_on(r)
         if not doi or not published:
             continue
-        kind = kind_of(r)
+        kind = kind_of(r, j)
         title, abstract = clean(r.get("title")), clean(r.get("abstractText"))
         if kind == "research":
             if j.scope == "subject" and doi not in in_subject and doi not in known:
                 continue
-            if j.scope == "words" and not in_a_field(title, abstract):
+            if not belongs(j, title, abstract):
                 continue
             count += 1
         elif kind == "news":
@@ -288,35 +294,39 @@ def _store(j, r: dict, kind: str, p: Paper | None = None) -> Paper:
     return p
 
 
-def _adopt(doi: str, j: Journal) -> bool:
-    """Add an older paper of journal `j` that a commentary there is about, if it's in scope here."""
-    found = get(EUROPE_PMC, query=f'DOI:"{doi}"', format="json", resultType="core").json()
-    r = next(iter(found.get("resultList", {}).get("result", [])), None)
-    info = (r or {}).get("journalInfo", {}).get("journal", {})
-    if not (r and j.issn in (info.get("issn"), info.get("essn")) and published_on(r) and kind_of(r) == "research"):
-        return False
-    if j.scope == "words" and not in_a_field(r.get("title", ""), r.get("abstractText", "")):
-        return False
-    _store(j, r, "research")
-    return True
-
-
 def _link_commentaries(since: date):
-    """Tie each commentary to its paper, one of its own journal's: PubMed's link, else the first
-    of its first few references that's one here (an older one is added)."""
+    """Tie each commentary to the paper it's on."""
     research = {(j, d) for j, d in db.session.query(Paper.journal, Paper.doi).filter(Paper.kind == "research")}
     for c in Paper.query.filter(Paper.kind == "commentary", Paper.published >= since).all():
         if (c.journal, c.on) in research:
             continue
         try:
-            for doi in [c.on] if c.on else references(c.doi)[:3]:
-                if (c.journal, doi) in research or _adopt(doi, BY_KEY[c.journal]):
-                    c.on = doi
-                    research.add((c.journal, doi))
-                    break
+            c.on = _subject(c) or c.on
         except (requests.RequestException, ValueError, KeyError):
             continue
         db.session.commit()
+
+
+def _subject(c: Paper) -> str | None:
+    """The paper a commentary is on, one of its own journal's that belongs here: the one PubMed
+    links it to, else of those it cites the last out in the RECENT before it (the first of its
+    references needn't be it, nor the only one of the journal's). Stored, if it wasn't."""
+    j = BY_KEY[c.journal]
+    cited = [c.on] if c.on else references(c.doi)
+    if not cited:
+        return None
+    dois = " OR ".join(f'DOI:"{d}"' for d in cited)
+    query = f'ISSN:"{j.issn}" AND ({dois})'
+    found = get(EUROPE_PMC, query=query, format="json", resultType="core", pageSize=len(cited)).json()
+    out = {r["doi"].lower(): r for r in found.get("resultList", {}).get("result", [])
+           if kind_of(r, j) == "research" and published_on(r)}
+    if not c.on:
+        out = {d: r for d, r in out.items() if c.published - published_on(r) <= RECENT}
+    doi = max(out, key=lambda d: published_on(out[d]), default=None)
+    if not doi or not belongs(j, out[doi].get("title", ""), out[doi].get("abstractText", "")):
+        return None
+    _store(j, out[doi], "research")
+    return doi
 
 
 def _covers():

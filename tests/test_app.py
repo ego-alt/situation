@@ -97,10 +97,11 @@ def test_stories_close_instead_of_vanishing(loaded, monkeypatch):
 def test_a_silent_feed_is_flagged(app):
     from datetime import timedelta
 
-    from pipeline import record_sources, source_health
+    from models import SourceStatus
+    from pipeline import source_health
     from sources import SOURCES
-    record_sources({"bbc": (0, "HTTP 404"), "nyt": (40, None)}, NOW - timedelta(hours=7))
-    record_sources({"bbc": (0, "HTTP 404"), "nyt": (38, None)}, NOW)
+    SourceStatus.record({"bbc": (0, "HTTP 404"), "nyt": (40, None)}, NOW - timedelta(hours=7))
+    SourceStatus.record({"bbc": (0, "HTTP 404"), "nyt": (38, None)}, NOW)
     health = source_health(SOURCES, NOW)
     assert health == {"ok": 16, "total": 17, "silent": ["BBC"]}       # the 12 never tried don't count against
 
@@ -110,14 +111,14 @@ def test_health_fails_once_no_feed_has_answered_for_an_hour(app, monkeypatch):
     from datetime import timedelta
 
     import app as app_module
-    from pipeline import record_sources
+    from models import SourceStatus
     client = app.test_client()
     assert client.get("/healthz").status_code == 200                  # just started: give it time
     monkeypatch.setattr(app_module, "STARTED", time.monotonic() - 7200)
     assert client.get("/healthz").status_code == 503                  # up two hours, nothing fetched
-    record_sources({"bbc": (30, None)}, NOW - timedelta(hours=2))
+    SourceStatus.record({"bbc": (30, None)}, NOW - timedelta(hours=2))
     assert client.get("/healthz").status_code == 503
-    record_sources({"bbc": (30, None)}, NOW - timedelta(minutes=10))
+    SourceStatus.record({"bbc": (30, None)}, NOW - timedelta(minutes=10))
     assert client.get("/healthz").get_json()["ok"] is True
 
 
@@ -208,12 +209,11 @@ def test_sync_fetches_now_but_not_twice_in_a_row(app, monkeypatch):
 
     import app as app_module
     from models import SourceStatus, db
-    from pipeline import record_sources
     calls = []
 
     def fake_fetch(now=None):
         calls.append(1)
-        record_sources({"bbc": (5, None)})
+        SourceStatus.record({"bbc": (5, None)}, NOW)
     monkeypatch.setattr(app_module, "fetch_once", fake_fetch)
     client = app.test_client()
     assert client.post("/api/sync").get_json()["status"] == "fetched" and len(calls) == 1

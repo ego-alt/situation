@@ -142,7 +142,7 @@ def test_asked_on_the_day_of_an_issue_thats_out_or_not_at_all(app, monkeypatch):
     monkeypatch.setattr(forecast, "read_events", lambda start, end: [ANA])
     forecast.run(OUT + timedelta(hours=1))                                              # the day has no issue yet
     assert db.session.get(Question, EDITION) is None
-    db.session.add(Issue(edition=EDITION, out=OUT, stories=[], holidays=[], climbing=[]))
+    db.session.add(Issue(edition=EDITION, out=OUT, stories=[], dates=[]))
     db.session.commit()
     assert forecast.view(EDITION, "ellery", OUT + timedelta(hours=1))["pending"]
     shown = forecast.view(EDITION, "ellery", OUT + timedelta(days=1))                   # a day on, it isn't coming

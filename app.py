@@ -10,7 +10,7 @@ import numpy as np
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from models import Story, db
+from models import SourceStatus, Story, db
 from projection import project
 from score import clean_title, is_headline
 from sources import BY_KEY, SOURCES
@@ -305,10 +305,11 @@ def sync_now() -> str:
 
 def fetch_once(now=None) -> dict:
     from fetch import fetch_all, fetch_itn
-    from pipeline import prune, record_sources, run
+    from pipeline import clock, prune, run
+    now = now or clock()
     report: dict = {}
     result = run(lambda: fetch_all(report=report), fetch_itn, now)
-    record_sources(report, now)
+    SourceStatus.record(report, now)
     try:
         import signals
         signals.fetch(now)
