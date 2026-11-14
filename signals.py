@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 
 import requests
 
-from geo import places
+from geo import from_iso3, places
 from models import Signal, SourceStatus, db
 from sources import USER_AGENT
 
@@ -40,11 +40,6 @@ def _utc(text: str) -> datetime:
     """GDACS's times, which are UTC without saying so."""
     t = datetime.fromisoformat(text.replace("Z", "+00:00"))
     return t.astimezone(UTC) if t.tzinfo else t.replace(tzinfo=UTC)
-
-
-def _iso2(iso3: str | None) -> str | None:
-    from geo import _table
-    return next((iso for iso, c in _table()[0].items() if c.get("iso3") == iso3), None) if iso3 else None
 
 
 def _title(kind: str, name: str, magnitude: float | None) -> str:
@@ -75,7 +70,7 @@ def gdacs(record: dict) -> dict | None:
     if kind == "VO":
         name = re.sub(r"^Eruption\s+", "", p.get("name") or "").strip()
     affected = [c.get("iso2") for c in p.get("affectedcountries") or [] if c.get("iso2")]
-    iso = affected[0] if affected else _iso2(p.get("iso3"))
+    iso = affected[0] if affected else from_iso3(p.get("iso3"))
     url = p.get("url") or {}
     return {"id": f"gdacs:{kind}:{p.get('eventid')}", "source": "GDACS", "kind": kind, "level": level,
             "title": _title(kind, name, magnitude), "place": _places(p.get("country")), "iso": iso,
@@ -122,9 +117,8 @@ def merge(found: list[dict]) -> list[dict]:
     return out
 
 
-def fetch(now: datetime | None = None, get=_get) -> int:
+def fetch(now: datetime, get=_get) -> int:
     """Read both services and keep what counts; returns how many signals are current."""
-    now = now or datetime.now(UTC)
     week = {"fromdate": (now - timedelta(days=7)).date().isoformat(),
             "todate": (now + timedelta(days=1)).date().isoformat(), "alertlevel": "Orange;Red"}
     reads = {"gdacs": lambda: [gdacs(f) for f in get(GDACS, **week).get("features", [])],

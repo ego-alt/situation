@@ -4,22 +4,23 @@ Every run re-clusters the whole window, which keeps grouping simple and
 consistent; a story keeps its id when most of its articles are the same as
 last time. A story whose articles have all left the window is closed, not
 deleted, so it keeps its id for the weekly view and the notifications."""
-import re
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 
 import situations
 from cluster import cluster
-from geo import locate, places, spots
+from geo import locate, spots
 from models import Article, DayTally, ItnSnapshot, SourceStatus, Story, db, story_articles
 from news import is_news, news_only
-from score import BACKGROUND, HEADLINE, MAJOR, assess, is_soft, match_itn, need, rank_features, weights
+from score import BACKGROUND, HEADLINE, MAJOR, assess, match_itn, need, rank_features, weights
+from sources import BY_KEY, SOURCES
 
 WINDOW = timedelta(hours=48)
 ITN_FRESH = timedelta(hours=24)     # how long an "In the news" match makes a story FLASH
 SHOWN = timedelta(hours=24)         # what the page counts as today
 MAX_SHOWN = 10                      # a backstop: at most this many stories on screen
 SILENT_AFTER = timedelta(hours=6)   # a feed with nothing for this long is flagged
+KEEP = timedelta(days=30)           # how long articles and closed stories are remembered
 
 
 def clock() -> datetime:
@@ -55,11 +56,15 @@ def article_spots(item) -> list[dict]:
     return spots(f"{title}. {summary or ''}")
 
 
-def regroup(now: datetime | None = None, itn: dict | None = None) -> list[Story]:
-    now = now or clock()
+def in_window(now: datetime):
+    """The articles being grouped: out in the last two days (fetched, for one that doesn't say when it went out)."""
     since = now - WINDOW
-    articles = Article.query.filter(db.or_(Article.published >= since,
-                                           db.and_(Article.published.is_(None), Article.fetched >= since))).all()
+    return Article.query.filter(db.or_(Article.published >= since,
+                                       db.and_(Article.published.is_(None), Article.fetched >= since)))
+
+
+def regroup(now: datetime, itn: dict | None = None) -> list[Story]:
+    articles = in_window(now).all()
     for a in articles:
         if a.spots is None:            # stored before places were tracked
             a.spots = article_spots(a)
@@ -227,42 +232,34 @@ def itn_first_seen() -> dict[str, datetime]:
     return seen
 
 
-def save_itn(itn: dict, now: datetime | None = None):
+def save_itn(itn: dict, now: datetime):
     """Keep a copy of "In the news" when it changes."""
     if not itn.get("items"):
         return
     last = latest_itn()
     if last["items"] != itn["items"] or last["ongoing"] != itn.get("ongoing", []):
-        fetched = now or clock()
-        db.session.add(ItnSnapshot(items=itn["items"], ongoing=itn.get("ongoing", []), fetched=fetched))
+        db.session.add(ItnSnapshot(items=itn["items"], ongoing=itn.get("ongoing", []), fetched=now))
         db.session.commit()
 
 
-def source_health(sources, now: datetime | None = None) -> dict:
-    """{"ok": n, "total": n, "silent": [names]}: feeds with nothing for 6 hours.
+def source_health(now: datetime) -> dict:
+    """{"ok": n, "total": n, "silent": [names]}: news feeds with nothing for 6 hours.
     A feed that hasn't been tried yet isn't counted against it."""
-    now = now or clock()
-    rows = {r.key: r for r in SourceStatus.query.all()}
-    silent = []
-    for src in sources:
-        row = rows.get(src.key)
-        if row is None or row.last_try is None:
-            continue
-        if row.last_ok is None or now - row.last_ok > SILENT_AFTER:
-            silent.append(src.name)
-    return {"ok": len(sources) - len(silent), "total": len(sources), "silent": silent}
+    rows = {r.key: r for r in SourceStatus.query.filter(SourceStatus.key.in_(BY_KEY))}
+    silent = [src.name for src in SOURCES if (row := rows.get(src.key)) and row.last_try
+              and (row.last_ok is None or now - row.last_ok > SILENT_AFTER)]
+    return {"ok": len(SOURCES) - len(silent), "total": len(SOURCES), "silent": silent}
 
 
 def last_fetch_ok() -> datetime | None:
-    """The last time any feed returned items (UTC)."""
-    when = db.session.query(db.func.max(SourceStatus.last_ok)).scalar()
-    return when
+    """The last time a news feed returned items (UTC): not the journals, the calendars or the
+    disaster services, which answer whether or not the news is coming in."""
+    return db.session.query(db.func.max(SourceStatus.last_ok)).filter(SourceStatus.key.in_(BY_KEY)).scalar()
 
 
-def on_screen(now: datetime | None = None) -> tuple[list[Story], int]:
+def on_screen(now: datetime) -> tuple[list[Story], int]:
     """Today's stories at Headline or above, best first, capped at MAX_SHOWN;
     and how many cleared the bar before the cap."""
-    now = now or clock()
     since = now - SHOWN
     # An event that's part of a running story is shown inside it, not on its own.
     cleared = (Story.query.filter(Story.tier != BACKGROUND, Story.closed.is_(False), Story.newest >= since,
@@ -271,9 +268,8 @@ def on_screen(now: datetime | None = None) -> tuple[list[Story], int]:
     return cleared[:MAX_SHOWN], len(cleared)
 
 
-def tally(now: datetime | None = None):
+def tally(now: datetime):
     """Remember the most stories shown at once today, to tune the bar later."""
-    now = now or clock()
     shown, cleared = on_screen(now)
     row = db.session.get(DayTally, now.date()) or DayTally(day=now.date(), major=0, headline=0, cleared=0)
     row.major = max(row.major, sum(s.tier == MAJOR for s in shown))
@@ -283,8 +279,9 @@ def tally(now: datetime | None = None):
     db.session.commit()
 
 
-def prune(days: int = 30):
-    cutoff = clock() - timedelta(days=days)
+def prune(now: datetime):
+    """Forget the articles, the \"In the news\" copies and the closed stories older than KEEP."""
+    cutoff = now - KEEP
     Article.query.filter(Article.fetched < cutoff).delete()
     ItnSnapshot.query.filter(ItnSnapshot.fetched < cutoff).delete()
     Story.query.filter(Story.closed.is_(True), Story.newest < cutoff).delete()
@@ -295,88 +292,7 @@ def prune(days: int = 30):
     db.session.commit()
 
 
-TRACK = timedelta(days=7)
-
-
-def tracks(areas: list[set[str]], now: datetime | None = None, limit: int = 40) -> list[list[dict]]:
-    """For each situation's countries, where its reporting has been over the past
-    week: every city or region named there in an article about it (about_situation),
-    how many articles named it and when last. One pass over the week's articles."""
-    since = (now or clock()) - TRACK
-    seen: list[dict[tuple, dict]] = [{} for _ in areas]
-    for a in Article.query.filter(Article.published >= since, Article.spots.isnot(None)):
-        when = a.published
-        text = f"{a.title}. {a.summary or ''}"
-        for isos, found in zip(areas, seen, strict=True):
-            if not _about(text, isos):
-                continue
-            for s in a.spots:
-                if s["iso"] in isos:
-                    spot = found.setdefault((s["name"], s["iso"]), {**s, "n": 0, "last": when})
-                    spot["n"] += 1
-                    spot["last"] = max(spot["last"], when)
-    return [sorted(found.values(), key=lambda s: -s["n"])[:limit] for found in seen]
-
-
-# The words of a war or a crisis being fought: a situation's news uses them.
-CONFLICT = re.compile(
-    r"\b(wars?|strikes?|struck|attacks?|attacked|drones?|missiles?|rockets?|shell(?:s|ing|ed)|bomb\w*|air ?strikes?"
-    r"|troops|soldiers|army|military|forces|front ?lines?|offensives?|counteroffensive|ceasefire|truce"
-    r"|peace (?:talks|deal|plan|process)|killed|dead|deaths|casualties|wounded|invasion|invaded|occupied"
-    r"|occupation|captured|seized|hostages?|prisoners?|militants?|rebels?|insurgents?|fighting|clashes"
-    r"|battles?|siege|blockade|nuclear|navy|naval|warships?|shipping)\b", re.I)
-
-
-def _about(text: str, isos: set[str]) -> bool:
-    """A piece of text is about a situation: it names one of its countries and uses the words of conflict."""
-    return bool(set(places(text)) & isos) and bool(CONFLICT.search(text))
-
-
-def about_situation(story: Story, isos: set[str]) -> bool:
-    """A story is about a situation (the war, not just a place in it): its headline names one of
-    the situation's countries, and it or most of the story's articles do so in the words of
-    conflict, wherever the story is placed: a Russian strike reported from Germany is the war;
-    a ban on Russia's ice hockey team, placed in Russia, mostly isn't told in the war's words,
-    and a vice president's frustration at the midterms whose articles blame the Iran war is
-    about the midterms. Sport and entertainment (score.is_soft, as for the main list) never are."""
-    articles = [{"title": a.title, "summary": a.summary} for a in story.articles]
-    if not articles or is_soft(articles) or not set(places(story.headline)) & isos:
-        return False
-    if _about(story.headline, isos):
-        return True
-    return sum(_about(f"{a['title']}. {a['summary'] or ''}", isos) for a in articles) * 2 > len(articles)
-
-
-def _near(story: Story, core) -> bool:
-    """A story is near a situation's core in meaning (embed.py); anything is, without the model."""
-    if core is None:
-        return True
-    v = situations.meaning([{"title": a.title, "summary": a.summary} for a in story.articles])
-    return v is not None and float(v @ core) >= situations.NEAR
-
-
-def ongoing_situations(stories: list[Story], itn: dict, now: datetime | None = None) -> list[dict]:
-    """Wikipedia's "Ongoing" topics, each with its latest development today: what most
-    outlets carry about it (about_situation). A single outlet's piece isn't quoted (it's
-    as often an essay as news), only counted."""
-    now = now or clock()
-    since = now - SHOWN
-    week = [{"title": a.title, "summary": a.summary} for a in Article.query.filter(Article.published >= now - TRACK)]
-    out = []
-    for topic in itn.get("ongoing", []):
-        isos = set(places(topic.replace("Russo-Ukrainian", "Russian Ukrainian")))
-        # ...and near, in meaning, to the week's coverage of it, as a running story's events are to
-        # its core (a hijacked Iranian fishing boat off Somalia names Iran, but isn't the Iran war)
-        core = situations.meaning([a for a in week if _about(f"{a['title']}. {a['summary'] or ''}", isos)])
-        here = [s for s in stories if not s.closed and s.newest and s.newest >= since and about_situation(s, isos)
-                and _near(s, core)]
-        shared = sorted((s for s in here if s.outlets >= 2), key=lambda s: (-s.outlets, -s.score))   # what most carry
-        out.append({"topic": topic, "isos": sorted(isos), "stories": shared[:4],
-                    "latest": shared[0] if shared else None, "singles": len(here) - len(shared)})
-    return out
-
-
-def run(fetch_items, fetch_itn, now: datetime | None = None) -> dict:
+def run(fetch_items, fetch_itn, now: datetime) -> dict:
     """fetch_items() → feed items; fetch_itn() → {"items", "ongoing"}."""
     items = fetch_items()
     added = store(items)

@@ -7,10 +7,11 @@ import sys
 import pytest
 
 import cluster
+import evaluate_grouping
+import label_week
 from evaluation import groundtruth, metrics
+from news import formats, is_news, video_page
 from tests.conftest import NOW, SNAPSHOT, SNAPSHOT_2, snapshot_items
-
-sys.path.insert(0, "tools")
 
 
 def test_bcubed_counts_every_article_once():
@@ -41,7 +42,6 @@ def test_headline_size_and_the_bootstrap():
 
 def _week(tmp_path, grouping):
     """A ground truth week made from two real snapshots, its events as `grouping` puts them."""
-    from news import video_page
     windows, events = {}, {}
     for k, path in enumerate((SNAPSHOT, SNAPSHOT_2)):
         data = json.loads(path.read_text())
@@ -67,7 +67,6 @@ def test_a_week_round_trips_and_is_reviewed(tmp_path):
 def test_evaluating_groupings_on_the_ground_truth(tmp_path, capsys, monkeypatch):
     """Truth made by the hand rules: the hand rules score perfectly, and the
     tool tests each window in turn while there's one week."""
-    import evaluate_grouping
     _week(tmp_path, cluster.by_rules)
     windows = groundtruth.windows(str(tmp_path))
     assert [len(test) for _, test in evaluate_grouping.folds(windows)] == [1, 1]
@@ -80,7 +79,6 @@ def test_evaluating_groupings_on_the_ground_truth(tmp_path, capsys, monkeypatch)
 def test_labelling_a_week_cuts_its_windows_from_the_database(loaded, app):
     """Two windows a week, ending Wednesday and Sunday at 03:00 UTC, news only;
     a parsed answer must cover every article once."""
-    import label_week
     db = app.config["SQLALCHEMY_DATABASE_URI"].removeprefix("sqlite:///")
     with sqlite3.connect(db) as con:
         assert con.execute("SELECT count(*) FROM articles").fetchone()[0] > 100
@@ -106,7 +104,6 @@ def test_labelling_a_week_cuts_its_windows_from_the_database(loaded, app):
     ("Live: Paris bans protests after violent unrest", True),
 ])
 def test_what_counts_as_news(title, news):
-    from news import is_news
     assert is_news({"title": title, "url": "https://example.com/world/1"}) is news
     assert not is_news({"title": title, "url": "https://example.com/opinion/1"})
 
@@ -124,6 +121,5 @@ NEWS_URL = "https://example.com/news/1"
     ("Macron bans protests", NEWS_URL, "France banned protests on Thursday, police said.", {"lede_when", "lede_said"}),
 ])
 def test_formats(title, url, summary, signals):
-    from news import formats
     found = {k for k, v in formats({"title": title, "url": url, "summary": summary}).items() if v}
     assert found - {"no_summary"} == signals

@@ -24,7 +24,12 @@ from datetime import UTC, datetime, timedelta
 from flask import current_app
 
 import cluster as clustering
-from models import Article, Label, db, utcnow
+import learn
+from geo import locate
+from models import Label, db
+from news import news_only
+from pipeline import SHOWN, in_window, latest_itn
+from score import assess, match_itn, rank_features
 from sources import BY_KEY
 
 RANK_ANSWERS = {"a", "b", "equal"}
@@ -49,12 +54,8 @@ def snapshots_dir() -> pathlib.Path:
 
 def save_snapshot(now: datetime) -> str:
     """The articles the app is grouping now, as the fetcher returns them."""
-    from pipeline import WINDOW, latest_itn
-    since = now - WINDOW
-    articles = Article.query.filter(db.or_(Article.published >= since,
-                                           db.and_(Article.published.is_(None), Article.fetched >= since))).all()
     items = [{"source": a.source, "title": a.title, "url": a.url, "summary": a.summary, "position": a.position,
-              "published": (a.published or a.fetched).isoformat()} for a in articles]
+              "published": (a.published or a.fetched).isoformat()} for a in in_window(now)]
     name = now.strftime("%Y-%m-%dT%H%M")
     data = {"taken": now.isoformat(), "items": items, "itn": latest_itn()}
     with gzip.open(snapshots_dir() / f"{name}.json.gz", "wt", encoding="utf-8") as f:
@@ -95,10 +96,6 @@ def assessed(items: list[dict], itn: dict, now: datetime) -> list[tuple[list[dic
     """Each story with its assessment, as pipeline.regroup makes them. Without
     the history of when an "In the news" item first appeared, every match
     counts as fresh."""
-    from geo import locate
-    from news import news_only
-    from pipeline import SHOWN
-    from score import assess, match_itn
     items = news_only(items)                 # as the pipeline groups them
     groups = [[items[i] for i in g] for g in clustering.cluster(items)]
     matched = match_itn(groups, itn.get("items", []))
@@ -217,18 +214,6 @@ def _by_snapshot(labels: list[Label]):
             continue
 
 
-def _by_snapshot(labels: list[Label]):
-    """(snapshot's articles, ITN, time taken, its labels) for each snapshot still on disk."""
-    by: dict[str, list[Label]] = {}
-    for label in labels:
-        by.setdefault(label.snapshot, []).append(label)
-    for name, group_labels in by.items():
-        try:
-            yield (*load_snapshot(name), group_labels)
-        except (OSError, ValueError):
-            continue
-
-
 def evaluate(labels: list[Label]) -> dict:
     """Ranking: how often the higher score is the one you picked ("equal" left
     out). The bar: how often a story's tier agrees with whether you'd show it
@@ -261,8 +246,6 @@ def evaluate(labels: list[Label]) -> dict:
 def rank_examples(labels: list[Label]) -> list[tuple[list[float], list[float], bool]]:
     """Your rankings as examples for learn.fit_rank: both stories' score parts
     and which you picked. Stories are grouped as the app groups them."""
-    import learn
-    from score import rank_features
     out = []
     with learn.using({}):
         for items, itn, taken, group_labels in _by_snapshot([lb for lb in labels if lb.kind == "rank"]):
@@ -281,7 +264,6 @@ def rank_examples(labels: list[Label]) -> list[tuple[list[float], list[float], b
 def place_examples(windows) -> list:
     """The ground truth's events with a place (evaluation/groundtruth.py) as examples for
     learn.fit_place: each event's candidate countries and the one it's in."""
-    import learn
     out = []
     for w in windows:
         members: dict[str, list[dict]] = {}
@@ -306,10 +288,10 @@ def split_holdout(labels: list[Label], days: int = HOLDOUT_DAYS) -> tuple[list[L
     return [lb for lb in labels if lb not in held], held
 
 
-def prune_snapshots(days: int = 30):
+def prune_snapshots(now: datetime, days: int = 30):
     """Drop snapshots over `days` old that nothing was judged on."""
     judged = {name for (name,) in db.session.query(Label.snapshot).distinct()}
-    cutoff = utcnow() - timedelta(days=days)
+    cutoff = now - timedelta(days=days)
     for path in snapshots_dir().glob("*.json.gz"):
         name = path.name.removesuffix(".json.gz")
         taken = datetime.strptime(name, "%Y-%m-%dT%H%M").replace(tzinfo=UTC) if _NAME.match(name) else None

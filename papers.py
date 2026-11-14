@@ -9,13 +9,13 @@ weekly batch lasts until its next.
 import html
 import math
 import re
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import feedparser
 import requests
 
 from journals import BY_KEY, FIELDS, JOURNALS, LEFT_OUT, Journal
-from models import Paper, SourceStatus, db, utcnow
+from models import Paper, SourceStatus, db
 from sources import USER_AGENT
 
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
@@ -219,10 +219,9 @@ def figure_for(doi: str) -> str | None:
 
 # ---------- a fetch ----------
 
-def fetch(now: datetime | None = None) -> dict:
+def fetch(now: datetime) -> dict:
     """Read every journal for the last WINDOW and forget what's older than KEEP; returns
     {status key: (papers, error)}."""
-    now = now or datetime.now(UTC)
     since, until = (now - WINDOW).date(), now.date()
     report = {}
     for j in JOURNALS:
@@ -234,7 +233,7 @@ def fetch(now: datetime | None = None) -> dict:
     SourceStatus.record(report, now)
     _link_commentaries(since)
     _covers()
-    _enrich()
+    _enrich(now)
     prune(now - KEEP)
     db.session.commit()
     return report
@@ -343,7 +342,7 @@ def _covers():
     db.session.commit()
 
 
-def _enrich(limit: int = 60):
+def _enrich(now: datetime, limit: int = 60):
     """Look once for the figure of each paper that will run, and for the summary of a commentary
     Europe PMC has none for (Nature's News & Views: its page's description)."""
     discussed = db.session.query(Paper.on).filter(Paper.kind == "commentary", Paper.on.isnot(None))
@@ -357,7 +356,7 @@ def _enrich(limit: int = 60):
                 p.abstract = clean(page_meta(p.url).get("description"))
         except (requests.RequestException, ValueError, KeyError):
             continue        # tried again next time
-        p.enriched = utcnow()
+        p.enriched = now
         db.session.commit()
 
 

@@ -36,9 +36,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 import check_news_labels  # noqa: E402
-import label_news  # noqa: E402
-
 import embed  # noqa: E402
+import label_news  # noqa: E402
 import news  # noqa: E402
 from evaluation import groundtruth  # noqa: E402
 from fetch import topic_page  # noqa: E402

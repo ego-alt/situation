@@ -149,6 +149,14 @@ class Signal(db.Model):
     seen = db.Column(UtcDateTime, default=utcnow)               # when Situation first saw it
 
 
+class Page(db.Model):
+    """The page's data as last made up (page.py): the one row, kept as the JSON text it's served as."""
+    __tablename__ = "pages"
+    id = db.Column(db.Integer, primary_key=True)
+    made = db.Column(UtcDateTime, nullable=False)
+    body = db.Column(db.Text, nullable=False)
+
+
 class DayTally(db.Model):
     """The most stories shown at once on each day (UTC), to tune the bar."""
     __tablename__ = "day_tallies"
@@ -164,8 +172,8 @@ class Label(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     kind = db.Column(db.String, nullable=False, index=True)     # rank | show
     snapshot = db.Column(db.String, nullable=False, index=True) # instance/snapshots/<name>.json.gz
-    a = db.Column(db.JSON, nullable=False)                      # same: an article; rank: a story's headline and urls
-    b = db.Column(db.JSON, nullable=False)
+    a = db.Column(db.JSON, nullable=False)                      # a story's headline, urls and outlets
+    b = db.Column(db.JSON, nullable=False)                      # rank: the story it's set against; show: {}
     answer = db.Column(db.String, nullable=False)               # a|b|equal, or yes|no|borderline
     at = db.Column(UtcDateTime, default=utcnow, index=True)
     source = db.Column(db.String, nullable=False, default="you", index=True)   # you, or claude:<model>

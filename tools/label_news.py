@@ -22,10 +22,9 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
-from label_week import MODEL, NEWS_CHUNK, NEWS_RUBRIC, answer_of, news_request, parse_news  # noqa: E402
-
 import news  # noqa: E402
 from evaluation import groundtruth  # noqa: E402
+from label_week import MODEL, NEWS_CHUNK, NEWS_RUBRIC, answer_of, news_request, parse_news  # noqa: E402
 
 
 def path_of(folder: str | None) -> pathlib.Path:

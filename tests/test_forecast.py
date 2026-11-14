@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import forecast
+import pipeline
 from models import Article, Guess, Issue, Question, db
 
 OUT = datetime(2026, 11, 11, tzinfo=UTC)       # the issue of the 11th comes out
@@ -254,7 +255,6 @@ def test_an_issue_not_out_yet_has_no_forecast(app):
 
 
 def test_the_api(app, polymarket, monkeypatch):
-    import pipeline
     ask()
     monkeypatch.setattr(pipeline, "clock", lambda: OUT + timedelta(hours=1))
     polymarket["market"] = market(10, "", 0.61, 5e5)

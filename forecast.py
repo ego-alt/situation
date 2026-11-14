@@ -23,7 +23,7 @@ from datetime import UTC, datetime, timedelta
 import requests
 
 from dispatch import latest, out
-from models import Article, Guess, Issue, Question, SourceStatus, db, utcnow
+from models import Article, Guess, Issue, Question, SourceStatus, db
 from papers import get
 from sources import BY_KEY
 from text import cosine, tfidf, tokens
@@ -270,9 +270,8 @@ def due(now: datetime) -> bool:
     return not status or not status.last_try or now - status.last_try >= EVERY
 
 
-def run(now: datetime | None = None):
+def run(now: datetime):
     """Ask the question of the issue just out, if it hasn't been, and look for results."""
-    now = now or utcnow()
     error = None
     try:
         if askable(latest(now), now):

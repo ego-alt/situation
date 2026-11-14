@@ -3,7 +3,8 @@ signals, one per earthquake, shown while they happen and for two days after."""
 from datetime import UTC, datetime, timedelta
 
 import signals
-from models import Signal
+from models import Article, Signal, Story, db
+from page import _signals
 
 NOW = datetime(2026, 11, 4, 12, tzinfo=UTC)
 
@@ -71,8 +72,6 @@ def test_signals_show_while_they_happen_and_two_days_after(app):
 
 
 def test_a_story_about_the_event_is_tied_to_its_signal(app):
-    from app import _signals
-    from models import Article, Story, db
     signals.fetch(NOW, get=fake_get)
     story = Story(headline="Strong earthquake shakes western China", tier="headline", iso="CN", outlets=5,
                   first_seen=QUAKE)

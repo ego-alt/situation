@@ -25,9 +25,11 @@ dev = [
 
 [tool.ruff]
 line-length = 120
+src = [".", "tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "TID"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tools"]      # the tools are scripts, tested as modules

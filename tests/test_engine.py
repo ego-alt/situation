@@ -1,10 +1,15 @@
 """Clustering, places and scoring on the real snapshot of 18 Oct 2026, the
 day of the French riots, the Houthi attacks on Saudi airports and the fire
 at CFB Wainwright."""
-from cluster import cluster
-from geo import locate, places
-from score import assess, clean_title, is_headline, match_itn, pick_headline
-from tests.conftest import NOW, snapshot_items
+import json
+import pathlib
+from datetime import timedelta
+
+from cluster import by_rules, cluster
+from geo import locate, places, spots, surnames
+from score import assess, clean_title, copies, is_headline, match_itn, need, pick_headline
+from sources import BY_KEY
+from tests.conftest import NOW, SNAPSHOT_3, snapshot_items
 
 
 def _groups():
@@ -66,9 +71,6 @@ def test_headline_skips_live_blogs_and_emoji():
 
 
 def _article(source, position, title="Huge blast hits port city of Odesa", hours=1):
-    from datetime import timedelta
-
-    from sources import BY_KEY
     return {"source": source, "outlet": BY_KEY[source].outlet, "title": title, "position": position,
             "published": NOW - timedelta(hours=hours)}
 
@@ -116,7 +118,6 @@ def test_places_from_leaders_capitals_and_cities():
 # ---------- places inside countries ----------
 
 def _spots(text):
-    from geo import spots
     return [(s["name"], s["iso"], s["kind"]) for s in spots(text)]
 
 
@@ -139,9 +140,6 @@ def test_names_that_arent_places_here():
 
 
 def _story(hours_ago_broke, outlets=("bbc", "nyt", "guardian", "aljazeera"), recent=0, title="Earthquake hits city"):
-    from datetime import timedelta
-
-    from sources import BY_KEY
     arts = [{"source": o, "outlet": BY_KEY[o].outlet, "title": title, "position": 9,
              "published": NOW - timedelta(hours=hours_ago_broke)} for o in outlets]
     for o in ("france24", "dw", "npr")[:recent]:         # outlets still writing about it
@@ -192,7 +190,6 @@ def test_running_story_labels_and_topic_pages_are_not_headlines():
 
 
 def test_stories_that_share_names_but_not_events_stay_apart():
-    from tests.conftest import SNAPSHOT_3
     items, _ = snapshot_items(SNAPSHOT_3)
     groups = [[items[i]["title"].lower() for i in g] for g in cluster(items)]
     def story(*words):
@@ -206,7 +203,6 @@ def test_stories_that_share_names_but_not_events_stay_apart():
 
 
 def test_a_wires_copy_is_not_a_second_vote():
-    from score import copies, need
     title = "China's economy grows 4.5% in third quarter on robust exports"
     wire = {"source": "reuters", "outlet": "Reuters", "title": title}
     cna = {"source": "cna", "outlet": "CNA", "title": title}
@@ -218,10 +214,7 @@ def test_a_wires_copy_is_not_a_second_vote():
 def test_riots_in_two_countries_are_two_stories():
     """The French unrest and Italy's Milan riots, as they were fused on 21 Oct
     2026: alike in what happened (riots, curfews, troops), apart in where."""
-    import json
-    import pathlib
 
-    from geo import locate
 
     items = json.loads((pathlib.Path(__file__).parent / "fixtures" / "france_italy_riots.json").read_text())
     groups = [[items[i] for i in g] for g in cluster(items)]
@@ -244,7 +237,6 @@ def test_headline_names_the_story_country():
 def test_a_surname_is_not_a_small_town():
     """"Mike Rogers" makes a bare "Rogers" a person, not Rogers, Arkansas; a big
     city, a region or a place named in full never becomes a surname."""
-    from geo import surnames
     texts = ["Republican Mike Rogers wins the Michigan Senate race", "Real Madrid beat Barcelona",
              "Students at the University of Michigan vote", "New York City counts its ballots"]
     assert surnames(texts) == {"Rogers"}
@@ -253,7 +245,6 @@ def test_a_surname_is_not_a_small_town():
 def test_one_shared_phrase_is_not_one_event():
     """Taiwan's police cracking down on election meddling and Iran's authorities cracking
     down on dissent, as they were grouped on 6 Nov 2026: alike in two words, nothing else."""
-    from cluster import by_rules
     others = ["Floods force thousands from homes in Bangladesh", "Central bank holds rates steady",
               "Parliament passes budget after late vote", "Typhoon Champi brushes past Taiwan",
               "Wildfire spreads near Athens suburbs", "Train strike halts services in Germany"]

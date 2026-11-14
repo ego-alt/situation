@@ -126,23 +126,27 @@ ACTOR_WORDS = {"Washington", "White House", "Pentagon", "Kremlin", "Beijing", "M
 AMBIGUOUS = {"Georgia", "Jordan", "Chad"}
 
 
+def alternates(text: str | None) -> list[str]:
+    """The names in one of the tables' comma-separated lists."""
+    return [n.strip() for n in (text or "").split(",") if n.strip()]
+
+
 @lru_cache(maxsize=1)
 def _table():
     countries = {c["iso"]: c for c in json.loads(_DATA.read_text())}
     patterns = []
-    split = lambda text: [n.strip() for n in (text or "").split(",") if n.strip()]  # noqa: E731
     tables = (("demonym", DEMONYMS), ("alias", ALIASES), ("capital", CAPITALS), ("city", CITIES), ("leader", LEADERS))
     for iso, c in countries.items():
         found = {n: "name" for n in c["names"]}
         for kind, table in tables:
-            for n in split(table.get(iso)):
+            for n in alternates(table.get(iso)):
                 found.setdefault(n, kind)
         patterns += [(n, iso, kind) for n, kind in found.items() if len(n) >= 2]
     for iso, (name, lat, lon, more) in EXTRA.items():
         countries.setdefault(iso, {"iso": iso, "name": name, "lat": lat, "lon": lon})
-        patterns += [(n, iso, "name") for n in [name, *split(more)]]
-        patterns += [(n, iso, "alias") for n in split(ALIASES.get(iso))]
-        patterns += [(n, iso, "leader") for n in split(LEADERS.get(iso))]
+        patterns += [(n, iso, "name") for n in [name, *alternates(more)]]
+        patterns += [(n, iso, "alias") for n in alternates(ALIASES.get(iso))]
+        patterns += [(n, iso, "leader") for n in alternates(LEADERS.get(iso))]
     # Longest first, so "South Sudan" wins over "Sudan" and "Hong Kong" over "Kong".
     patterns.sort(key=lambda p: -len(p[0]))
     regex = re.compile(r"\b(" + "|".join(re.escape(p[0]) for p in patterns) + r")\b")
@@ -299,8 +303,7 @@ def surnames(texts) -> set[str]:
 
 @lru_cache(maxsize=1)
 def _capitals() -> set[str]:
-    return {n.strip() for v in CAPITALS.values() for n in v.split(",")} | {
-        n.strip() for v in CITIES.values() for n in v.split(",")}
+    return {n for table in (CAPITALS, CITIES) for v in table.values() for n in alternates(v)}
 
 
 # ---------- local time and country facts ----------
@@ -351,12 +354,17 @@ def timezone(iso: str | None, lat: float | None = None, lon: float | None = None
 
 def _capital_at(iso: str) -> tuple[float, float]:
     """Where a country's capital is (its middle when the gazetteer doesn't know it)."""
-    for capital in (CAPITALS.get(iso) or "").split(","):
-        for c_iso, lat, lon, _, kind in _gazetteer().get(capital.strip(), []):
+    for capital in alternates(CAPITALS.get(iso)):
+        for c_iso, lat, lon, _, kind in _gazetteer().get(capital, []):
             if c_iso == iso and kind == "city":
                 return lat, lon
     c = _table()[0][iso]
     return c["lat"], c["lon"]
+
+
+def from_iso3(iso3: str | None) -> str | None:
+    """A country's two-letter code from its three-letter one ("VUT": "VU")."""
+    return next((iso for iso, c in _table()[0].items() if c.get("iso3") == iso3), None) if iso3 else None
 
 
 def country(iso: str) -> dict | None:
@@ -365,7 +373,7 @@ def country(iso: str) -> dict | None:
     c = _table()[0].get(iso)
     if c is None:
         return None
-    first = lambda table: (table.get(iso) or "").split(",")[0].strip() or None  # noqa: E731
+    first = lambda table: next(iter(alternates(table.get(iso))), None)  # noqa: E731
     return {"iso": iso, "name": c["name"], "region": c.get("subregion") or c.get("continent"),
             "capital": first(CAPITALS), "leader": first(LEADERS), "zone": timezone(iso),
             "flag": (_DATA.parent.parent / "static" / "flags" / f"{iso}.svg").exists(), **_facts().get(iso, {})}

@@ -25,7 +25,7 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 from functools import lru_cache
 
-from geo import ALIASES, DEMONYMS, country, place_names, places
+from geo import ALIASES, DEMONYMS, alternates, country, place_names, places
 from sources import outlet
 from text import STOPWORDS, names, tokens, where
 
@@ -180,9 +180,8 @@ def _country_names(iso: str | None) -> list[str]:
     ("US", then "United States of America", "American")."""
     if not iso or not country(iso):
         return []
-    split = lambda text: [n.strip() for n in (text or "").split(",") if n.strip()]  # noqa: E731
-    aliases = [a for a in split(ALIASES.get(iso)) if a.isupper() and len(a) <= 4]
-    return [*aliases, country(iso)["name"], *split(DEMONYMS.get(iso))]
+    aliases = [a for a in alternates(ALIASES.get(iso)) if a.isupper() and len(a) <= 4]
+    return [*aliases, country(iso)["name"], *alternates(DEMONYMS.get(iso))]
 
 
 def topics(day: list[dict], usual: Counter, days: int) -> list[dict]:

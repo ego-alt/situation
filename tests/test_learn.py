@@ -4,11 +4,13 @@ import random
 
 import pytest
 
+import cluster
 import embed
+import geo
 import labels
 import learn
 from models import Label
-from tests.conftest import NOW
+from tests.conftest import NOW, snapshot_items
 
 
 def test_ranking_weights_come_back_from_answers():
@@ -46,7 +48,6 @@ def test_meaning_likeness_sees_past_different_words():
 
 
 def test_local_time_where_it_happens(loaded, app):
-    import geo
     assert geo.timezone("FR") == "Europe/Paris"
     assert geo.timezone("US", 34.05, -118.24) == "America/Los_Angeles"
     assert geo.timezone("US") == "America/New_York"                     # the capital's
@@ -82,8 +83,6 @@ def test_would_you_show_it(loaded, app):
 def test_grouping_by_meaning_when_switched_on(loaded, app, tmp_path):
     """instance/models/meaning.json switches grouping from the hand rules to
     average linkage on meaning; every article lands in exactly one story."""
-    import cluster
-    from tests.conftest import snapshot_items
     items, _ = snapshot_items()
     app.config["MODELS_DIR"] = str(tmp_path / "models")
     assert cluster.cluster(items) == cluster.by_rules(items)

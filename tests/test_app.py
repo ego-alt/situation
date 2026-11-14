@@ -1,14 +1,28 @@
 """The stored pipeline, the page's data, and the brief."""
-from app import brief_text, snapshot
-from fetch import parse_itn
-from models import Story
-from pipeline import regroup
+import json
+import pathlib
+import re
+import threading
+import time
+from datetime import timedelta
+
+from sqlalchemy import DateTime
+
+import app as app_module
+import labels
+import page
+import pipeline
+from fetch import parse_itn, web_link
+from models import Article, DayTally, ItnSnapshot, Label, Page, SourceStatus, Story, db
+from ongoing import about_situation
+from pipeline import _close, regroup, save_itn, source_health, store
 from projection import HEIGHT, WIDTH, project
-from tests.conftest import NOW
+from score import BACKGROUND, MAJOR
+from tests.conftest import NOW, NOW_2, SNAPSHOT_2, snapshot_items
 
 
 def test_snapshot_shows_only_what_matters(loaded):
-    snap = snapshot.__wrapped__() if hasattr(snapshot, "__wrapped__") else snapshot()
+    snap = page.build(NOW)
     shown = snap["stories"]
     assert 5 <= len(shown) <= 10
     assert shown[0]["tier"] == "major" and shown[0]["sources"]
@@ -24,15 +38,31 @@ def test_story_ids_survive_a_refetch(loaded):
 
 
 def test_brief(loaded):
-    text = brief_text(snapshot())
+    text = page.brief(page.build(NOW))
     assert text.count("\n") <= 4 and text.startswith("▲")
-    assert brief_text({"stories": []}).startswith("Quiet day")
+    assert page.brief({"stories": []}).startswith("Quiet day")
 
 
 def test_api(loaded, app):
     res = app.test_client().get("/api/situation")
     body = res.get_json()
     assert res.status_code == 200 and body["counts"]["major"] == 3 and body["sources"]["total"] == 17
+
+
+def test_the_page_is_made_up_after_a_fetch_and_served_as_kept(loaded, app, monkeypatch):
+    monkeypatch.setattr(app_module, "fetch_all", lambda report: report.update(bbc=(5, None)) or [])
+    monkeypatch.setattr(app_module, "fetch_itn", lambda: {"items": [], "ongoing": []})
+    monkeypatch.setattr(app_module.signals, "fetch", lambda now: 0)
+    client = app.test_client()
+    first = client.get("/api/situation")
+    assert client.get("/api/situation", headers={"If-None-Match": first.headers["ETag"]}).status_code == 304
+    SourceStatus.record({"nyt": (9, None)}, NOW)
+    assert client.get("/api/situation").data == first.data          # not made up again for each reader
+    assert first.get_json()["fetched"] is None
+    app_module.fetch_once()
+    after = client.get("/api/situation", headers={"If-None-Match": first.headers["ETag"]})
+    assert after.status_code == 200 and after.get_json()["fetched"] == NOW.isoformat()
+
 
 
 def test_itn_parsing():
@@ -63,15 +93,12 @@ def test_links_carry_the_stack_prefix(app):
 # ---------- what the audit asked for ----------
 
 def test_only_web_links_become_links():
-    from fetch import web_link
     assert web_link(" https://www.bbc.co.uk/news/1 ") == "https://www.bbc.co.uk/news/1"
     assert web_link("javascript:alert(document.cookie)") is None
     assert web_link("data:text/html,<script>") is None and web_link(None) is None
 
 
 def test_in_the_news_is_kept_only_when_it_changes(app):
-    from models import ItnSnapshot
-    from pipeline import save_itn
     itn = {"items": ["A town hall burns down in France."], "ongoing": ["Iran war"]}
     save_itn(itn, NOW)
     save_itn(itn, NOW)
@@ -81,55 +108,41 @@ def test_in_the_news_is_kept_only_when_it_changes(app):
 
 def test_stories_close_instead_of_vanishing(loaded, monkeypatch):
     """Two days later, today's stories are closed with their ids, and off the list."""
-    from datetime import timedelta
 
-    import pipeline
-    shown = {s["id"]: s["headline"] for s in snapshot()["stories"]}
+    shown = {s["id"]: s["headline"] for s in page.build(pipeline.clock())["stories"]}
     later = NOW + timedelta(days=3)
     monkeypatch.setattr(pipeline, "clock", lambda: later)
     regroup(later)
     assert Story.query.filter_by(closed=False).count() == 0
     assert Story.query.filter_by(tier="background").count() == 0      # never shown: not kept
-    assert snapshot()["stories"] == []
+    assert page.build(pipeline.clock())["stories"] == []
     assert {s.id: s.headline for s in Story.query.filter(Story.id.in_(shown))} == shown
 
 
 def test_a_silent_feed_is_flagged(app):
-    from datetime import timedelta
-
-    from models import SourceStatus
-    from pipeline import source_health
-    from sources import SOURCES
     SourceStatus.record({"bbc": (0, "HTTP 404"), "nyt": (40, None)}, NOW - timedelta(hours=7))
     SourceStatus.record({"bbc": (0, "HTTP 404"), "nyt": (38, None)}, NOW)
-    health = source_health(SOURCES, NOW)
+    health = source_health(NOW)
     assert health == {"ok": 16, "total": 17, "silent": ["BBC"]}       # the 12 never tried don't count against
 
 
 def test_health_fails_once_no_feed_has_answered_for_an_hour(app, monkeypatch):
-    import time
-    from datetime import timedelta
-
-    import app as app_module
-    from models import SourceStatus
     client = app.test_client()
     assert client.get("/healthz").status_code == 200                  # just started: give it time
     monkeypatch.setattr(app_module, "STARTED", time.monotonic() - 7200)
     assert client.get("/healthz").status_code == 503                  # up two hours, nothing fetched
     SourceStatus.record({"bbc": (30, None)}, NOW - timedelta(hours=2))
+    SourceStatus.record({"signals:usgs": (4, None), "papers:nature": (12, None)}, NOW)    # not the news
     assert client.get("/healthz").status_code == 503
     SourceStatus.record({"bbc": (30, None)}, NOW - timedelta(minutes=10))
     assert client.get("/healthz").get_json()["ok"] is True
 
 
 def test_the_second_day_is_capped_at_ten(app, monkeypatch):
-    import pipeline
-    from models import DayTally
-    from tests.conftest import NOW_2, SNAPSHOT_2, snapshot_items
     monkeypatch.setattr(pipeline, "clock", lambda: NOW_2)
     items, itn = snapshot_items(SNAPSHOT_2)
     pipeline.run(lambda: items, lambda: itn, NOW_2)
-    snap = snapshot()
+    snap = page.build(pipeline.clock())
     assert len(snap["stories"]) == 10 and snap["cleared"] > 10
     assert snap["stories"][0]["iso"] == "FR" and snap["stories"][0]["tier"] == "major"
     # A day on, the Pope and the Houthis make way for fresher stories.
@@ -139,16 +152,13 @@ def test_the_second_day_is_capped_at_ten(app, monkeypatch):
 
 
 def test_an_active_situation_without_shared_reports_quotes_nothing(loaded):
-    iran = next(o for o in snapshot()["ongoing"] if o["topic"] == "Iran war")
+    iran = next(o for o in page.build(pipeline.clock())["ongoing"] if o["topic"] == "Iran war")
     assert iran["latest"] is None and iran["singles"] >= 1           # a lone essay isn't the news
 
 
 def test_a_story_that_faded_is_closed_not_deleted(app):
     """Major once, background by the time it leaves the window: it was on the
     page, so it's kept (closed) and never pushed again."""
-    from models import db
-    from pipeline import _close
-    from score import BACKGROUND, MAJOR
 
     faded, never = Story(headline="", tier=BACKGROUND), Story(headline="", tier=BACKGROUND)
     db.session.add_all([faded, never])
@@ -162,9 +172,6 @@ def test_a_story_that_faded_is_closed_not_deleted(app):
 
 
 def test_only_rank_sets_a_tier():
-    import pathlib
-    import re
-
     root = pathlib.Path(__file__).resolve().parent.parent
     writes = re.compile(r"\.tier\s*(,[^=]*)?=(?!=)")   # story.tier = …, or story.tier, story.score = …
     offenders = [f"{p.name}:{n}" for p in root.glob("*.py") if p.name != "models.py"
@@ -173,27 +180,23 @@ def test_only_rank_sets_a_tier():
 
 
 def test_stories_carry_their_places(loaded):
-    france = next(s for s in snapshot()["stories"] if s["iso"] == "FR")
+    france = next(s for s in page.build(pipeline.clock())["stories"] if s["iso"] == "FR")
     names = [p["name"] for p in france["spots"]]
     assert {"Paris", "Limoges"} <= set(names) and all(p["iso"] == "FR" or p["n"] >= 2 for p in france["spots"])
     assert all(0 <= p["x"] <= 1000 for p in france["spots"])
 
 
 def test_an_active_situation_has_a_week_of_places(app, monkeypatch):
-    import pipeline
-    from tests.conftest import NOW_2, SNAPSHOT_2, snapshot_items
     monkeypatch.setattr(pipeline, "clock", lambda: NOW_2)
     items, itn = snapshot_items(SNAPSHOT_2)
     pipeline.run(lambda: items, lambda: itn, NOW_2)
-    war = next(o for o in snapshot()["ongoing"] if o["topic"] == "Russo-Ukrainian war")
+    war = next(o for o in page.build(pipeline.clock())["ongoing"] if o["topic"] == "Russo-Ukrainian war")
     names = [t["name"] for t in war["track"]]
     assert names[0] == "Kyiv" and war["track"][0]["n"] >= 5
     assert all(t["iso"] in {"UA", "RU"} and t["last"] for t in war["track"])
 
 
 def test_the_zoomed_map_files():
-    import json
-    import pathlib
     root = pathlib.Path(__file__).resolve().parent.parent
     fr = json.loads((root / "static/map/regions/FR.json").read_text())
     assert len(fr["regions"]) > 90 and fr["cities"][0]["name"] == "Paris"
@@ -204,11 +207,6 @@ def test_the_zoomed_map_files():
 
 
 def test_sync_fetches_now_but_not_twice_in_a_row(app, monkeypatch):
-    import threading
-    from datetime import timedelta
-
-    import app as app_module
-    from models import SourceStatus, db
     calls = []
 
     def fake_fetch(now=None):
@@ -233,31 +231,41 @@ def test_sync_fetches_now_but_not_twice_in_a_row(app, monkeypatch):
     assert result["status"] == "joined" and len(calls) == 1
 
 
-def test_each_source_says_when_it_went_out_and_was_updated(app):
-    from datetime import timedelta
+def test_two_making_the_page_up_at_once_keep_the_one_row(app, monkeypatch):
+    """A reader arriving before the first fetch is done makes the page up as the fetch loop does."""
+    slow = page.build
+    monkeypatch.setattr(page, "build", lambda now: time.sleep(0.2) or slow(now))
+    failed = []
 
-    from pipeline import store
+    def make():
+        with app.app_context():
+            try:
+                page.publish(NOW)
+            except Exception as e:  # noqa: BLE001 — whatever it is, it's the failure
+                failed.append(e)
+    threads = [threading.Thread(target=make) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(5)
+    assert failed == [] and db.session.query(Page).count() == 1
+
+
+def test_each_source_says_when_it_went_out_and_was_updated(app):
     item = {"source": "bbc", "outlet": "bbc", "title": "Storm hits coast", "url": "https://example.org/a",
             "published": NOW - timedelta(hours=3), "updated": NOW - timedelta(hours=3), "position": 0}
     store([item])
     store([{**item, "updated": NOW - timedelta(minutes=30)}])        # revised later: kept
-    from app import _story
-    from models import Article, Story, db
     story = Story(headline="Storm", tier="headline", articles=Article.query.all())
     db.session.add(story)
     db.session.commit()
-    source = _story(story)["sources"][0]
+    source = page._story(story, NOW)["sources"][0]
     assert source["published"].startswith("2026-10-18T23:00") and source["updated"].startswith("2026-10-19T01:30")
     story.articles[0].updated = story.articles[0].published + timedelta(minutes=2)   # stamped alike: no "updated"
-    assert _story(story)["sources"][0]["updated"] is None
+    assert page._story(story, NOW)["sources"][0]["updated"] is None
 
 
-def test_a_running_story_shows_its_latest_development(app, monkeypatch):
-    from datetime import timedelta
-
-    import pipeline
-    from app import _story
-    from models import Article, Story, db
+def test_a_running_story_shows_its_latest_development(app):
     def article(outlet, title, hours_ago):
         return Article(url=f"https://example.org/{outlet}/{hours_ago}", source=outlet, outlet=outlet, title=title,
                        published=(NOW - timedelta(hours=hours_ago)))
@@ -268,15 +276,12 @@ def test_a_running_story_shows_its_latest_development(app, monkeypatch):
     story = Story(headline="Riots spread across France", tier="major", articles=arts)
     db.session.add(story)
     db.session.commit()
-    latest = _story(story)["latest"]
+    latest = page._story(story, NOW)["latest"]
     assert latest["title"].startswith("Paris police") and latest["outlet"] == "AP"
-    monkeypatch.setattr(pipeline, "clock", lambda: NOW + timedelta(hours=8))   # nothing new for 9 hours
-    assert _story(story)["latest"] is None
+    assert page._story(story, NOW + timedelta(hours=8))["latest"] is None      # nothing new for 8 hours
 
 
 def test_labelling_questions_answers_and_evaluation(loaded, app):
-    import labels
-    from models import Label
     client = app.test_client()
     body = client.get("/api/label").get_json()
     q = body["question"]
@@ -302,7 +307,6 @@ def test_labelling_questions_answers_and_evaluation(loaded, app):
 
 def test_only_the_server_runs_the_fetch_loop(monkeypatch):
     """`flask fetch` fetching alongside its own background loop stored the same articles twice."""
-    import app as app_module
     monkeypatch.delenv("WERKZEUG_RUN_MAIN", raising=False)
     monkeypatch.delenv("FLASK_RUN_FROM_CLI", raising=False)
     assert app_module._serving()                                   # gunicorn
@@ -316,8 +320,6 @@ def test_only_the_server_runs_the_fetch_loop(monkeypatch):
 def test_a_situation_takes_stories_about_it_wherever_they_are(app):
     """By subject, not by place: a Russian strike reported from Germany is the war;
     a ban on Russia's ice hockey team, placed in Russia, isn't."""
-    from models import Article, db
-    from pipeline import about_situation
 
     def story(headline, iso, titles):
         s = Story(headline=headline, tier="headline", iso=iso, outlets=len(titles), first_seen=NOW)
@@ -342,9 +344,7 @@ def test_a_situation_takes_stories_about_it_wherever_they_are(app):
 def test_every_timestamp_column_is_utc():
     """Stored as UTC and read back with its zone (models.UtcDateTime), so no code
     strips or adds the zone by hand."""
-    from sqlalchemy import DateTime
 
-    from models import db
     columns = [(t.name, c) for t in db.metadata.tables.values() for c in t.columns]
     plain = [f"{name}.{c.name}" for name, c in columns if isinstance(c.type, DateTime)]
     assert plain == []

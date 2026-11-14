@@ -198,7 +198,7 @@
             const close = v.w < DETAIL_W;
             const theatre = document.querySelector('.theatre');
             theatre.classList.toggle('zoomed', !!view);
-            document.querySelector('.theatre').classList.toggle('close', close);
+            theatre.classList.toggle('close', close);
             drawDetail(v, close);
             // The news first, then the week's places, then cities for orientation: each gives way to the last.
             const taken = drawMarks(upp, close);
@@ -514,8 +514,8 @@
         document.querySelectorAll(`.news-mark[data-iso="${iso}"], .item[data-iso="${iso}"]`).forEach((n) => n.classList.toggle('active', on));
     }
 
-    /** Zoom to a country's mainland (not its far-off islands and territories). */
-    // A story's places are framed within their whole country, never a province alone.
+    /** Zoom to countries' mainlands (not their far-off islands and territories): a story's
+     * places are framed within their whole country, never a province alone. */
     async function zoomTo(isos, still = () => true) {
         const go = (bs) => setView(fit([Math.min(...bs.map((b) => b[0])), Math.min(...bs.map((b) => b[1])),
             Math.max(...bs.map((b) => b[2])), Math.max(...bs.map((b) => b[3]))]), true);
@@ -760,7 +760,6 @@
         return `<div class="section-head signal"><span>Signals</span><span class="n">${list.length}</span></div>${rows}`;
     }
 
-    /** Signals on the map: a thin double ring where it is, its short name beside it, quieter than the news. */
     /** The legend names only what's on the map: no signal swatch on a day without signals. */
     function drawLegend() {
         const shown = new Set(data ? countries().map((c) => c.kind) : []);
@@ -770,6 +769,7 @@
         legend.hidden = !shown.size;
     }
 
+    /** Signals on the map: a thin double ring where it is, its short name beside it, quieter than the news. */
     function drawSignals(upp, taken = []) {
         const layer = $('signals');
         if (!layer) return;
@@ -900,7 +900,7 @@
         const from = data?.fetched ? ` News from ${clockTime(data.fetched)}.` : '';
         if (failure === 'signed-out') notice = `Signed out, so this isn't updating.${from}`;
         else if (failure) notice = `Can't reach the server, so this isn't updating.${from}`;
-        else if (data && (!data.fetched || Date.now() - new Date(data.fetched) > STALE_MS)) {
+        else if (stale) {
             notice = data.fetched ? `No new news since ${clockTime(data.fetched)}: fetching seems stuck.` : 'No news fetched yet.';
         }
         $('notice').textContent = notice;
@@ -1034,11 +1034,14 @@
     }
 
     // Leaving the page ends the visit: what was on screen is no longer news when you come back.
+    // Coming back, the page asks for the news at once: it doesn't ask while it's hidden.
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden' && data) before = store(SEEN_KEY);
-        else if (data) drawFeed();
+        if (document.hidden) { if (data) before = store(SEEN_KEY); return; }
+        if (data) drawFeed();
+        refresh();
     });
 
+    let etag = null;   // of the data on screen: a poll that brings the same again isn't drawn again
     async function refresh() {
         try {
             const res = await fetch(url('/api/situation'), { credentials: 'same-origin' });
@@ -1047,10 +1050,14 @@
             } else if (!res.ok) {
                 throw new Error(res.status);
             } else {
-                data = await res.json();
                 failure = null;
-                remember();
-                drawFeed();
+                const tag = res.headers.get('ETag');
+                if (!tag || tag !== etag) {
+                    data = await res.json();
+                    etag = tag;
+                    remember();
+                    drawFeed();
+                }
             }
         } catch (_) {
             failure = 'offline';
@@ -1120,7 +1127,7 @@
         // The stories don't wait for the map: the list is what matters.
         loadMap();
         refresh();
-        setInterval(refresh, 60000);
+        setInterval(() => !document.hidden && refresh(), 60000);
         let resizing = null;
         window.addEventListener('resize', () => {
             clearTimeout(resizing);

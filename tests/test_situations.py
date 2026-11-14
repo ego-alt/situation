@@ -1,6 +1,7 @@
 """Running stories (situations.py): a burst of words across many outlets and
 events becomes one story, named for what its headlines call it; a quiet day,
 a single big event or too little history finds none."""
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 
 import situations
@@ -122,7 +123,6 @@ def test_results_pages_are_not_news():
 def test_an_event_mostly_about_another_country_goes_to_its_own():
     """Naming the US in passing doesn't make South Africa's election part of the midterms;
     an event that names the US at least half as often as anything stays."""
-    from collections import Counter
     assert situations._home(Counter({"ZA": 17, "US": 3}), "US") == "ZA"
     assert situations._home(Counter({"IL": 4, "US": 3}), "US") == "US"
     assert situations._home(Counter(), "US") == "US"

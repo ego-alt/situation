@@ -123,9 +123,7 @@ def formats(article: dict) -> dict[str, bool]:
     for name, (in_title, in_summary) in _FORMATS.items():
         out[name] = bool(re.search(in_title, title) or (in_summary and re.search(in_summary, opening)))
     out |= {name: bool(re.search(pattern, title)) for name, pattern in _SHAPES.items()}
-    out |= {
-        "no_summary": not summary,
-    }
+    out["no_summary"] = not summary
     out |= {name: bool(re.search(pattern, opening)) for name, pattern in _LEDES.items()}
     return out
 
