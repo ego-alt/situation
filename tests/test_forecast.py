@@ -70,6 +70,8 @@ def test_what_is_never_asked():
         event(9, "Later", [market(9, "Will it happen next month?", 0.5, 1e6, ends="2026-12-01T00:00:00Z")]),
         event(10, "New", [market(10, "Did it start after?", 0.5, 1e6, made="2026-11-12T00:00:00Z")]),
         event(11, "Untagged", [market(11, "Will anything happen?", 0.5, 1e6)], tags=("misc",)),
+        event(12, "What will NVIDIA (NVDA) hit?", [market(12, "Will NVIDIA (NVDA) hit (LOW) $148?", 0.5, 1e6)],
+              tags=("finance", "stocks", "hit-price")),                                     # a share price
     ]
     assert forecast.eligible(cases, OUT, OUT + timedelta(days=7)) == []
 
@@ -109,6 +111,7 @@ def test_the_reading_shares_a_name_with_the_question(app):
             ("bbc", "Republicans fight to keep the Senate as polls tighten"),
             ("reuters", "Republicans fight to keep the Senate as polls tighten"),          # the same headline again
             ("reuters", "Ghana inflation rises less than expected in October"),             # shares only a month
+            ("reuters", "Voters’ trust in the senate hits a new low"),                      # no name of its own
             ("guardian", "Fire safety reforms to be rolled out")]):                         # shares no name
         db.session.add(Article(url=f"https://example.org/{i}", source=source, outlet=source, title=title, fetched=week))
     db.session.add(Article(url="https://example.org/old", source="ap", outlet="ap",
@@ -117,6 +120,7 @@ def test_the_reading_shares_a_name_with_the_question(app):
     found = forecast.coverage("Will the Republican Party control the Senate in October?", OUT)
     assert [a["title"][:20] for a in found] == ["Libertarians could s", "Republicans fight to"]
     assert forecast.coverage("Will PPI be 6.8% or more in October?", OUT) == []
+    assert forecast.coverage("Will NVIDIA (NVDA) hit (LOW) $148?", OUT) == []      # a word in capitals is no name there
 
 
 # ---------- asking and settling ----------

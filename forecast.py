@@ -62,7 +62,8 @@ SUBJECTS = [
 # What's never asked: subjects you don't want, and markets that are coin flips, not questions.
 BLOCK_TAGS = {"sports", "esports", "crypto", "crypto-prices", "bitcoin", "ethereum", "solana", "memecoins",
               "pop-culture", "culture", "entertainment", "games", "awards", "movies", "music", "celebrities",
-              "mentions", "tweet-markets", "elon-tweets", "up-or-down", "combos", "parlays", "midterm-combos"}
+              "mentions", "tweet-markets", "elon-tweets", "up-or-down", "combos", "parlays", "midterm-combos",
+              "stocks", "equities", "hit-price", "finance-updown"}
 BLOCK_WORDS = re.compile(
     r"\b(die[sd]?|death|dead|kill\w*|assassinat\w*|attack\w*|strikes?|struck|bomb\w*|shoot\w*|invade[sd]?|"
     r"invasion|missiles?|drones?|casualt\w*|hostages?|war|ceasefire|ukmto|incidents?|"
@@ -170,16 +171,19 @@ NOT_NAMES = set(tokens("x January February March April May June July August Sept
                        "Monday Tuesday Wednesday Thursday Friday Saturday Sunday"))
 
 
+def _names(terms: dict) -> set[str]:
+    return {t for t, n in terms.items() if n >= 2} - NOT_NAMES       # tokens() counts a name twice
+
+
 def coverage(title: str, start: datetime, limit: int = 3) -> list[dict]:
-    """The articles from the week before `start` that share a name with the question (the
-    News tab shows few stories; its feeds carry the rest), most alike first, one per headline."""
+    """The articles from the week before `start` that share a name with the question, a name in
+    both (the News tab shows few stories; its feeds carry the rest), most alike first, one per headline."""
     articles = Article.query.filter(Article.fetched >= start - timedelta(days=7), Article.fetched < start).all()
     question = tokens(title)
-    names = {t for t, n in question.items() if n >= 2} - NOT_NAMES       # tokens() counts a name twice
     docs = [tokens(a.title) for a in articles]
     vectors = tfidf([question, *docs])
     alike = sorted(((cosine(vectors[0], v), a) for v, a, d in zip(vectors[1:], articles, docs, strict=True)
-                    if names & set(d)), key=lambda x: -x[0])
+                    if _names(question) & _names(d)), key=lambda x: -x[0])
     out, seen = [], set()
     for _, a in alike:
         if a.title.lower() not in seen and len(out) < limit:
