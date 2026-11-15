@@ -206,7 +206,7 @@ class Issue(db.Model):
     __tablename__ = "issues"
     edition = db.Column(db.String, primary_key=True)            # 2026-11-12: the day it came out
     out = db.Column(UtcDateTime, nullable=False)
-    stories = db.Column(db.JSON, nullable=False)                # the front page: papers.take and features.take
+    stories = db.Column(db.JSON, nullable=False)                # the front page: papers.take, in dispatch.front's order
     print = db.Column(db.JSON)                                  # one of data/prints.json
     poem = db.Column(db.JSON)                                   # one of data/poems.json
     dates = db.Column(db.JSON, nullable=False)                  # dates.ahead

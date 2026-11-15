@@ -1,9 +1,9 @@
 """Dispatch: the daily issue to read, out each morning at 8 in Hong Kong.
 
-Its front page is read in place: the papers the journals made more of (papers.py) and a piece
-from each of features.py's places. Under it, a print from the Cleveland Museum of Art with what
-the museum says of it, a poem from 唐詩三百首 or 宋詞三百首 to learn by heart, the day's question
-(forecast.py, added by the app, which knows who's reading) and the dates coming up (dates.py).
+Its front page is read in place: the papers the journals made more of (papers.py), on the days
+there are some. Under it, a print from the Cleveland Museum of Art with what the museum says of
+it, a poem from 唐詩三百首 or 宋詞三百首 to learn by heart, the day's question (forecast.py, added
+by the app, which knows who's reading) and the dates coming up (dates.py).
 An issue is made up when it comes out (publish), from what its sources say then, and shown
 unchanged from then on. A periodical, not an archive: a week of issues is kept.
 """
@@ -13,12 +13,11 @@ import random
 from datetime import UTC, date, datetime, time, timedelta
 
 import dates
-import features
 import papers
 from journals import JOURNALS
 from models import Issue, SourceStatus, db
 
-KEEP = timedelta(days=7)        # a week of issues, then they go (longer than features.FRESH, so no piece comes twice)
+KEEP = timedelta(days=7)        # a week of issues, then they go
 DATA = pathlib.Path(__file__).parent / "data"
 # 唐詩三百首 and 宋詞三百首, in Hong Kong's characters (tools/add_poems.py).
 POEMS = json.loads((DATA / "poems.json").read_text(encoding="utf-8"))
@@ -54,8 +53,8 @@ def front(stories: list[dict]) -> list[dict]:
 def publish(now: datetime) -> str | None:
     """Make up today's issue, if it isn't yet, and drop those older than KEEP; returns its
     edition when it was made. It waits for the journals to have answered since it came out (a
-    place that doesn't answer is only late: its pieces wait for tomorrow), and a day missed
-    altogether has no issue."""
+    calendar that doesn't answer is only missed this once), and a day missed altogether has no
+    issue."""
     edition = latest(now)
     if db.session.get(Issue, edition):
         return None
@@ -65,13 +64,11 @@ def publish(now: datetime) -> str | None:
             return None
     day = now.date()
     Issue.query.filter(Issue.edition < (day - KEEP).isoformat()).delete()
-    carried = {s["id"] for i in Issue.query for s in i.stories}
-    # What's read from elsewhere first (each read is noted as it's made); then the papers and the
-    # issue together, so a paper is run only in an issue that came out.
-    pieces, ahead = features.take(now, carried), dates.ahead(day, now)
-    stories = papers.take(edition, day) + pieces
-    db.session.add(Issue(edition=edition, out=out(edition), stories=front(stories), print=turn(PRINTS, "print", day),
-                         poem=turn(POEMS, "poem", day), dates=ahead))
+    # The calendars first (each read is noted as it's made); then the papers and the issue
+    # together, so a paper is run only in an issue that came out.
+    ahead = dates.ahead(day, now)
+    db.session.add(Issue(edition=edition, out=out(edition), stories=front(papers.take(edition, day)),
+                         print=turn(PRINTS, "print", day), poem=turn(POEMS, "poem", day), dates=ahead))
     db.session.commit()
     return edition
 
@@ -80,8 +77,7 @@ def publish(now: datetime) -> str | None:
 
 def sources() -> dict:
     """How the places an issue is made from last answered: {"total", "failing": [names]}, and when one last did."""
-    names = ({f"papers:{j.key}": j.name for j in JOURNALS} | {f"features:{f.key}": f.name for f in features.FEATURES}
-             | dates.SOURCES)
+    names = {f"papers:{j.key}": j.name for j in JOURNALS} | dates.SOURCES
     rows = {r.key: r for r in SourceStatus.query.filter(SourceStatus.key.in_(names))}
     answered = max((r.last_ok for r in rows.values() if r.last_ok), default=None)
     failing = [name for key, name in names.items() if key in rows and rows[key].error]

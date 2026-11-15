@@ -13,11 +13,19 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from papers import clean, paragraphs  # noqa: E402
+from papers import clean  # noqa: E402
 
 SOURCE = "Cleveland Museum of Art"
 WORTH_READING = 250     # characters of the museum's text
 SHAPES = (0.5, 2.0)     # width over height: a pillar print or a handscroll is too thin to show beside its text
+
+
+def paragraphs(parts) -> str:
+    """Pieces of the museum's text as one: a blank line between paragraphs, a <br> a new line. Links
+    and spans dissolve first (clean leaves a space where a tag was)."""
+    inline = re.compile(r"</?(?:a|span|strong|b|u)\b[^>]*>")
+    lines = (re.split(r"<br\s*/?>", inline.sub("", part or "")) for part in parts)
+    return "\n\n".join(filter(None, ("\n".join(filter(None, map(clean, part))) for part in lines)))
 
 
 def main(*lists):

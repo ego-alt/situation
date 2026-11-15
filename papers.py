@@ -61,14 +61,6 @@ def plain(text: str) -> str:
     return re.sub(r"<[^>]+>", "", html.unescape(text or ""))
 
 
-def paragraphs(parts) -> str:
-    """Pieces of a page's text as one: a blank line between paragraphs, a <br> a new line. Links,
-    spans and a link's icon dissolve first (clean leaves a space where a tag was)."""
-    inline = re.compile(r"<svg\b.*?</svg>|</?(?:a|span|strong|b|u)\b[^>]*>", re.S)
-    lines = (re.split(r"<br\s*/?>", inline.sub("", part or "")) for part in parts)
-    return "\n\n".join(filter(None, ("\n".join(filter(None, map(clean, part))) for part in lines)))
-
-
 def about(words: re.Pattern, title: str, abstract: str) -> bool:
     """Whether a paper is about what some words name: one in its title, or two different ones in its abstract."""
     return bool(words.search(plain(title))) or len({m.lower() for m in words.findall(plain(abstract))}) >= 2
@@ -373,13 +365,6 @@ def read_since(when: datetime) -> bool:
 
 # ---------- for the issue (dispatch.py) ----------
 
-def story(id: str, source: str, title: str, url: str, published: date, **more) -> dict:
-    """A story on the front page, whatever it's from (features.py makes them too)."""
-    return {"id": id, "source": source, "title": title, "url": url, "published": published.isoformat(),
-            "authors": [], "abstract": "", "figure": None, "figure_large": None, "free": None, "cover": False,
-            "cover_image": None, "commentary": [], "earlier": False, **more}
-
-
 def take(edition: str, day: date) -> list[dict]:
     """The papers for the issue out on `day`, in layout order (the cover story, then by journal
     rank), each marked as run in it. Waiting are a cover story and any paper with a commentary
@@ -398,12 +383,14 @@ def take(edition: str, day: date) -> list[dict]:
 
 
 def _story(p: Paper, notes: list[Paper], day: date) -> dict:
-    return story(p.doi, BY_KEY[p.journal].name, p.title, p.url, p.published, authors=p.authors or [],
-                 abstract=p.abstract, figure=p.figure, figure_large=large(p.figure), free=p.free,
-                 cover=bool(p.cover), cover_image=p.cover if (p.cover or "").startswith("https://") else None,
-                 earlier=p.published < day - EARLIER,
-                 commentary=[{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary,
-                              "summary": n.abstract} for n in notes])
+    """A paper as a story on the front page, with the commentaries on it."""
+    return {"id": p.doi, "source": BY_KEY[p.journal].name, "title": p.title, "url": p.url,
+            "published": p.published.isoformat(), "authors": p.authors or [], "abstract": p.abstract or "",
+            "figure": p.figure, "figure_large": large(p.figure), "free": p.free, "cover": bool(p.cover),
+            "cover_image": p.cover if (p.cover or "").startswith("https://") else None,
+            "earlier": p.published < day - EARLIER,
+            "commentary": [{"title": n.title, "url": n.url, "label": BY_KEY[n.journal].commentary,
+                            "summary": n.abstract} for n in notes]}
 
 
 def large(image: str | None) -> str | None:

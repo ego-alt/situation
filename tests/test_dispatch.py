@@ -1,15 +1,15 @@
-"""Dispatch: what an issue is made from (the journals' papers, the feature, the dates coming up,
-the prints, the poems), how it's made up each day and how it's kept. The journals are stood in
-for by records shaped like Europe PMC's, the feed and the calendars by ones shaped like theirs."""
+"""Dispatch: what an issue is made from (the journals' papers, the dates coming up, the prints,
+the poems), how it's made up each day and how it's kept. The journals are stood in for by
+records shaped like Europe PMC's, the calendars by ones shaped like theirs."""
 import re
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 import requests
 
+import add_prints
 import dates
 import dispatch
-import features
 import papers
 from journals import BY_KEY
 from models import Issue, Paper, SourceStatus, db
@@ -63,9 +63,8 @@ REFERENCES = {"10.1016/j.neuron.p1": ["10.1126/science.brain", "10.1016/j.neuron
 
 @pytest.fixture
 def journals(monkeypatch):
-    """The journals, the publishers' pages and Crossref, all stood in for; no feature, no dates."""
+    """The journals, the publishers' pages and Crossref, all stood in for; no dates."""
     monkeypatch.setattr(papers, "europe_pmc", lambda issn, since, until: [dict(r) for r in BY_ISSN.get(issn, [])])
-    monkeypatch.setattr(features, "take", lambda now, carried: [])
     monkeypatch.setattr(dates, "ahead", lambda day, now: [])
 
     class Found:
@@ -102,9 +101,9 @@ def test_clean_keeps_only_italics_and_scripts():
 
 
 def test_paragraphs_are_parted_and_links_dissolve():
-    link = '<a href="https://example.org"><span>budget</span><svg><path d="m1"/></svg></a>'
+    link = '<a href="https://example.org"><span>budget</span></a>'
     parts = [f"<span>The </span>{link}<span>, in <em>full</em>.</span>", "One line<br/>and the next", "", None]
-    assert papers.paragraphs(parts) == "The budget, in <i>full</i>.\n\nOne line\nand the next"
+    assert add_prints.paragraphs(parts) == "The budget, in <i>full</i>.\n\nOne line\nand the next"
 
 
 def test_a_paper_belongs_by_its_words_and_never_when_its_the_environments():
@@ -173,67 +172,16 @@ def test_the_papers_waiting_are_spread_over_the_days_and_each_runs_once(app, jou
     assert db.session.get(Paper, "10.1126/science.brain").ran == "2026-11-06"
 
 
-# ---------- the features ----------
-
-EARTH_FEED = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
- xmlns:content="http://purl.org/rss/1.0/modules/content/"xmlns:media="http://search.yahoo.com/mrss/" >
-<channel><title>NASA Science</title>{}</channel></rss>"""
-EARTH_ITEM = """<item><title>{title}</title><link>https://science.nasa.gov/earth/earth-observatory/{slug}/</link>
-<pubDate>{day} 05:01:00 +0000</pubDate><category><![CDATA[{category}]]></category>
-<content:encoded><![CDATA[<nav><p>Menu</p></nav>
-<figure><img src="https://assets.science.nasa.gov/{slug}.jpg?w=1024&#038;fit=clip" alt=""/></figure>
-<p class="wp-block-paragraph">Blanket bogs store <a href="https://example.org">vast amounts</a> of carbon.</p>
-<p class="wp-block-paragraph">The image shows the <em>Flow Country</em>.</p>
-<p class="wp-block-paragraph"><em>NASA Earth Observatory image by A. Mapper. Story by Kathryn Hansen.</em></p>
-<h2 class="wp-block-heading">Downloads</h2><p class="wp-block-paragraph">JPEG (4 MB)</p>]]></content:encoded></item>"""
-
-
-@pytest.fixture
-def feeds(monkeypatch):
-    """The feature's feed: Earth Observatory with a stale piece, two fresh ones and one that isn't its own."""
-    earth = EARTH_FEED.format("".join(EARTH_ITEM.format(title=t, slug=s, day=d, category=c) for t, s, d, c in (
-        ("A solar flare", "flare", "Tue, 03 Nov 2026", "Sun"),
-        ("Tuesday’s image", "tue", "Tue, 03 Nov 2026", "Earth Observatory"),
-        ("Monday’s image", "mon", "Mon, 02 Nov 2026", "Earth Observatory"),
-        ("Last week’s image", "old", "Wed, 28 Oct 2026", "Earth Observatory"))))
-
-    class Page:
-        def __init__(self, text):
-            self.content = text.encode()
-
-    monkeypatch.setattr(features, "get", lambda url: Page(earth))
-
-
-def test_a_feature_is_read_whole_from_its_feed(feeds):
-    [earth] = (features.pieces(f) for f in features.FEATURES)
-    assert [s["title"] for s in earth] == ["Last week’s image", "Monday’s image", "Tuesday’s image"]   # oldest first
-    s = earth[1]
-    assert s["abstract"] == "Blanket bogs store vast amounts of carbon.\n\nThe image shows the <i>Flow Country</i>."
-    assert (s["source"], s["authors"], s["published"]) == ("NASA Earth Observatory", ["Kathryn Hansen"], "2026-11-02")
-    assert s["id"] == s["url"] == "https://science.nasa.gov/earth/earth-observatory/mon/"
-    assert (s["figure"], s["figure_large"]) == ("https://assets.science.nasa.gov/mon.jpg?w=640&fit=clip",
-                                                "https://assets.science.nasa.gov/mon.jpg?w=1280&fit=clip")
-
-
-def test_an_issue_takes_the_features_oldest_fresh_piece_once(app, feeds):
-    first = features.take(NOW, set())
-    assert [s["title"] for s in first] == ["Monday’s image"]                            # not last week's
-    second = features.take(NOW, {s["id"] for s in first})
-    assert [s["title"] for s in second] == ["Tuesday’s image"]
-    assert db.session.get(SourceStatus, "features:earth").items == 3
-
-
-def test_a_feed_that_doesnt_answer_is_only_late(app, monkeypatch):
-    def down(url):
+def test_a_calendar_that_doesnt_answer_is_only_missed(app, monkeypatch):
+    def down(url, **_):
         raise requests.ConnectionError
 
-    for module in (features, dates):
-        monkeypatch.setattr(module, "get", down)
+    monkeypatch.setattr(dates, "get", down)
     monkeypatch.setattr(papers, "fetch", lambda now: SourceStatus.record({"papers:nature": (1, None)}, now))
     assert dispatch.publish(NOW) == "2026-11-04"
     shown = dispatch.issue(None)
     assert (shown["stories"], shown["dates"]) == ([], []) and shown["print"] and shown["poem"]
-    assert shown["sources"]["failing"] == ["NASA Earth Observatory", "the climbing calendar", "the UFC’s schedule"]
+    assert shown["sources"]["failing"] == ["the climbing calendar", "the UFC’s schedule"]
 
 
 # ---------- the dates ----------
@@ -371,12 +319,12 @@ def test_an_issue_waits_for_the_journals_to_answer(app, journals, monkeypatch):
 
 
 def test_a_paper_is_run_only_in_an_issue_that_came_out(app, journals, monkeypatch):
-    def read(now, carried):   # as the features are: noted, which saves what's in hand
-        SourceStatus.record({"features:earth": (0, None)}, now)
+    def read(day, now):   # as the calendars are: noted, which saves what's in hand
+        SourceStatus.record({"dates:ufc": (0, None)}, now)
         return []
 
     turn = dispatch.turn
-    monkeypatch.setattr(features, "take", read)
+    monkeypatch.setattr(dates, "ahead", read)
     monkeypatch.setattr(dispatch, "turn", lambda *_: 1 / 0)                              # the issue can't be made up
     with pytest.raises(ZeroDivisionError):
         dispatch.publish(NOW)
@@ -388,7 +336,7 @@ def test_a_paper_is_run_only_in_an_issue_that_came_out(app, journals, monkeypatc
 
 
 def test_the_cover_story_leads_else_the_longest_read():
-    a, b, c = (papers.story(i, "A journal", i, "", date(2026, 11, 4), abstract=text, cover=cover)
+    a, b, c = ({"id": i, "abstract": text, "cover": cover}
                for i, text, cover in (("a", "short", False), ("b", "a good deal longer", False), ("c", "", True)))
     assert [s["id"] for s in dispatch.front([a, b])] == ["b", "a"]
     assert [s["id"] for s in dispatch.front([a, b, c])] == ["c", "a", "b"]

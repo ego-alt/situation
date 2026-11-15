@@ -1,7 +1,7 @@
-/* Dispatch: one day's issue, laid out as a front page. Its stories come first, papers and
- * features alike: one leads, the others fill the rail and the rows under it; then the day's
- * print, poem and question, and the dates coming up. Everything is
- * read here: a story opens in place, and only an opened one links out to where it's from. */
+/* Dispatch: one day's issue, laid out as a front page. Its papers come first, on the days there
+ * are some: one leads, the others fill the rail beside it and a row under it; then the day's
+ * print, poem and question, and the dates coming up. Everything is read here: a story opens in
+ * place, and only an opened one links out to where it's from. */
 (() => {
     const ROOT = window.APP_ROOT || '';
     const url = (p) => `${ROOT}${p}`;
@@ -12,8 +12,6 @@
     const marked = (s) => String(s ?? '');
     const plain = (html) => { const el = document.createElement('div'); el.innerHTML = html; return el.textContent; };
 
-    // Each row below the lead takes the next of these shapes, so the page changes rhythm as it goes.
-    const SHAPES = [[6, 3, 3], [4, 4, 4], [3, 6, 3], [7, 5], [4, 8], [3, 3, 6], [5, 7]];
     const ROW_MAX = 600;     // the most a row runs to before its text is cut
     const MIN_LINES = 4;     // a story shows at least this much of its abstract
     const narrow = window.matchMedia('(max-width: 860px)');
@@ -85,17 +83,17 @@
         return `<p class="kicker"><span class="kicker-k">${esc(p.source)}</span> ${p.cover ? '<span class="kicker-flash">Cover story</span>' : ''}${earlier}</p>`;
     }
 
-    /** One story. `size` is lead, rail or mod: a module `w` of 12 columns wide. A module
-     * leads with its figure, puts its headline over it (mid widths), floats it in the corner for
-     * the text to wrap (wide), or goes without on a desktop (in the rail under a commentary's
-     * standfirst, or a narrow slot with a wide figure). On a phone every story but the lead shows
-     * its figure as a thumbnail. The title is the button that opens the story in place. */
+    /** One story. `size` is lead, rail or mod: a module `w` of 12 columns wide, which floats its
+     * figure in the corner for the text to wrap (wide) or puts its headline over it (the narrower
+     * of two). In the rail a story leads with its figure, or on a desktop goes without under a
+     * commentary's standfirst. On a phone every story but the lead shows its figure as a
+     * thumbnail. The title is the button that opens the story in place. */
     function story(p, size, w = 0) {
         const lead = size === 'lead';
         const mod = size === 'mod';
         const art = figure(p, lead);
-        const bare = (size === 'rail' && p.commentary.length) || (mod && w === 3 && ratio(p) > 1.6);
-        const headFirst = mod && (w === 5 || w === 6);
+        const bare = size === 'rail' && p.commentary.length;
+        const headFirst = mod && w === 5;
         const head = `<div class="story-head">
                 ${kicker(p)}
                 <h2 class="story-title"><button type="button" class="story-open" aria-expanded="false">${marked(p.title)}</button></h2>
@@ -128,26 +126,20 @@
         return Promise.race([Promise.all(todo), new Promise((done) => setTimeout(done, 1500))]);
     }
 
-    /** The lead with a rail beside it, then rows of modules in changing shapes. The stories
-     * come in order (dispatch.front): the lead, then the rest. */
+    /** The lead with a rail beside it, then a row of what the rail had no room for. The stories
+     * come in order (dispatch.front), the lead first, and are three at most (papers.MOST). */
     function compose(stories) {
         const [lead, ...queue] = stories;
         const art = cover(lead);
         // The rail runs as long as the lead: two stories, one less with the cover at its head or,
         // on a desktop, beside a lead without a figure (its text is short).
         const rail = queue.splice(0, 2 - !!art - (!narrow.matches && !ratio(lead)));
-        const rows = [rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
-            : `<div class="row">${story(lead, 'lead')}</div>`];
-        for (let s = 0; queue.length; s++) {
-            let shape = SHAPES[s % SHAPES.length];
-            if (queue.length < shape.length) shape = queue.length === 1 ? [12] : [7, 5];
-            const items = queue.splice(0, shape.length).sort((a, b) => ratio(b) - ratio(a));
-            const slots = shape.map((w, i) => ({ w, i })).sort((a, b) => b.w - a.w);
-            const placed = [];
-            slots.forEach((slot, j) => { placed[slot.i] = story(items[j], 'mod', slot.w); });
-            rows.push(`<div class="row row-mod">${placed.join('')}</div>`);
-        }
-        return rows.join('');
+        const front = rail.length || art ? `<div class="row row-front">${story(lead, 'lead')}<div class="rail">${art}${rail.map((p) => story(p, 'rail')).join('')}</div></div>`
+            : `<div class="row">${story(lead, 'lead')}</div>`;
+        // What's left, the wider figure in the wider slot.
+        const widths = queue.length > 1 ? [7, 5] : [12];
+        const rest = queue.sort((a, b) => ratio(b) - ratio(a)).map((p, i) => story(p, 'mod', widths[i])).join('');
+        return front + (rest && `<div class="row">${rest}</div>`);
     }
 
     // How tall a story's own content is (the grid stretches the story itself to its row).
@@ -247,7 +239,7 @@
         let notice = '';
         if (data && failure === 'signed-out') notice = document.querySelector('.signed-out-bar') ? '' : 'Signed out, so this isn’t updating.';
         else if (data && failure) notice = 'Can’t reach the server, so this isn’t updating.';
-        else if (failing.length) notice = `Couldn’t read ${failing.join(' or ')} this time, so a story or two may be late.`;
+        else if (failing.length) notice = `Couldn’t read ${failing.join(' or ')} this time.`;
         $('notice').textContent = notice;
         $('notice').hidden = !notice;
     }

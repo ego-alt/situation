@@ -53,8 +53,7 @@
 .row-front > .s-lead { grid-column: span 8; }
 .rail { grid-column: span 4; display: flex; flex-direction: column; }
 .rail > .story + .story { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--color-border-soft); }
-.w3 { grid-column: span 3; } .w4 { grid-column: span 4; } .w5 { grid-column: span 5; } .w6 { grid-column: span 6; }
-.w7 { grid-column: span 7; } .w8 { grid-column: span 8; } .w12 { grid-column: span 12; }
+.w4 { grid-column: span 4; } .w5 { grid-column: span 5; } .w7 { grid-column: span 7; } .w8 { grid-column: span 8; } .w12 { grid-column: span 12; }
 
 /* ---- a story ---- */
 .story { min-width: 0; cursor: pointer; }
@@ -80,7 +79,7 @@
 /* Says the story opens, and turns over once it has. */
 .story-title { margin: 0; font: 600 var(--text-base)/var(--leading-title) var(--font-sans); color: var(--color-text-primary); text-wrap: pretty; }
 .s-lead .story-title { font-size: var(--text-xl); letter-spacing: var(--tracking-tight); text-wrap: balance; }
-:is(.w6, .w7, .w8, .w12) .story-title { font-size: var(--text-lg); }
+:is(.w7, .w8, .w12) .story-title { font-size: var(--text-lg); }
 :is(.story-title, .abstract) :is(sub, sup) { line-height: 0; }
 .byline { margin: var(--space-2) 0 0; font: var(--text-xs) var(--font-sans); color: var(--color-text-muted); }
 /* What the commentary called it, under the paper's own title, and its summary: set off by a
@@ -99,7 +98,7 @@
 .standfirst-sum i { font-style: normal; }
 .standfirst-k { margin-right: var(--space-1); font: 600 var(--text-xs) var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-text-muted); }
 .abstract { margin: var(--space-3) 0 0; font-size: var(--text-sm); line-height: var(--leading-read); color: var(--color-text-secondary); hyphens: auto; }
-.flow .abstract { white-space: pre-line; }   /* a feature's paragraphs come parted by a blank line */
+.flow .abstract { white-space: pre-line; }   /* the museum's paragraphs come parted by a blank line */
 .s-lead .abstract { margin-top: 0; font-size: var(--text-base); }
 .s-lead:not(.has-fig) .abstract { columns: 2; column-gap: var(--space-8); column-rule: 1px solid var(--color-border-soft); }
 /* The way out to where it's from, in an opened story only. */
@@ -116,8 +115,7 @@
 .fig { margin: 0 0 var(--space-4); border-radius: var(--radius-sm); overflow: hidden; }
 .fig img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
 .s-mod .fig { aspect-ratio: 4 / 3; }
-.w3 .fig { aspect-ratio: 1; }
-.w5 .fig, .w6 .fig { aspect-ratio: 16 / 9; }
+.w5 .fig { aspect-ratio: 16 / 9; }
 /* Opened, a cropped figure is shown whole; the lead's already is, so it stays as it was. */
 .story.open:not(.s-lead) .fig { aspect-ratio: auto; }
 .story.open:not(.s-lead) .fig img { max-height: 520px; object-fit: contain; }
@@ -127,7 +125,7 @@
 .s-lead .fig img { max-height: 440px; object-fit: contain; }
 .side .fig { float: left; width: 45%; margin: var(--space-1) var(--space-6) var(--space-3) 0; }
 .side .story-head { display: flow-root; }   /* beside the figure: the title, a button, can't wrap round it */
-/* A mid-width module sets its headline over the figure. */
+/* The narrower of two modules sets its headline over the figure. */
 .head-first .fig { margin: var(--space-4) 0 0; }
 /* The issue's cover, at the head of the rail: the cover beside its caption. */
 .rail-cover { display: flex; gap: var(--space-4); align-items: flex-end; margin: 0 0 var(--space-6); padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border-soft); }
