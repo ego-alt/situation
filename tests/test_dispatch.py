@@ -353,7 +353,7 @@ def test_each_has_its_turn_before_any_comes_again():
 
 def test_the_poems_are_the_two_anthologies_and_the_passages_in_hong_kongs_characters():
     books = [p["book"] for p in dispatch.POEMS]
-    assert [books.count(b) for b in ("唐詩三百首", "宋詞三百首", "古文觀止")] == [320, 282, 66]
+    assert [books.count(b) for b in ("唐詩三百首", "宋詞三百首", "古文觀止")] == [320, 283, 66]
     text = "".join("".join(p["lines"]) for p in dispatch.POEMS)
     assert "為" in text and "爲" not in text and "为" not in text                    # Hong Kong's forms, not simplified
     assert "明月松間照" in text and "明月鬆間照" not in text          # typed in traditional, not converted to it

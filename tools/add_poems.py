@@ -12,13 +12,14 @@ variant ("早發白帝城 / 白帝下江陵") keeps the first.
 
 宋詞三百首 is Wikisource's (zh.wikisource.org/wiki/宋詞三百首, 朱孝臧's edition of 1924, as its
 wikitext: ?action=raw): a sentence to a line and an empty line between stanzas, prefaces left out.
+One poem it takes from a page of its own (zh.wikisource.org/wiki/青玉案_(辛棄疾), the same way).
 
 OpenCC then puts both in Hong Kong's forms (為, not 爲), traditional to traditional. The typeface
 is 昭源宋體 (Chiron Sung HK, SIL Open Font License, github.com/chiron-fonts/chiron-sung-hk: its
 STATIC_TTF/ChironSungHK-R.ttf and -SB.ttf):
 
     uv run --with opencc-python-reimplemented --with 'fonttools[woff]' python -I tools/add_poems.py \
-        tangshisanbaishou.json 唐诗三百首.json 宋詞三百首.wiki ChironSungHK-R.ttf ChironSungHK-SB.ttf
+        tangshisanbaishou.json 唐诗三百首.json 宋詞三百首.wiki 青玉案.wiki ChironSungHK-R.ttf ChironSungHK-SB.ttf
 """
 import collections
 import difflib
@@ -57,6 +58,8 @@ ERRATA = {
 }
 # A poem on Wikisource's page: its heading (the title, the author), then its text.
 POEM = re.compile(r"^=='''(.+?)'''（\[\[Author:[^|\]]*\|(.+?)\]\]）==$.*?<poem>(.*?)</poem>", re.M | re.S)
+# The poem on a page of its own: its heading there, that heading as the others have it, what stands for its text.
+OWN = ("==[[青玉案 (辛棄疾)]]==", "=='''青玉案'''（[[Author:辛棄疾|辛棄疾]]）==", "{{:青玉案 (辛棄疾)}}")
 
 hk = opencc.OpenCC("t2hk").convert
 _simplified = functools.cache(opencc.OpenCC("t2s").convert)
@@ -141,9 +144,13 @@ def tang(src, quan_src):
                    "lines": text.split("\n")}
 
 
-def song(src):
+def song(src, own_src):
     """宋詞三百首's poems, in its order: Wikisource's text, a sentence to a line."""
     page = pathlib.Path(src).read_text(encoding="utf-8").replace("-{", "").replace("}-", "")
+    own = pathlib.Path(own_src).read_text(encoding="utf-8")
+    own = re.search(r"<onlyinclude>(.*?)</onlyinclude>", own, re.S).group(1)
+    heading, headed, stands = OWN
+    page = page.replace(heading, headed).replace(stands, own)
     for title, author, text in POEM.findall(page):
         lines = []
         for stanza in re.split(r"\n\s*\n|　　", ASIDES.sub("", text).strip()):
@@ -151,9 +158,9 @@ def song(src):
         yield {"book": "宋詞三百首", "title": title, "author": author, "form": "詞", "lines": lines[:-1]}
 
 
-def main(tang_src, quan_src, song_src, regular, semibold):
+def main(tang_src, quan_src, song_src, own_src, regular, semibold):
     poems = [{k: [hk(line.translate(MARKS)) for line in v] if k == "lines" else hk(v) for k, v in p.items()}
-             for p in (*tang(tang_src, quan_src), *song(song_src))]
+             for p in (*tang(tang_src, quan_src), *song(song_src, own_src))]
     text = json.dumps(poems, ensure_ascii=False, indent=0)
     for wrong, right in ERRATA.items():
         assert wrong in text, wrong
