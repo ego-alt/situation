@@ -159,9 +159,23 @@
 .back > #poem { grid-column: span 4; }
 .back > [hidden] + #poem, .back > #print:has(+ [hidden]) { grid-column: 1 / -1; }
 /* The poem in Song type, its title and lines one size, to read aloud: one line to a line. */
-#poem :is(.section-head .n, .kicker, .story-title, .abstract) { font-family: var(--font-song); }
+#poem :is(.section-head .n, .kicker, .story-title, .abstract, .links) { font-family: var(--font-song); }
 #poem :is(.story-title, .abstract) { font-size: var(--text-lg); color: var(--color-text-primary); }
-#poem .abstract { line-height: var(--leading-read); }
+#poem .abstract { display: flow-root; line-height: var(--leading-read); }
+/* A passage's words that have a note are marked under, faintly. Pressed, a word shows its note
+   under its line (a float as wide as the text, so what follows moves down): each sense's word,
+   its part of speech and what it means. */
+.gloss { text-decoration: underline dotted var(--color-text-muted); text-underline-offset: 0.3em; cursor: pointer; }
+.gloss[aria-expanded=true] { color: var(--color-accent); }
+.gloss:focus-visible { outline: 1px solid var(--color-accent); outline-offset: var(--space-1); }
+.gloss-note {
+    float: left; box-sizing: border-box; width: 100%; margin: var(--space-1) 0 var(--space-2); padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-inset);
+    font-size: var(--text-base); line-height: var(--leading-text); color: var(--color-text-secondary);
+}
+.gloss-note > span { display: block; }
+.gloss-note b { margin-right: var(--space-2); font-weight: 600; color: var(--color-text-primary); }
+.gloss-note small { margin-right: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
 /* Your answer: what's asked beside your number, then the slider, its scale and a line on what's saved. */
 .answer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-3); }
 .answer > :not(.kicker, .story-title) { grid-column: 1 / -1; }

@@ -1,7 +1,7 @@
 /* Dispatch: one day's issue, laid out as a front page. Its papers come first, on the days there
  * are some: one leads, the others fill the rail beside it and a row under it; then the day's
- * print, poem and question, and the dates coming up. Everything is read here: a story opens in
- * place, and only an opened one links out to where it's from. */
+ * print, poem (or passage) and question, and the dates coming up. Everything is read here: a
+ * story opens in place, and only an opened one links out to where it's from. */
 (() => {
     const ROOT = window.APP_ROOT || '';
     const url = (p) => `${ROOT}${p}`;
@@ -389,18 +389,51 @@
             </article></div>`;
     }
 
-    /** The day's poem, to learn by heart: set as a story, line by line, in Hong Kong's characters. */
+    /** A line of the poem; of a passage, with the words that have a note marked, each a button to it. */
+    function line(text, i, notes) {
+        const chars = [...text];
+        let at = 0;
+        const words = notes.map((n, k) => {
+            if (n.line !== i) return '';
+            const before = chars.slice(at, n.start).join('');
+            at = n.end;
+            return `${esc(before)}<span class="gloss" role="button" tabindex="0" aria-expanded="false" data-note="${k}">${esc(chars.slice(n.start, n.end).join(''))}</span>`;
+        });
+        return words.join('') + esc(chars.slice(at).join(''));
+    }
+
+    /** The day's poem, to learn by heart: set as a story, line by line, in Hong Kong's characters.
+     * Some days it's a passage of 古文觀止 instead, to read with the dictionary's notes on its words. */
     function drawPoem() {
         const p = data?.poem;
         const el = $('poem');
         el.hidden = !p;
-        el.innerHTML = p ? `<h2 class="section-head"><span>The day’s poem</span><span class="n">${esc(p.book)}三百首</span></h2>
+        el.innerHTML = p ? `<h2 class="section-head"><span>The day’s ${p.notes ? 'passage' : 'poem'}</span><span class="n">${esc(p.book)}</span></h2>
             <div class="row"><article class="story open w12" lang="zh-HK">
                 <p class="kicker"><span class="kicker-k">${esc(p.author)}</span><span>${esc(p.form)}</span></p>
                 <h2 class="story-title">${esc(p.title)}</h2>
-                <p class="abstract">${p.lines.map(esc).join('<br>')}</p>
+                <p class="abstract">${p.lines.map((text, i) => line(text, i, p.notes || [])).join('<br>')}</p>
+                ${p.notes ? `<p class="links">${away('https://dict.revised.moe.edu.tw/', '註釋：教育部《重編國語辭典修訂本》')}</p>` : ''}
             </article></div>` : '';
     }
+
+    /** A marked word, pressed, shows its note under its line: what the dictionary says the word
+     * means there. The same word again, or a press anywhere else, puts the note away. */
+    function gloss(word) {
+        const shown = $('poem').querySelector('.gloss[aria-expanded=true]');
+        $('poem').querySelector('.gloss-note')?.remove();
+        shown?.setAttribute('aria-expanded', false);
+        if (!word || word === shown) return;
+        word.setAttribute('aria-expanded', true);
+        word.insertAdjacentHTML('afterend', `<span class="gloss-note" role="note">${data.poem.notes[word.dataset.note].senses.map((s) => `<span><b>${esc(s.word)}</b>${s.kind ? `<small>${esc(s.kind)}</small>` : ''}${esc(s.def)}</span>`).join('')}</span>`);
+    }
+    document.addEventListener('click', (e) => { if (!e.target.closest('.gloss-note')) gloss(e.target.closest('.gloss')); });
+    $('poem').addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') gloss(null);
+        if (e.key !== 'Enter' && e.key !== ' ' || !e.target.matches('.gloss')) return;
+        e.preventDefault();
+        gloss(e.target);
+    });
 
     function drawForecast() {
         const f = data?.forecast;

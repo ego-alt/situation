@@ -351,12 +351,25 @@ def test_each_has_its_turn_before_any_comes_again():
     assert dispatch.turn(items, "poem", start) == rounds[0][0]                          # the same day, the same one
 
 
-def test_the_poems_are_the_two_anthologies_in_hong_kongs_characters():
+def test_the_poems_are_the_two_anthologies_and_the_passages_in_hong_kongs_characters():
     books = [p["book"] for p in dispatch.POEMS]
-    assert (books.count("唐詩"), books.count("宋詞")) == (320, 280)
+    assert [books.count(b) for b in ("唐詩三百首", "宋詞三百首", "古文觀止")] == [320, 282, 66]
     text = "".join("".join(p["lines"]) for p in dispatch.POEMS)
     assert "為" in text and "爲" not in text and "为" not in text                    # Hong Kong's forms, not simplified
-    assert all(p["title"] and p["author"] and p["lines"] for p in dispatch.POEMS)
+    assert "明月松間照" in text and "明月鬆間照" not in text          # typed in traditional, not converted to it
+    # An empty line is a break between stanzas.
+    assert all(p["title"] and p["author"] and p["lines"][0] and p["lines"][-1] for p in dispatch.POEMS)
+
+
+def test_a_passages_notes_are_on_its_own_words_in_reading_order():
+    for p in dispatch.POEMS:
+        assert ("notes" in p) == (p["book"] == "古文觀止")
+        spans = [(n["line"], n["start"], n["end"]) for n in p.get("notes", [])]
+        assert spans == sorted(spans)
+        assert all(a[0] < b[0] or a[2] <= b[1] for a, b in zip(spans, spans[1:], strict=False))     # none over another
+        for n in p.get("notes", []):
+            word = p["lines"][n["line"]][n["start"]:n["end"]]
+            assert word and all(s["word"] in word and s["def"] for s in n["senses"])
 
 
 def test_the_prints_each_have_a_picture_and_the_museums_text():

@@ -2,8 +2,9 @@
 
 Its front page is read in place: the papers the journals made more of (papers.py), on the days
 there are some. Under it, a print from the Cleveland Museum of Art with what the museum says of
-it, a poem from 唐詩三百首 or 宋詞三百首 to learn by heart, the day's question (forecast.py, added
-by the app, which knows who's reading) and the dates coming up (dates.py).
+it, a poem from 唐詩三百首 or 宋詞三百首 to learn by heart (some days a passage of 古文觀止, with
+notes on its words), the day's question (forecast.py, added by the app, which knows who's
+reading) and the dates coming up (dates.py).
 An issue is made up when it comes out (publish), from what its sources say then, and shown
 unchanged from then on. A periodical, not an archive: a week of issues is kept.
 """
@@ -19,8 +20,9 @@ from models import Issue, SourceStatus, db
 
 KEEP = timedelta(days=7)        # a week of issues, then they go
 DATA = pathlib.Path(__file__).parent / "data"
-# 唐詩三百首 and 宋詞三百首, in Hong Kong's characters (tools/add_poems.py).
-POEMS = json.loads((DATA / "poems.json").read_text(encoding="utf-8"))
+# 唐詩三百首 and 宋詞三百首 (tools/add_poems.py) and, taking a poem's turn, the pieces of 古文觀止
+# with the dictionary's notes on their words (tools/add_passages.py): in Hong Kong's characters.
+POEMS = [p for name in ("poems.json", "passages.json") for p in json.loads((DATA / name).read_text(encoding="utf-8"))]
 # Japanese and Chinese prints with the museum's text (tools/add_prints.py).
 PRINTS = json.loads((DATA / "prints.json").read_text(encoding="utf-8"))
 
