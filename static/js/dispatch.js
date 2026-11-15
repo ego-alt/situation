@@ -3,18 +3,13 @@
  * print, poem (or passage) and question, and the dates coming up. Everything is read here: a
  * story opens in place, and only an opened one links out to where it's from. */
 (() => {
-    const ROOT = window.APP_ROOT || '';
-    const url = (p) => `${ROOT}${p}`;
-    const $ = (id) => document.getElementById(id);
-    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const webLink = (u) => (/^https?:\/\//i.test(String(u || '')) ? u : null);
+    const { url, $, esc, webLink, narrow } = App;
     // Titles and abstracts come from the server already escaped, with only <i>, <sub> and <sup> kept.
     const marked = (s) => String(s ?? '');
     const plain = (html) => { const el = document.createElement('div'); el.innerHTML = html; return el.textContent; };
 
     const ROW_MAX = 600;     // the most a row runs to before its text is cut
     const MIN_LINES = 4;     // a story shows at least this much of its abstract
-    const narrow = window.matchMedia('(max-width: 860px)');
     const NIGHT = [19, 7];   // from 7pm to 7am on your clock, the figures, mostly drawn on white, are dimmed
 
     let data = null;
@@ -200,11 +195,9 @@
     function drawEdition() {
         const e = data.edition;
         if (!e) {
-            Woodcut.draw($('woodcut'), null);
             $('folio').textContent = 'The first issue is being set';
             $('edition').innerHTML = '<p class="press-empty">It comes out in the morning, at 8 in Hong Kong.</p>';
         } else {
-            Woodcut.draw($('woodcut'), e.out);
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(day(e.id, { weekday: 'short', day: 'numeric', month: 'short' }))}<span class="folio-year"> ${e.id.slice(0, 4)}</span></span>`;
             $('edition').innerHTML = data.stories.length ? compose(data.stories) : '';
             fit();
@@ -244,15 +237,22 @@
         $('notice').hidden = !notice;
     }
 
+    // The issue the page came with (app.py): the first one asked for, when it's that one.
+    let given = JSON.parse($('issue').textContent);
+
     /** Fetch and draw an issue: `push` puts it in the history; `y` puts back where you were. */
     async function load(edition, { push = false, y = null } = {}) {
         try {
-            const res = await fetch(url(`/api/dispatch${edition ? `?edition=${encodeURIComponent(edition)}` : ''}`), { credentials: 'same-origin' });
-            if (res.status === 401) failure = 'signed-out';
-            else if (!res.ok) throw new Error(res.status);
+            const first = given && (!edition || edition === given.edition?.id) ? given : null;
+            given = null;
+            const res = first ? null : await fetch(url(`/api/dispatch${edition ? `?edition=${encodeURIComponent(edition)}` : ''}`), { credentials: 'same-origin' });
+            if (res?.status === 401) failure = 'signed-out';
+            else if (res && !res.ok) throw new Error(res.status);
             else {
-                data = await res.json();
+                data = first || await res.json();
                 failure = null;
+                // The woodcut needs only the day: it doesn't wait for the figures to be measured.
+                Woodcut.draw($('woodcut'), data.edition?.out);
                 await measure(data.stories);
                 drawEdition();
                 drawPrint();
@@ -277,7 +277,7 @@
     // ---------- the forecast ----------
     // The day's question about the world (forecast.py), set in the paper's own modules, shown
     // open since they don't open or shut: the question as a story, with what the newsrooms wrote
-    // as its standfirst, your answer beside it, then the results just in and your record. The
+    // as its standfirst, your answer beside it, then the results just in. The
     // crowd's odds come from the server only once you've answered, or once it can't be answered.
 
     const pct = (n) => `${n}%`;
@@ -325,17 +325,6 @@
                 style="--v: ${set ? q.yours : 50}%" aria-valuetext="${set ? pct(q.yours) : 'not set'}"${live ? '' : ' disabled'}>
             <div class="range-scale" aria-hidden="true"><span>No</span><span>50</span><span>Yes</span></div>
             <p class="byline" role="status">${note}</p></div>`;
-    }
-
-    /** How you've done, in sentences: against the crowd, how often what you said came true, by subject. */
-    function record(r) {
-        if (!r.answered) return '';
-        const ahead = r.yours < r.crowd ? 'ahead of' : r.yours > r.crowd ? 'behind' : 'level with';
-        const bands = r.bands.filter((b) => b.said).map((b) => `${b.from}–${b.to}%, ${b.happened} of ${b.said}`).join('; ');
-        const subjects = r.subjects.map((s) => `${esc(s.subject)} ${s.yours.toFixed(2)} (the crowd ${s.crowd.toFixed(2)})`).join(', ');
-        return `<article class="story open w4"><p class="kicker"><span class="kicker-k">Your record</span><span>${r.answered} answered</span></p>
-            <p class="abstract">A Brier score of ${r.yours.toFixed(2)}, ${ahead} the crowd’s ${r.crowd.toFixed(2)}: 0 is perfect, and always saying 50% scores 0.25.
-            When you said ${bands}, it happened that often. By subject: ${subjects}.</p></article>`;
     }
 
     /** The days from the issue's to a date's first. */
@@ -445,15 +434,13 @@
         // before there were questions) none was ever asked, and then there's nothing to say.
         const none = f.pending ? 'Today’s question is being chosen.'
             : f.asked ? 'No question today: nothing big enough closes in the week ahead.' : '';
-        const results = f.results.map((r, i) => `<article class="story open ${i || !f.record.answered ? 'w12' : 'w8'}">
+        const results = f.results.map((r) => `<div class="row"><article class="story open w12">
             <p class="kicker"><span class="kicker-k">Asked ${esc(day(r.edition))}</span><span>${esc(r.subject)}</span></p>
-            <h2 class="story-title">${esc(r.title)}</h2><p class="byline">${outcome(r)}</p></article>`);
-        const second = [results[0], record(f.record)].filter(Boolean).join('');
-        if (!q && !none && !second) { el.hidden = true; el.innerHTML = ''; return; }
+            <h2 class="story-title">${esc(r.title)}</h2><p class="byline">${outcome(r)}</p></article></div>`).join('');
+        if (!q && !none && !results) { el.hidden = true; el.innerHTML = ''; return; }
         el.innerHTML = `<h2 class="section-head"><span>The day’s question</span><span class="n">From Polymarket</span></h2>
             ${q ? `<div class="row">${asked(q, 'Forecast')}${answer(q)}</div>` : none ? `<p class="press-empty">${none}</p>` : ''}
-            ${second ? `<div class="row">${second}</div>` : ''}
-            ${results.slice(1).map((r) => `<div class="row">${r}</div>`).join('')}`;
+            ${results}`;
     }
 
     // Sliding shows your number; letting go saves it.

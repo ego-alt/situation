@@ -1,19 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#070a0b">
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
+    {% include '_head.html' %}
     <title>Situation · Dispatch</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/chironsung.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dispatch.css') }}">
-    <script>window.APP_ROOT = {{ request.script_root|tojson }};</script>
+    {# Asked for at once, not once the page is laid out: the seal's and the woodcut's characters. #}
+    <link rel="preload" href="{{ url_for('static', filename='fonts/chironsung-head-600.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ url_for('static', filename='fonts/chironsung-head-400.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <script src="{{ url_for('static', filename='js/woodcut.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/dispatch.js') }}" defer></script>
     {% set tab = 'dispatch' %}{% include '_last_tab.html' %}
 </head>
 <body class="dispatch-page">
@@ -48,8 +44,8 @@
                 <p class="folio-line" id="folio" aria-live="polite">&nbsp;</p>
                 {{ step('next', 'nextEdition') }}
             </div>
-            <!-- The woodcut: the Pearl River mouth and that evening's sky (woodcut.js). -->
-            <figure class="woodcut" id="woodcut" hidden></figure>
+            <!-- The woodcut: the Pearl River mouth and that evening's sky (woodcut.js), drawn for the day the issue came out. -->
+            <figure class="woodcut" id="woodcut" data-out="{{ issue.edition.out if issue.edition else '' }}" hidden></figure>
         </header>
         <div id="notice" class="notice" role="status" hidden></div>
         <div id="edition" class="edition"><p class="press-empty">Loading…</p></div>
@@ -78,8 +74,8 @@
         <p class="viewer-hint">Tap to zoom in or out</p>
     </dialog>
 
-    <script src="{{ url_for('static', filename='js/signed_out.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/woodcut.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dispatch.js') }}"></script>
+    <!-- The issue the address asks for (the newest at /dispatch), as /api/dispatch gives it. -->
+    <script id="issue" type="application/json">{{ issue|tojson }}</script>
+    <script id="coast" type="application/json">{{ coast }}</script>
 </body>
 </html>

@@ -2,9 +2,9 @@
  * the land hatched and dotted with peaks, the sea lined along the shore, and laid faintly over
  * the sea the sky above Hong Kong at 9pm on the day the issue came out: its brightest stars where
  * they stood, the river of stars, and the moon at its phase. Worked out here from the date, so an
- * issue's woodcut is the same every time it's opened; the coast is the map's own (static/map). */
+ * issue's woodcut is the same every time it's opened; the coast is the map's own, cut to what the
+ * woodcut shows (data/woodcut.json, by tools/build_regions.py), and comes in the page. */
 (() => {
-    const ROOT = window.APP_ROOT || '';
     const LAT = 22.3, LON = 114.17;          // Hong Kong
     const EVENING = 13;                      // 9pm in Hong Kong, in UTC hours
     // Each shape: its size, how far in its frame's sides stand (off the picture on a phone: a banner
@@ -131,12 +131,15 @@
         }).join('');
     }
 
-    /** Little woodcut peaks, scattered over the land clear of the coast, asking the land's own paths. */
-    function peaks(svg, shape, k, tx, ty, rnd) {
-        const land = [...svg.querySelectorAll('.coast path')];
-        const point = svg.createSVGPoint();
-        const isLand = (x, y) => { point.x = (x - tx) / k; point.y = (y - ty) / k; return land.some((p) => p.isPointInFill(point)); };
+    /** Little woodcut peaks, scattered over the land clear of the coast: the land filled in once,
+     * small, and a point's pixel looked up. */
+    function peaks(shape, k, tx, ty, rnd) {
         const { w, h } = shape;
+        const ink = Object.assign(document.createElement('canvas'), { width: w, height: h }).getContext('2d', { willReadFrequently: true });
+        ink.setTransform(k, 0, 0, k, tx, ty);
+        outlines.forEach((d) => ink.fill(new Path2D(d)));
+        const land = ink.getImageData(0, 0, w, h).data;
+        const isLand = (x, y) => x >= 0 && y >= 0 && x < w && y < h && land[(Math.floor(y) * w + Math.floor(x)) * 4 + 3] > 127;
         const found = [];
         for (let i = 0; i < 3000 && found.length < 60; i++) {
             const x = w * 0.14 + rnd() * w * 0.78, y = 26 + rnd() * (h - 60);
@@ -152,20 +155,20 @@
         }).join('');
     }
 
-    let coast = null;
-    const read = () => coast || (coast = Promise.all(['CN', 'HK', 'MO'].map((iso) => fetch(`${ROOT}/static/map/regions/${iso}.json`).then((r) => r.json())))
-        .then((all) => all.map((r) => r.outline)).catch(() => { coast = null; return null; }));
+    const outlines = JSON.parse(document.getElementById('coast').textContent).outlines;
+    // Narrower than this the screen is a phone's, where the woodcut spans it (dispatch.css): a banner.
+    // Asked of the screen, not the box, so drawing it doesn't wait for the page to be laid out.
+    const banner = window.matchMedia('(max-width: 599px)');
 
     /** Draw the woodcut of the issue out on `out` (an ISO date) into `box`: wide, or a shorter banner where
-     * the box is narrow (a phone). Drawn again only when the issue or the shape changes. */
-    async function draw(box, out) {
+     * the screen is narrow (a phone). Drawn again only when the issue or the shape changes. */
+    function draw(box, out) {
         box.hidden = !out;
         if (!out) return;
-        const narrow = box.clientWidth < 600;
+        const narrow = banner.matches;
         const drawn = `${out} ${narrow}`;
         if (box.dataset.drawn === drawn) return;
-        const outlines = await read();
-        if (!outlines) { box.hidden = true; return; }
+        box.dataset.drawn = drawn;
         const shape = SHAPES[narrow ? 'narrow' : 'wide'];
         const { w, h, side } = shape, [x0, y0, vw, vh] = shape.view;
         const id = narrow ? 'n' : 'w';
@@ -173,36 +176,38 @@
         const k = Math.max(iw / vw, ih / vh);                   // fill the frame, cropping the map's longer side
         const [tx, ty] = [side + (iw - vw * k) / 2 - x0 * k, 10 + (ih - vh * k) / 2 - y0 * k];
         const at = `matrix(${k.toFixed(4)},0,0,${k.toFixed(4)},${tx.toFixed(2)},${ty.toFixed(2)})`;
-        const paths = (extra = '') => outlines.map((d) => `<path d="${d}" vector-effect="non-scaling-stroke"${extra}/>`).join('');
+        // The coast, written once and used everywhere it's drawn: the land, the sea, the shore.
+        const coast = el('use', { href: `#coast-${id}` });
         // The sea lined along the shore: rings of the coast, each an inked line edged in the sea's colour.
         const rings = [50, 40, 31, 23, 16, 10, 5].map((width, i) => el('g', { transform: at, fill: 'none', 'stroke-linejoin': 'round' },
-            el('g', { class: 'line', 'stroke-width': width, opacity: (0.18 + i * 0.12).toFixed(2) }, paths()) + el('g', { class: 'sea-line', 'stroke-width': width - 1.1 }, paths()))).join('');
+            el('g', { class: 'line', 'stroke-width': width, opacity: (0.18 + i * 0.12).toFixed(2) }, coast) + el('g', { class: 'sea-line', 'stroke-width': width - 1.1 }, coast))).join('');
         const t = new Date(out);
         const evening = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), EVENING);
         const m = moonAt(evening);
         const rnd = random(t.getUTCFullYear() * 400 + t.getUTCMonth() * 31 + t.getUTCDate());   // the same woodcut for the same issue
         const [sx, sy, srx, sry] = shape.sky;
-        box.dataset.drawn = drawn;
         box.innerHTML = el('svg', { viewBox: `0 0 ${w} ${h}`, role: 'img', 'aria-label': `The mouth of the Pearl River, engraved, with the sky over Hong Kong that evening: ${m.name}` },
-            el('defs', {}, el('clipPath', { id: `frame-${id}` }, el('rect', { x: side, y: 10, width: iw, height: ih }))
+            el('defs', {}, el('g', { id: `coast-${id}` }, outlines.map((d) => `<path d="${d}" vector-effect="non-scaling-stroke"/>`).join(''))
+                + el('clipPath', { id: `frame-${id}` }, el('rect', { x: side, y: 10, width: iw, height: ih }))
                 + el('pattern', { id: `hatch-${id}`, patternUnits: 'userSpaceOnUse', width: 3.2, height: 3.2, patternTransform: 'rotate(-38)' }, el('line', { x1: 0, y1: 0, x2: 0, y2: 3.2, class: 'line', 'stroke-width': 0.6 }))
                 + el('pattern', { id: `moon-${id}`, patternUnits: 'userSpaceOnUse', width: 2.2, height: 2.2, patternTransform: 'rotate(30)' }, el('line', { x1: 0, y1: 0, x2: 0, y2: 2.2, class: 'line', 'stroke-width': 0.7 }))
-                + el('mask', { id: `land-${id}`, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h }, el('g', { transform: at, fill: '#fff', class: 'coast' }, paths()))
-                + el('mask', { id: `sea-${id}`, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h }, el('rect', { width: w, height: h, fill: '#fff' }) + el('g', { transform: at, fill: '#000' }, paths())))
+                + el('mask', { id: `land-${id}`, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h }, el('g', { transform: at, fill: '#fff' }, coast))
+                + el('mask', { id: `sea-${id}`, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h }, el('rect', { width: w, height: h, fill: '#fff' }) + el('g', { transform: at, fill: '#000' }, coast)))
             + el('rect', { width: w, height: h, class: 'paper' })
             + el('g', { 'clip-path': `url(#frame-${id})` },
                 el('g', { mask: `url(#sea-${id})` }, rings)
                 + el('rect', { width: w, height: h, fill: `url(#hatch-${id})`, mask: `url(#land-${id})`, class: 'hatch' })
-                + el('g', { transform: at, fill: 'none', class: 'line' }, paths(' stroke-width="1.3"'))
-                + el('g', { class: 'peaks' })
+                + el('g', { transform: at, fill: 'none', class: 'line', 'stroke-width': 1.3 }, coast)
+                + el('g', { class: 'peaks' }, peaks(shape, k, tx, ty, rnd))
                 + el('g', { mask: `url(#sea-${id})` }, sky(evening, w * sx, h * sy, w * srx, h * sry, rnd)))
             + el('g', { transform: `translate(${(shape.moon[0] + w) % w},${shape.moon[1]})` }, moon(11, m, id) + el('text', { y: 26, class: 'zh ink', 'text-anchor': 'middle' }, m.name))
             + el('rect', { x: side, y: 10, width: iw, height: ih, fill: 'none', class: 'line', 'stroke-width': 1.4 })
             + el('rect', { x: side - 6, y: 4, width: iw + 12, height: h - 8, fill: 'none', class: 'line', 'stroke-width': 0.6 })
             + title(...shape.title) + compass((shape.compass[0] + w) % w, (shape.compass[1] + h) % h) + places(k, tx, ty));
-        const svg = box.querySelector('svg');
-        svg.querySelector('.peaks').innerHTML = peaks(svg, shape, k, tx, ty, rnd);
     }
 
     window.Woodcut = { draw };
+    // Drawn at once for the issue the page came with, not once the rest of the page is laid out.
+    const box = document.getElementById('woodcut');
+    draw(box, box.dataset.out);
 })();

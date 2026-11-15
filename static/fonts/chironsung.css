@@ -1,16 +1,34 @@
 /* 昭源宋體 (Chiron Sung HK, SIL Open Font License 1.1), self-hosted: only the characters the
- * poems, the passages and their notes, the seal and the woodcut use (tools/add_poems.py). */
+ * poems, the passages and their notes, the seal and the woodcut use, and the seal's and the
+ * woodcut's on their own (the last face that has a character is the one used). Written by
+ * tools/add_poems.py. */
 @font-face {
   font-family: 'Chiron Sung HK';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url(chironsung-400.woff2) format('woff2');
+  src: url(chironsung-400.woff2?v=b8f298bbf6) format('woff2');
 }
 @font-face {
   font-family: 'Chiron Sung HK';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url(chironsung-600.woff2) format('woff2');
+  src: url(chironsung-600.woff2?v=6d31950da1) format('woff2');
+}
+@font-face {
+  font-family: 'Chiron Sung HK';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(chironsung-head-400.woff2?v=8d0cb958c2) format('woff2');
+  unicode-range: U+90B8, U+5831, U+73E0, U+6C5F, U+53E3, U+9999, U+6E2F, U+6FB3, U+9580, U+5EE3, U+5DDE, U+5317, U+7E54, U+5973, U+725B, U+90CE, U+65B0, U+6708, U+86FE, U+7709, U+4E0A, U+5F26, U+76C8, U+51F8, U+6EFF, U+8667, U+4E0B, U+6B98;
+}
+@font-face {
+  font-family: 'Chiron Sung HK';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(chironsung-head-600.woff2?v=51d29003ae) format('woff2');
+  unicode-range: U+90B8, U+5831, U+73E0, U+6C5F, U+53E3, U+9999, U+6E2F, U+6FB3, U+9580, U+5EE3, U+5DDE, U+5317, U+7E54, U+5973, U+725B, U+90CE, U+65B0, U+6708, U+86FE, U+7709, U+4E0A, U+5F26, U+76C8, U+51F8, U+6EFF, U+8667, U+4E0B, U+6B98;
 }

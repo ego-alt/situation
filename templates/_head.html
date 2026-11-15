@@ -1,0 +1,13 @@
+{# What every page's head has: the type, the shared styles, and the scripts every page runs first,
+   all deferred, so they're fetched at once and run in order once the page (and its data) is in. #}
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#070a0b">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
+    <script src="{{ url_for('static', filename='js/common.js') }}" data-root="{{ request.script_root }}" defer></script>
+    <script src="{{ url_for('static', filename='js/signed_out.js') }}" defer></script>

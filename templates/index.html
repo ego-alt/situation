@@ -1,17 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#070a0b">
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
+    {% include '_head.html' %}
     <title>Situation</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/plexmono.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/situation.css') }}">
-    <script>window.APP_ROOT = {{ request.script_root|tojson }};</script>
+    <link rel="preload" href="{{ url_for('static', filename='map/world.json') }}" as="fetch" crossorigin>
+    <script src="{{ url_for('static', filename='js/situation.js') }}" defer></script>
     {% set tab = 'news' %}{% include '_last_tab.html' %}
 </head>
 <body>
@@ -25,7 +18,7 @@
 
     <main class="board">
         <section class="theatre" aria-label="World map">
-            <svg id="map" class="map" role="img" aria-label="Where today's stories are"></svg>
+            <svg id="map" class="map" role="img" aria-label="Where today's stories are" data-world="{{ url_for('static', filename='map/world.json') }}"></svg>
             <div class="zoom" role="group" aria-label="Map zoom">
                 <button type="button" class="btn btn-float tap" data-zoom="in" aria-label="Zoom in">+</button>
                 <button type="button" class="btn btn-float tap" data-zoom="out" aria-label="Zoom out">−</button>
@@ -48,7 +41,7 @@
         </aside>
     </main>
 
-    <script src="{{ url_for('static', filename='js/signed_out.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/situation.js') }}"></script>
+    <!-- The news as /api/situation last gave it, with its ETag. -->
+    <script id="news" type="application/json" data-etag="{{ etag }}">{{ news }}</script>
 </body>
 </html>

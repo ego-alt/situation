@@ -11,6 +11,9 @@ Writes:
   static/map/regions/<ISO>.json   one per country, loaded when you zoom in: the
                                   detailed outline, its regions, region labels
                                   and its biggest cities
+  data/woodcut.json               the coast of the Pearl River mouth for Dispatch's woodcut
+                                  (static/js/woodcut.js): China's, Hong Kong's and Macau's
+                                  outlines cut to what it shows, small enough to come in the page
   data/gazetteer.json             cities and regions, for finding places in articles
 """
 import json
@@ -32,6 +35,9 @@ def project(lon, lat):
 TOLERANCE = 0.03      # map units (the world is 1000 wide): well under a pixel at the closest zoom
 MIN_RING = 0.06       # drop islets smaller than this across
 CITIES_SHOWN = 12     # reference cities per country on the zoomed map
+# The woodcut's coast: what either of its shapes shows (static/js/woodcut.js SHAPES), and a map
+# unit more all round, so the cut edges lie beyond the frame and the widest line along the shore.
+WOODCUT = ("CN", "HK", "MO"), (805.0, 203.4, 831.0, 211.7)
 
 # Region names that are ordinary words in an English headline.
 GENERIC = {
@@ -102,6 +108,31 @@ def rings(shape):
 
 def path(rs):
     return "".join("M" + "L".join(f"{x:.2f},{y:.2f}".replace(".00", "") for x, y in pts) + "Z" for pts, _ in rs)
+
+
+def clip(pts, box):
+    """A ring cut to a box (Sutherland–Hodgman): what's inside, edges along the box where it leaves."""
+    x0, y0, x1, y1 = box
+    for axis, at, way in ((0, x0, 1), (0, x1, -1), (1, y0, 1), (1, y1, -1)):     # each side, and which way is in
+        out = []
+        for a, b in zip(pts[-1:] + pts[:-1], pts, strict=True):
+            a_in, b_in = (a[axis] - at) * way >= 0, (b[axis] - at) * way >= 0
+            if a_in != b_in:            # it crosses the side: where
+                t = (at - a[axis]) / (b[axis] - a[axis])
+                out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+            if b_in:
+                out.append(b)
+        pts = out
+    return pts
+
+
+def woodcut(outlines):
+    """The woodcut's coast: each of WOODCUT's countries' rings (iso → [(points, bbox)]) cut to its box."""
+    isos, box = WOODCUT
+    cut = [[(kept, None) for pts, _ in outlines[iso] if len(kept := clip(pts, box)) >= 3] for iso in isos]
+    target = ROOT / "data/woodcut.json"
+    target.write_text(json.dumps({"outlines": [path(rs) for rs in cut]}, separators=(",", ":")))
+    return target.stat().st_size
 
 
 def focus(rings_):
@@ -183,6 +214,7 @@ def main(ne_dir, cities_txt):
         target = out / f"{iso}.json"
         target.write_text(json.dumps(doc, separators=(",", ":"), ensure_ascii=False))
         total += target.stat().st_size
+    total += woodcut({iso: c["outline"] for iso, c in countries.items()})
     gazetteer.sort(key=lambda g: (g[0], -g[4]))
     (ROOT / "data/gazetteer.json").write_text(
         "[\n" + ",\n".join(json.dumps(g, ensure_ascii=False) for g in gazetteer) + "\n]\n")

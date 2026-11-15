@@ -1,4 +1,5 @@
 """The stored pipeline, the page's data, and the brief."""
+import html
 import json
 import pathlib
 import re
@@ -84,13 +85,38 @@ def test_projection_fits_the_map():
 def test_links_carry_the_stack_prefix(app):
     page = app.test_client().get("/", headers={"X-Forwarded-Prefix": "/situation"})
     assert b'href="/situation/static/css/situation.css' in page.data
-    assert b'window.APP_ROOT = "/situation"' in page.data
+    assert b'js/common.js?v=' in page.data and b'data-root="/situation"' in page.data
     assert b"js/signed_out.js" in page.data                        # the stack's "signed out" bar
     page = app.test_client().get("/dispatch/2026-11-12", headers={"X-Forwarded-Prefix": "/situation"})
     assert b'href="/situation/static/css/dispatch.css' in page.data and b"js/woodcut.js" in page.data
 
 
 # ---------- what the audit asked for ----------
+
+def test_static_files_are_asked_for_by_their_contents_and_kept(app):
+    client = app.test_client()
+    page = client.get("/").data.decode()
+    css = re.search(r'href="(/static/css/situation\.css\?v=(\w+))"', page)
+    assert css[2] == app_module.version(pathlib.Path(app.static_folder, "css/situation.css"))
+    assert "immutable" in client.get(css[1]).headers["Cache-Control"]                      # a year, unasked
+    assert client.get("/static/map/regions/FR.json").headers["Cache-Control"] == "no-cache"   # asked after each time
+    # The font stylesheets name each font by its contents too (tools/add_poems.py cut writes Chiron Sung's).
+    for sheet in pathlib.Path(app.static_folder, "fonts").glob("*.css"):
+        for name, v in re.findall(r"url\(([\w.-]+)\?v=(\w+)\)", sheet.read_text()):
+            assert v == app_module.version(sheet.parent / name), (sheet.name, name)
+        assert "url(" not in re.sub(r"url\([\w.-]+\?v=\w+\)", "", sheet.read_text())
+
+
+def test_the_pages_come_with_their_data(loaded, app):
+    client = app.test_client()
+    news = client.get("/api/situation")
+    page = client.get("/").data.decode()
+    script = re.search(r'<script id="news" type="application/json" data-etag="([^"]+)">(.*?)</script>', page, re.S)
+    assert json.loads(script[2]) == news.get_json() and html.unescape(script[1]) == news.headers["ETag"]
+    dispatch = client.get("/dispatch").data.decode()
+    issue = re.search(r'<script id="issue" type="application/json">(.*?)</script>', dispatch, re.S)
+    assert json.loads(issue[1]) == client.get("/api/dispatch").get_json()
+
 
 def test_only_web_links_become_links():
     assert web_link(" https://www.bbc.co.uk/news/1 ") == "https://www.bbc.co.uk/news/1"
@@ -287,7 +313,8 @@ def test_labelling_questions_answers_and_evaluation(loaded, app):
     q = body["question"]
     assert q["kind"] in ("rank", "show") and body["counts"] == {"today": 0, "total": 0}
     answer = {"rank": "a", "show": "yes"}[q["kind"]]
-    assert client.post("/api/label", json={**q, "answer": answer}).status_code == 200
+    after = client.post("/api/label", json={**q, "answer": answer}).get_json()
+    assert after["counts"]["total"] == 1 and after["question"]                  # the next comes with the answer
     assert client.post("/api/label", json={**q, "answer": "maybe"}).status_code == 400
     assert client.post("/api/label", json={**q, "snapshot": "../../etc/passwd", "answer": "a"}).status_code == 400
     assert Label.query.count() == 1

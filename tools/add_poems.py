@@ -24,6 +24,7 @@ STATIC_TTF/ChironSungHK-R.ttf and -SB.ttf):
 import collections
 import difflib
 import functools
+import hashlib
 import json
 import pathlib
 import re
@@ -35,9 +36,11 @@ from fontTools import subset
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 FONTS = ROOT / "static" / "fonts"
-# What else the page sets in it: the seal, the woodcut's names and moons (static/js/woodcut.js)
-# and whose the notes are (static/js/dispatch.js).
-SHOWN = "邸報" + "珠江口香港澳門廣州北織女牛郎" + "新月蛾眉上弦盈凸滿虧下殘" + "註釋：教育部《重編國語辭典修訂本》"
+# What else the page sets in it: the seal and the woodcut's names and moons (static/js/woodcut.js),
+# at the head of the page and cut on their own too, so they needn't wait for the rest; and whose
+# the notes are (static/js/dispatch.js).
+HEAD = "邸報" + "珠江口香港澳門廣州北織女牛郎" + "新月蛾眉上弦盈凸滿虧下殘"
+SHOWN = HEAD + "註釋：教育部《重編國語辭典修訂本》"
 
 HAN = r"\u3400-\u9fff\U00020000-\U0003ffff"
 ASIDES = re.compile(r"\s*[（(][^（()）]*[)）]")
@@ -105,12 +108,27 @@ def finder(texts: list[str]):
 
 def cut(regular, semibold) -> int:
     """Cut both weights down to SHOWN and what the poems and the passages (tools/add_passages.py)
-    are written in; returns how many characters that is."""
+    are written in, and to HEAD alone, and write their stylesheet; returns how many characters
+    that is. The stylesheet names each font by its contents' hash (as app.version does), so a
+    browser that keeps it for good never keeps one that's since been cut again."""
     text = SHOWN + "".join((DATA / name).read_text(encoding="utf-8") for name in ("poems.json", "passages.json"))
     text = "".join(sorted({c for c in text if not c.isascii()}))
-    for src, weight in ((regular, 400), (semibold, 600)):
-        subset.main([src, f"--text={text}", "--flavor=woff2", "--layout-features=*",
-                     f"--output-file={FONTS / f'chironsung-{weight}.woff2'}"])
+    faces = []
+    head = ", ".join(f"U+{ord(c):X}" for c in HEAD)
+    for name, chars, unicodes in (("chironsung", text, ""), ("chironsung-head", HEAD, head)):
+        for src, weight in ((regular, 400), (semibold, 600)):
+            out = FONTS / f"{name}-{weight}.woff2"
+            subset.main([src, f"--text={chars}", "--flavor=woff2", "--layout-features=*", f"--output-file={out}"])
+            version = hashlib.sha1(out.read_bytes()).hexdigest()[:10]
+            faces.append(f"@font-face {{\n  font-family: 'Chiron Sung HK';\n  font-style: normal;\n"
+                         f"  font-weight: {weight};\n  font-display: swap;\n"
+                         f"  src: url({out.name}?v={version}) format('woff2');\n"
+                         + (f"  unicode-range: {unicodes};\n" if unicodes else "") + "}")
+    (FONTS / "chironsung.css").write_text(
+        "/* 昭源宋體 (Chiron Sung HK, SIL Open Font License 1.1), self-hosted: only the characters the\n"
+        " * poems, the passages and their notes, the seal and the woodcut use, and the seal's and the\n"
+        " * woodcut's on their own (the last face that has a character is the one used). Written by\n"
+        " * tools/add_poems.py. */\n" + "\n".join(faces) + "\n", encoding="utf-8")
     return len(text)
 
 

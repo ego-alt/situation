@@ -1,10 +1,7 @@
 /* Situation: your judgements of what matters (labels.py): which of two stories
  * matters more, and whether a story belongs on the page at all. */
 (() => {
-    const ROOT = window.APP_ROOT || '';
-    const url = (p) => `${ROOT}${p}`;
-    const $ = (id) => document.getElementById(id);
-    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const { url, $, esc } = App;
 
     const CHOICES = {
         rank: [['a', 'A matters more', '1'], ['b', 'B matters more', '2'], ['equal', 'About equal', '3']],
@@ -42,13 +39,17 @@
         window.scrollTo({ top: 0 });
     }
 
+    /** A question and the counts: the page's own (app.py puts them in), or the server's after an answer or a skip. */
+    function show(body) {
+        showCounts(body.counts);
+        render(body.question);
+    }
+
     async function next() {
         try {
             const r = await fetch(url('/api/label'), { headers: { Accept: 'application/json' } });
             if (!r.ok) throw new Error(r.status);
-            const body = await r.json();
-            showCounts(body.counts);
-            render(body.question);
+            show(await r.json());
         } catch (e) {
             $('question').innerHTML = '<div class="empty">Couldn’t load a question. <button type="button" class="btn retry" id="retry">Try again</button></div>';
         }
@@ -65,9 +66,7 @@
                 body: JSON.stringify({ ...current, answer }),
             });
             if (!r.ok) throw new Error(r.status);
-            showCounts((await r.json()).counts);
-            busy = false;
-            await next();
+            show(await r.json());
         } catch (e) {
             buttons.forEach((b) => { b.disabled = false; });
         } finally {
@@ -88,5 +87,5 @@
         const hit = CHOICES[current.kind].find(([, , k]) => k === key);
         if (hit) send(hit[0]);
     });
-    next();
+    show(JSON.parse($('label').textContent));
 })();

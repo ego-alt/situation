@@ -1,13 +1,7 @@
 /* Situation: draw the world, mark today's stories on it, list them beside it. */
 (() => {
-    const ROOT = window.APP_ROOT || '';
-    const url = (p) => `${ROOT}${p}`;
+    const { url, $, esc, webLink, narrow } = App;
     const NS = 'http://www.w3.org/2000/svg';
-    const $ = (id) => document.getElementById(id);
-    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    // Only ordinary web links become links (the server checks too).
-    const webLink = (u) => (/^https?:\/\//i.test(String(u || '')) ? u : null);
-    const narrow = window.matchMedia('(max-width: 860px)');
 
     const STALE_MS = 30 * 60 * 1000;   // older news than this gets a notice
     const HIT_PX = 22;                 // a mark's tap radius on screen (44px across: a fingertip)
@@ -1042,6 +1036,17 @@
     });
 
     let etag = null;   // of the data on screen: a poll that brings the same again isn't drawn again
+    // The ETag as the server made it: the proxy, compressing, may mark it weak (W/).
+    const strong = (tag) => tag?.replace(/^W\//, '') ?? null;
+
+    /** Show news: the page's own (app.py puts it in) or a poll's. */
+    function show(news, tag) {
+        data = news;
+        etag = tag;
+        remember();
+        drawFeed();
+    }
+
     async function refresh() {
         try {
             const res = await fetch(url('/api/situation'), { credentials: 'same-origin' });
@@ -1051,13 +1056,8 @@
                 throw new Error(res.status);
             } else {
                 failure = null;
-                const tag = res.headers.get('ETag');
-                if (!tag || tag !== etag) {
-                    data = await res.json();
-                    etag = tag;
-                    remember();
-                    drawFeed();
-                }
+                const tag = strong(res.headers.get('ETag'));
+                if (!tag || tag !== etag) show(await res.json(), tag);
             }
         } catch (_) {
             failure = 'offline';
@@ -1089,7 +1089,7 @@
 
     async function loadMap() {
         try {
-            world = await (await fetch(url('/static/map/world.json'))).json();
+            world = await (await fetch($('map').dataset.world)).json();
             drawMap();
             startGestures();
             render();
@@ -1124,9 +1124,11 @@
         $('syncButton').addEventListener('click', syncNow);
         tick();
         setInterval(tick, 15000);
-        // The stories don't wait for the map: the list is what matters.
+        // The stories don't wait for the map: the list is what matters. The page came with them.
         loadMap();
-        refresh();
+        const news = $('news');
+        show(JSON.parse(news.textContent), news.dataset.etag);
+        drawStatus();
         setInterval(() => !document.hidden && refresh(), 60000);
         let resizing = null;
         window.addEventListener('resize', () => {

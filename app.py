@@ -1,5 +1,7 @@
 """The server: the pages and their data, the Sync button, and the loop that fetches the news,
 makes up Dispatch and asks the forecast question in the background."""
+import functools
+import hashlib
 import os
 import pathlib
 import sys
@@ -8,6 +10,8 @@ import time
 from datetime import timedelta
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
+from markupsafe import Markup
+from werkzeug.http import generate_etag
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import cli
@@ -22,6 +26,19 @@ from models import SourceStatus, db
 
 STARTED = time.monotonic()
 STALE = timedelta(hours=1)    # /healthz fails when no feed has answered for this long
+KEEP_STATIC = 365 * 24 * 3600     # seconds a browser keeps a static file asked for by its contents
+# The woodcut's coast (tools/build_regions.py), put in Dispatch's page so the woodcut is drawn as it loads.
+COAST = Markup((pathlib.Path(__file__).parent / "data/woodcut.json").read_text(encoding="utf-8"))
+
+
+@functools.cache
+def _digest(path: str, mtime: int) -> str:
+    return hashlib.sha1(pathlib.Path(path).read_bytes()).hexdigest()[:10]
+
+
+def version(path: pathlib.Path) -> str:
+    """A static file's version: its contents' hash, short (the font stylesheets name their fonts by it too)."""
+    return _digest(str(path), path.stat().st_mtime_ns)
 
 
 def create_app(config=None):
@@ -43,9 +60,30 @@ def create_app(config=None):
     # headers, so url_for() and request.script_root include the prefix.
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
+    # A static file is asked for by its contents (url_for puts on ?v=, its version): that address
+    # is always the same file, so the browser keeps it a year without asking again. A file asked
+    # for without one (a country's regions, a flag) is asked after every time, as Flask does.
+    @app.url_defaults
+    def _versioned(endpoint, values):
+        if endpoint == "static" and "v" not in values:
+            values["v"] = version(pathlib.Path(app.static_folder, values["filename"]))
+
+    @app.after_request
+    def _kept(response):
+        if request.endpoint == "static" and request.args.get("v"):
+            response.cache_control.no_cache = None
+            response.cache_control.public = True
+            response.cache_control.max_age = KEEP_STATIC
+            response.cache_control.immutable = True
+        return response
+
+    # The pages come with their data, so they draw it as they load instead of asking for it.
     @app.route("/")
     def index():
-        return render_template("index.html")
+        news = page.published()
+        # "<" only stands inside the JSON's strings, where \u003c reads the same: no </script> in the page.
+        safe = Markup(news.replace("<", "\\u003c"))
+        return render_template("index.html", news=safe, etag=f'"{generate_etag(news.encode())}"')
 
     @app.route("/api/situation")
     def situation():
@@ -69,15 +107,19 @@ def create_app(config=None):
     @app.route("/dispatch")
     @app.route("/dispatch/<edition>")
     def dispatch_page(edition=None):
-        """Dispatch; /dispatch/2026-11-12 is that day's issue (the page reads it from the address)."""
-        return render_template("dispatch.html")
+        """Dispatch; /dispatch/2026-11-12 is that day's issue."""
+        return render_template("dispatch.html", issue=_issue(edition), coast=COAST)
 
     @app.route("/api/dispatch")
     def dispatch_api():
-        """One issue (?edition=2026-11-12; the newest by default), with its question."""
-        data = dispatch.issue(request.args.get("edition"))
+        """One issue (?edition=2026-11-12; the newest by default)."""
+        return jsonify(_issue(request.args.get("edition")))
+
+    def _issue(edition: str | None) -> dict:
+        """An issue, with its question as you've answered it."""
+        data = dispatch.issue(edition)
         data["forecast"] = forecast.view((data["edition"] or {}).get("id"), _user(), pipeline.clock())
-        return jsonify(data)
+        return data
 
     @app.route("/api/forecast/<edition>", methods=["POST"])
     def forecast_answer(edition):
@@ -99,21 +141,26 @@ def create_app(config=None):
 
     @app.route("/label")
     def label_page():
-        return render_template("label.html")
+        return render_template("label.html", label=_label())
 
     @app.route("/api/label")
     def label_next():
-        """A question to judge (see labels.py), and how many you've answered."""
-        now = pipeline.clock()
-        return jsonify({"question": labels.next_question(now), "counts": labels.counts(now)})
+        """Another question to judge (a skip, a retry)."""
+        return jsonify(_label())
 
     @app.route("/api/label", methods=["POST"])
     def label_answer():
+        """An answer; the next question comes back with it, so answering is the one request."""
         try:
             labels.record(request.get_json(silent=True) or {})
         except ValueError as e:
             return {"error": str(e)}, 400
-        return jsonify({"counts": labels.counts(pipeline.clock())})
+        return jsonify(_label())
+
+    def _label() -> dict:
+        """A question to judge (see labels.py), and how many you've answered."""
+        now = pipeline.clock()
+        return {"question": labels.next_question(now), "counts": labels.counts(now)}
 
     @app.route("/favicon.ico")
     def favicon():

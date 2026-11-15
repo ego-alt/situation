@@ -12,8 +12,8 @@ longest), never an event asked before; one within TIE of it is a tie, drawn at r
 
 A question's state is one of STATES and moves only along MOVES, in _move and nowhere else:
 none (nothing was eligible) is final; open becomes closed when trading stops; open or closed
-becomes yes, no or void when Polymarket settles it. Scores and the record are worked out from
-the questions and your guesses, never stored.
+becomes yes, no or void when Polymarket settles it. Scores are worked out from the questions
+and your guesses, never stored.
 """
 import json
 import random
@@ -45,7 +45,7 @@ STATES = ("none", "open", "closed", "yes", "no", "void")
 MOVES = {"open": {"closed", "yes", "no", "void"}, "closed": {"yes", "no", "void"}}
 FINAL = set(STATES) - set(MOVES)
 
-# Polymarket's categories to read, and the subject each counts as in the record (first match).
+# Polymarket's categories to read, and the subject each is shown as (first match).
 CATEGORIES = ["politics", "elections", "world", "geopolitics", "economy", "fed", "finance", "business",
               "tech", "ai", "science", "climate", "weather", "commodities", "oil"]
 SUBJECTS = [
@@ -315,35 +315,9 @@ def _question(q: Question, g: Guess | None, now: datetime) -> dict:
     return out
 
 
-def _mean(xs: list[float]) -> float | None:
-    return round(sum(xs) / len(xs), 3) if xs else None
-
-
-def record(user: str) -> dict:
-    """How you've done against the crowd, overall and by subject, and how often what you said
-    came true, in bands of 20 points."""
-    rows = (db.session.query(Question, Guess).join(Guess, Guess.edition == Question.edition)
-            .filter(Guess.user == user, Question.state.in_(("yes", "no"))).all())
-    scored = [(q, g, *scores(q, g)) for q, g in rows]
-    subjects: dict[str, list] = {}
-    for q, _, yours, crowd in scored:
-        subjects.setdefault(q.subject, []).append((yours, crowd))
-    bands = [{"from": lo, "to": lo + 20, "said": 0, "happened": 0} for lo in range(0, 100, 20)]
-    for q, g, _, _ in scored:
-        band = bands[min(g.chance // 20, 4)]
-        band["said"] += 1
-        band["happened"] += q.state == "yes"
-    return {"answered": len(scored),
-            "yours": _mean([s[2] for s in scored]), "crowd": _mean([s[3] for s in scored]),
-            "subjects": [{"subject": s, "answered": len(v), "yours": _mean([a for a, _ in v]),
-                          "crowd": _mean([b for _, b in v])}
-                         for s, v in sorted(subjects.items(), key=lambda kv: -len(kv[1]))],
-            "bands": bands}
-
-
 def view(edition: str | None, user: str, now: datetime) -> dict | None:
-    """An issue's forecast: its question, the results it reports (of earlier questions, come in
-    during the REPORTED before it came out), and your record. None until it's out."""
+    """An issue's forecast: its question, and the results it reports (of earlier questions, come
+    in during the REPORTED before it came out). None until it's out."""
     if not edition or out(edition) > now:
         return None
     q = db.session.get(Question, edition)
@@ -352,5 +326,4 @@ def view(edition: str | None, user: str, now: datetime) -> dict | None:
                                     Question.settled < out(edition)).order_by(Question.edition.desc()).all())
     return {"question": _question(q, guesses.get(edition), now) if q and q.state != "none" else None,
             "asked": q is not None, "pending": askable(edition, now),
-            "results": [_question(p, guesses.get(p.edition), now) for p in report],
-            "record": record(user)}
+            "results": [_question(p, guesses.get(p.edition), now) for p in report]}

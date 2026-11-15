@@ -236,20 +236,6 @@ def test_a_result_is_in_the_issue_after_it_came_in(app):
     assert [r["title"] for r in forecast.view("2026-11-10", "ellery", OUT)["results"]] == ["Old news"]
 
 
-def test_the_record(app):
-    settled("2026-11-01", "A", "yes", 0.3)
-    settled("2026-11-02", "B", "no", 0.7, subject="economics")
-    settled("2026-11-03", "C", "void", 0.5)
-    for edition, chance, crowd in (("2026-11-01", 80, 0.3), ("2026-11-02", 20, 0.7), ("2026-11-03", 50, 0.5)):
-        db.session.add(Guess(edition=edition, user="ellery", chance=chance, crowd=crowd, at=OUT))
-    db.session.commit()
-    r = forecast.record("ellery")
-    assert r["answered"] == 2                                                  # a void question isn't scored
-    assert (r["yours"], r["crowd"]) == (pytest.approx(0.04), pytest.approx(0.49))
-    assert {s["subject"]: s["answered"] for s in r["subjects"]} == {"elections": 1, "economics": 1}
-    assert [(b["said"], b["happened"]) for b in r["bands"]] == [(0, 0), (1, 0), (0, 0), (0, 0), (1, 1)]
-
-
 def test_an_issue_not_out_yet_has_no_forecast(app):
     assert forecast.view("2026-11-12", "ellery", OUT) is None
 
