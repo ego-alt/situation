@@ -120,8 +120,9 @@
 .s-mod .fig { aspect-ratio: 4 / 3; }
 .w5 .fig { aspect-ratio: 16 / 9; }
 /* Opened, a cropped figure is shown whole; the lead's already is, so it stays as it was. */
-.story.open:not(.s-lead) .fig { aspect-ratio: auto; }
-.story.open:not(.s-lead) .fig img { max-height: 520px; object-fit: contain; }
+/* An opened story's figure is whole, and the print's always is: only its text is shut. */
+:is(.story.open, #print .story):not(.s-lead) .fig { aspect-ratio: auto; }
+:is(.story.open, #print .story):not(.s-lead) .fig img { max-height: 520px; object-fit: contain; }
 /* The lead and a wide module set the figure in the corner and wrap the text around and under it. */
 .s-lead .story-head { margin-bottom: var(--space-4); }
 .s-lead .fig { float: left; width: calc(50% - var(--space-3)); margin: var(--space-1) var(--space-6) var(--space-3) 0; }
@@ -265,9 +266,9 @@
     .story:not(.s-lead) .abstract { grid-area: abs; }
     .story:not(.s-lead, .open) .abstract { margin-top: var(--space-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
     .has-note:not(.open) .abstract { display: none; }
-    .story.open:not(.s-lead) .flow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "fig" "abs"; }
-    .story.open:not(.s-lead) .fig { width: auto; aspect-ratio: auto; margin: var(--space-4) 0 0; }
-    .story.open:not(.s-lead) .fig img { height: auto; max-height: 70vh; object-fit: contain; }
+    :is(.story.open, #print .story):not(.s-lead) .flow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "fig" "abs"; }
+    :is(.story.open, #print .story):not(.s-lead) .fig { width: auto; aspect-ratio: auto; margin: var(--space-4) 0 0; }
+    :is(.story.open, #print .story):not(.s-lead) .fig img { height: auto; max-height: 70vh; object-fit: contain; }
     .s-lead .story-title { font-size: var(--text-lg); }
     .s-mod .story-title { font-size: var(--text-base); }
     .s-lead .standfirst-head { font-size: var(--text-sm); }

@@ -364,8 +364,9 @@
 
     /** A picture with its text, set as a story, the whole of it beside the text: under its
      * section's head, a kicker (its parts already safe to put in the page), the title, the text and
-     * its links, and under the picture who made it, when that's to be said. `shut`, it's a story as
-     * the papers are: its title the button that opens it to the whole text and the links. */
+     * its links, and under the picture who made it, when that's to be said. `shut`, its text is
+     * shut as a paper's is, its title the button that opens it to the whole text and the links;
+     * the picture stays whole (dispatch.css). */
     function drawPicture(name, head, p, kicker, title, links, { caption = '', shut = false } = {}) {
         const el = $(name);
         el.hidden = !p;
@@ -382,7 +383,7 @@
             </article></div>`;
     }
 
-    /** The day's print, shut as a paper is until it's opened to what its museum says of it. */
+    /** The day's print, whole, with what its museum says of it shut until it's opened, as a paper's text is. */
     function drawPrint() {
         const p = section('print');
         drawPicture('print', 'The day’s print', p, p ? [p.maker, p.date, p.technique].map(esc) : [], p && marked(p.title),
