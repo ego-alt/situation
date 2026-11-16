@@ -17,21 +17,25 @@ import struct
 from collections import OrderedDict
 from functools import lru_cache
 
+from geo import TEXTS
+
 MODEL_DIR = pathlib.Path(os.environ.get("EMBED_MODEL_DIR")
                          or pathlib.Path(__file__).resolve().parent / "models" / "potion-base-8M")
 
 
 def _load_safetensors(path: pathlib.Path):
-    """The one tensor in a .safetensors file, read with numpy alone."""
+    """The one tensor in a .safetensors file, mapped from the file with numpy alone: the rows
+    looked up are read in as they're needed, and the system can let them go again, so the
+    vectors aren't copied into the process's own memory."""
     import numpy as np
     with path.open("rb") as f:
         size = struct.unpack("<Q", f.read(8))[0]
         header = json.loads(f.read(size))
-        data = f.read()
     (name, info), = ((k, v) for k, v in header.items() if k != "__metadata__")
     dtype = {"F32": np.float32, "F16": np.float16}[info["dtype"]]
-    start, end = info["data_offsets"]
-    return np.frombuffer(data[start:end], dtype=dtype).reshape(info["shape"]).astype(np.float32)
+    start, _ = info["data_offsets"]
+    vectors = np.memmap(path, dtype=dtype, mode="r", offset=8 + size + start, shape=tuple(info["shape"]))
+    return vectors if dtype is np.float32 else vectors.astype(np.float32)
 
 
 @lru_cache(maxsize=1)
@@ -52,8 +56,7 @@ def available() -> bool:
     return _model() is not None
 
 
-_cache: "OrderedDict[str, object]" = OrderedDict()
-CACHE = 10_000        # vectors kept (about 10 MB): a window's articles, read again every fetch
+_cache: "OrderedDict[str, object]" = OrderedDict()     # vectors by text, the latest used last (TEXTS of them)
 
 
 def encode(texts: list[str]):
@@ -76,7 +79,7 @@ def encode(texts: list[str]):
     for k, t in enumerate(texts):
         out[k] = _cache[t]
         _cache.move_to_end(t)
-    while len(_cache) > CACHE:
+    while len(_cache) > TEXTS:
         _cache.popitem(last=False)
     return out
 

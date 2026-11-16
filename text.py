@@ -7,7 +7,7 @@ import re
 from collections import Counter
 from functools import lru_cache
 
-from geo import places
+from geo import TEXTS, places
 
 STOPWORDS = set("""
 a an the and or but of to in on at for from by with as is are was were be been being it its
@@ -32,7 +32,7 @@ def tokens(text: str) -> Counter:
     return Counter(dict(_tokens(text or "")))
 
 
-@lru_cache(maxsize=50_000)
+@lru_cache(maxsize=TEXTS)
 def _tokens(text: str) -> tuple:
     out = Counter()
     words = re.findall(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’-]+|\d{2,}", text or "")
@@ -80,9 +80,18 @@ def names(articles: list[dict]) -> set[str]:
     upper, lower = Counter(), Counter()
     for a in articles:
         for text in (a["title"], a.get("summary") or ""):
-            words = re.findall(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’-]+", text)
-            if sum(w[0].isupper() for w in words) > 0.6 * len(words):
-                continue   # Title Case, or empty: says nothing about which words are names
-            for w in words[1:]:
-                (upper if w[0].isupper() else lower)[_stem(w.lower().strip("'’-"))] += 1
+            capitalised, plain = _cased(text)
+            upper.update(capitalised)
+            lower.update(plain)
     return {t for t in upper if upper[t] > lower[t]}
+
+
+@lru_cache(maxsize=TEXTS)
+def _cased(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """A text's terms after its first word, capitalised and not; none from Title Case, or an
+    empty text, which says nothing about which words are names."""
+    words = re.findall(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’-]+", text)
+    if sum(w[0].isupper() for w in words) > 0.6 * len(words):
+        return (), ()
+    stems = [(w[0].isupper(), _stem(w.lower().strip("'’-"))) for w in words[1:]]
+    return tuple(t for up, t in stems if up), tuple(t for up, t in stems if not up)

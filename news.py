@@ -25,7 +25,10 @@ the ground truth (evaluation/groundtruth.py) and trains the model.
 """
 import html
 import re
+from functools import lru_cache
 from urllib.parse import urlparse
+
+from geo import TEXTS
 
 # Headlines that name a format, not the news.
 _HEADLINE = re.compile(
@@ -114,6 +117,12 @@ _LEDES = {
 }
 
 
+# Compiled once: every fetch reads every article in the window again.
+_FORMATS = {name: (re.compile(t), s and re.compile(s)) for name, (t, s) in _FORMATS.items()}
+_SHAPES = {name: re.compile(p) for name, p in _SHAPES.items()}
+_LEDES = {name: re.compile(p) for name, p in _LEDES.items()}
+
+
 def formats(article: dict) -> dict[str, bool]:
     """Yes/no signals of a piece's format, from its headline, summary and url."""
     title = " ".join(html.unescape(article["title"]).lower().split())
@@ -121,10 +130,10 @@ def formats(article: dict) -> dict[str, bool]:
     opening = " ".join(summary.split()[:30]).lower()
     out = {"video": video_page(article), "advertorial": bool(_ADVERTORIAL.search(article.get("url") or ""))}
     for name, (in_title, in_summary) in _FORMATS.items():
-        out[name] = bool(re.search(in_title, title) or (in_summary and re.search(in_summary, opening)))
-    out |= {name: bool(re.search(pattern, title)) for name, pattern in _SHAPES.items()}
+        out[name] = bool(in_title.search(title) or (in_summary and in_summary.search(opening)))
+    out |= {name: bool(p.search(title)) for name, p in _SHAPES.items()}
     out["no_summary"] = not summary
-    out |= {name: bool(re.search(pattern, opening)) for name, pattern in _LEDES.items()}
+    out |= {name: bool(p.search(opening)) for name, p in _LEDES.items()}
     return out
 
 
@@ -147,19 +156,29 @@ def summary(article: dict, words: int = 60) -> str:
     return " ".join(clean(article.get("summary")).split()[:words])
 
 
-def evidence(article: dict) -> list[bool]:
+def evidence(article: dict) -> tuple[bool, ...]:
     """The rules and the format signals, in the order of evidence_names()."""
-    return [headline_says_not_news(article), url_says_not_news(article), *formats(article).values()]
+    return _evidence(article["title"], article.get("summary") or "", article.get("url") or "")
+
+
+@lru_cache(maxsize=TEXTS)
+def _evidence(title: str, summary: str, url: str) -> tuple[bool, ...]:
+    article = {"title": title, "summary": summary, "url": url}
+    return (headline_says_not_news(article), url_says_not_news(article), *formats(article).values())
 
 
 def evidence_names() -> list[str]:
     return ["headline", "url", *formats({"title": "", "url": ""})]
 
 
+_SEGMENT = re.compile(r"[/\-_.]")
+_ID = re.compile(r"\d{3}")
+
+
 def tokens(article: dict) -> list[str]:
     """The outlet and the url's first three path segments (no ids or slugs)."""
-    path = [s for s in re.split(r"[/\-_.]", urlparse(article.get("url") or "").path.lower())
-            if s and len(s) < 25 and not re.search(r"\d{3}", s)][:3]
+    path = [s for s in _SEGMENT.split(urlparse(article.get("url") or "").path.lower())
+            if s and len(s) < 25 and not _ID.search(s)][:3]
     return [f"outlet:{article['source']}"] + [f"path:{s}" for s in path]
 
 

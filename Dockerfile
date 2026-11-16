@@ -7,11 +7,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY pyproject.toml uv.lock /app/
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY . /app/
-RUN uv sync --frozen --no-dev
-
 # The small embedding model (embed.py): potion-base-8M (MIT), pinned to a
-# revision and checked against its hashes.
+# revision and checked against its hashes. Before the code, so a change to the code
+# doesn't fetch it again.
 ARG EMBED_REVISION=bf8b056651a2c21b8d2565580b8569da283cab23
 RUN mkdir -p /app/models/potion-base-8M && cd /app/models/potion-base-8M \
     && /app/.venv/bin/python -c "import sys, urllib.request; [urllib.request.urlretrieve(f'https://huggingface.co/minishlab/potion-base-8M/resolve/{sys.argv[1]}/{f}', f) for f in ('model.safetensors', 'tokenizer.json')]" "$EMBED_REVISION" \
@@ -22,8 +20,14 @@ RUN mkdir -p /app/models/potion-base-8M && cd /app/models/potion-base-8M \
 # from the Pi) must belong to it.
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app \
     && mkdir -p /app/instance && chown app:app /app/instance
+
+COPY . /app/
+RUN uv sync --frozen --no-dev
+
 USER app
-ENV HOME=/tmp
+# Two malloc arenas, not one per thread (the server's and the fetch loop's): memory a
+# thread frees can be used again by the others, instead of staying with it.
+ENV HOME=/tmp MALLOC_ARENA_MAX=2
 
 EXPOSE 8000
 # Unhealthy when no feed has answered for an hour (see /healthz).

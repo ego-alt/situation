@@ -26,6 +26,7 @@ measured well: see docs/design.md.
 import json
 import os
 import pathlib
+import time
 from collections import Counter
 from contextlib import contextmanager
 
@@ -36,7 +37,8 @@ from geo import mentions
 # Saved models ---------------------------------------------------------------
 
 _override: dict | None = None        # set by using(): models not (yet) saved, or none at all
-_cache: dict[str, tuple[float, dict]] = {}
+_cache: dict[pathlib.Path, tuple[float, float, dict]] = {}   # file → (when last looked at, its mtime, the model)
+LOOK_AGAIN = 60       # seconds: a saved model is looked at again (has it been trained since?) at most this often
 
 
 def models_dir() -> pathlib.Path | None:
@@ -57,13 +59,16 @@ def load(name: str) -> dict | None:
     if folder is None:
         return None
     path = folder / f"{name}.json"
+    now = time.monotonic()
+    if path in _cache and now - _cache[path][0] < LOOK_AGAIN:
+        return _cache[path][2]
     try:
         mtime = path.stat().st_mtime
     except OSError:
         return None
-    if name not in _cache or _cache[name][0] != mtime:
-        _cache[name] = (mtime, json.loads(path.read_text()))
-    return _cache[name][1]
+    model = _cache[path][2] if path in _cache and _cache[path][1] == mtime else json.loads(path.read_text())
+    _cache[path] = (now, mtime, model)
+    return model
 
 
 def save(name: str, model: dict) -> pathlib.Path:
@@ -71,6 +76,7 @@ def save(name: str, model: dict) -> pathlib.Path:
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{name}.json"
     path.write_text(json.dumps(model, indent=1))
+    _cache.pop(path, None)
     return path
 
 

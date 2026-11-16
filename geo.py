@@ -14,6 +14,10 @@ from functools import lru_cache
 from projection import project
 
 _DATA = pathlib.Path(__file__).resolve().parent / "data" / "countries.json"
+# Texts whose workings-out are kept (here, text.py, news.py, ongoing.py, embed.py): every fetch
+# reads the window's articles again, a few thousand texts, and the week's for the ongoing
+# situations, and a busy day has more. Each keeps its text, so no more.
+TEXTS = 8_000
 
 # What a country's people or things are called (comma-separated alternates).
 DEMONYMS = {
@@ -162,7 +166,7 @@ def place_names() -> list[str]:
     return [n for n in lookup if kinds[n] != "leader"]
 
 
-@lru_cache(maxsize=50_000)        # every fetch re-reads the same articles
+@lru_cache(maxsize=TEXTS)
 def mentions(text: str) -> tuple[tuple[str, str], ...]:
     """Each country the text names, in order, with how it's named: (iso, kind),
     kind one of name, demonym, alias, capital, city, leader, actor (a capital

@@ -6,7 +6,9 @@ from sqlalchemy.types import TypeDecorator
 
 from score import BACKGROUND
 
-db = SQLAlchemy()
+# What's read stays as it was read after a commit, not read again row by row: a session lasts
+# one request or one round of the fetch loop, too short for what it holds to go stale.
+db = SQLAlchemy(session_options={"expire_on_commit": False})
 
 
 def utcnow():

@@ -5,7 +5,7 @@ consistent; a story keeps its id when most of its articles are the same as
 last time. A story whose articles have all left the window is closed, not
 deleted, so it keeps its id for the weekly view and the notifications."""
 from collections import Counter
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import situations
 from cluster import cluster
@@ -201,21 +201,41 @@ def running_tier(a: dict, events: list[list[dict]], now: datetime, active: int) 
     return tier, score
 
 
-_usual: dict = {}
+_days: dict[date, tuple[Counter, int]] = {}     # each whole day's word counts (situations.baseline): it's over
+_usual: dict[datetime, tuple[Counter, int]] = {}    # the fortnight's, by the hour it ends
 
 
-def usual_words(now: datetime):
-    """How the fortnight before the last day used each word (situations.baseline),
-    worked out once an hour: it barely moves between fetches."""
+def usual_words(now: datetime) -> tuple[Counter, int]:
+    """How the fortnight before the last day used each word (situations.baseline), worked out once
+    an hour: the whole days in it counted once each (a day that's over doesn't change), the part
+    days at its ends counted afresh."""
     end = (now - situations.DAY).replace(minute=0, second=0, microsecond=0)
     if end not in _usual:
         start = end - timedelta(days=situations.BASELINE_DAYS)
-        rows = (db.session.query(Article.title, Article.summary, Article.published, Article.fetched)
-                .filter(Article.published >= start, Article.published < end))
+        parts, whole = [], set()
+        for k in range((end.date() - start.date()).days + 1):
+            day = start.date() + timedelta(days=k)
+            midnight = datetime.combine(day, time(), UTC)
+            lo, hi = max(start, midnight), min(end, midnight + timedelta(days=1))
+            if lo == midnight and hi == midnight + timedelta(days=1):
+                whole.add(day)
+                if day not in _days:
+                    _days[day] = _counted(lo, hi)
+                parts.append(_days[day])
+            elif lo < hi:
+                parts.append(_counted(lo, hi))
+        for day in set(_days) - whole:
+            del _days[day]
         _usual.clear()
-        _usual[end] = situations.baseline([{"title": t, "summary": s, "published": p or f}
-                                           for t, s, p, f in rows])
+        _usual[end] = (sum((c for c, _ in parts), Counter()), sum(n for _, n in parts))
     return _usual[end]
+
+
+def _counted(start: datetime, end: datetime) -> tuple[Counter, int]:
+    """situations.baseline over the articles out from `start` to `end`."""
+    rows = (db.session.query(Article.title, Article.summary, Article.published)
+            .filter(Article.published >= start, Article.published < end))
+    return situations.baseline([{"title": t, "summary": s, "published": p} for t, s, p in rows])
 
 
 def latest_itn() -> dict:

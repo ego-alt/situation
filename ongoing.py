@@ -7,9 +7,10 @@ track on the map. (Running stories the news itself reveals, an election night, a
 situations.py.)"""
 import re
 from datetime import datetime, timedelta
+from functools import lru_cache
 
 import situations
-from geo import places
+from geo import TEXTS, places
 from models import Article, Story, db
 from pipeline import SHOWN
 from score import is_soft
@@ -31,10 +32,11 @@ def _text(title: str, summary: str | None) -> str:
     return f"{title}. {summary or ''}"
 
 
-def _fought(text: str) -> set[str]:
+@lru_cache(maxsize=TEXTS)
+def _fought(text: str) -> frozenset[str]:
     """The countries a piece of text names, if it uses the words of conflict (else none):
     it's about a situation when one of them is the situation's."""
-    return set(places(text)) if CONFLICT.search(text) else set()
+    return frozenset(places(text)) if CONFLICT.search(text) else frozenset()
 
 
 def about_situation(story: Story, isos: set[str]) -> bool:
