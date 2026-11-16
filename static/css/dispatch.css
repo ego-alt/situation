@@ -152,6 +152,8 @@
 @media (min-width: 861px) {
     .bare .fig { display: none; }
     :is(#print, #bird) .fig { width: min(45%, calc(520px * var(--r))); }
+    /* The print, shut, has the start of its text, as a paper does (the front page's rows are cut by dispatch.js fit). */
+    #print .story:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
 }
 
 /* The day's print, poem, bird and question and the dates coming are set in these same modules, but they don't open.

@@ -362,30 +362,31 @@
                 ${d.parts.length && off(d) <= 1 ? `<p class="links">${d.parts.map(part).join('')}</p>` : ''}</article>`).join('')}</div>`;
     }
 
-    /** A picture with its text, set as an opened story, the whole of it beside the text: under
-     * its section's head, a kicker (its parts already safe to put in the page), the title, the
-     * text and its links, and under the picture who made it, when that's to be said. */
-    function drawPicture(name, head, p, kicker, title, links, caption = '') {
+    /** A picture with its text, set as a story, the whole of it beside the text: under its
+     * section's head, a kicker (its parts already safe to put in the page), the title, the text and
+     * its links, and under the picture who made it, when that's to be said. `shut`, it's a story as
+     * the papers are: its title the button that opens it to the whole text and the links. */
+    function drawPicture(name, head, p, kicker, title, links, { caption = '', shut = false } = {}) {
         const el = $(name);
         el.hidden = !p;
         if (!p) { el.innerHTML = ''; return; }
         ratios.set(p.id, p.ratio);
         const [first, ...more] = kicker.filter(Boolean);
         el.innerHTML = `<h2 class="section-head"><span>${head}</span><span class="n">${esc(p.source)}</span></h2>
-            <div class="row"><article class="story open w12 side has-fig">
+            <div class="row"><article class="story${shut ? '' : ' open'} w12 side has-fig">
                 <div class="flow">${figure(p, true, caption)}<div class="story-head">
                     <p class="kicker"><span class="kicker-k">${first}</span>${more.map((m) => `<span>${m}</span>`).join('')}</p>
-                    <h2 class="story-title">${title}</h2>
+                    <h2 class="story-title">${shut ? `<button type="button" class="story-open" aria-expanded="false">${title}</button>` : title}</h2>
                 </div><p class="abstract">${marked(p.text)}</p></div>
                 <p class="links">${links}</p>
             </article></div>`;
     }
 
-    /** The day's print with what its museum says of it. */
+    /** The day's print, shut as a paper is until it's opened to what its museum says of it. */
     function drawPrint() {
         const p = section('print');
         drawPicture('print', 'The day’s print', p, p ? [p.maker, p.date, p.technique].map(esc) : [], p && marked(p.title),
-            p && away(p.url, p.source));
+            p && away(p.url, p.source), { shut: true });
     }
 
     /** The day's bird with what Wikipedia says of it, its Chinese name beside its English, and under
@@ -394,7 +395,7 @@
         const b = section('bird');
         drawPicture('bird', 'The day’s bird', b, b ? [`<i>${esc(b.latin)}</i>`, esc(b.status)] : [],
             b && `${marked(b.title)} <span class="bird-zh" lang="zh-HK">${esc(b.zh)}</span>`, b && away(b.url, b.source),
-            b && webLink(b.photo) && `<a href="${esc(b.photo)}" target="_blank" rel="noopener">${b.credit} · ${esc(b.licence)}</a>`);
+            { caption: b && webLink(b.photo) && `<a href="${esc(b.photo)}" target="_blank" rel="noopener">${b.credit} · ${esc(b.licence)}</a>` });
     }
 
     /** A line of the poem; of a passage, with the words that have a note marked, each a button to it. */
@@ -535,15 +536,17 @@
         }
     });
 
-    $('edition').addEventListener('click', (e) => {
+    /** A press on a story (a paper, the print) opens or shuts it; on an open one's figure, shows the figure. */
+    function read(e) {
         if (e.target.closest('.retry')) return load(fromPath());
         if (e.target.closest('a') || window.getSelection()?.toString()) return;
         const el = e.target.closest('.story');
         if (!el) return;
         if (e.target.closest('.fig') && (el.classList.contains('open') || el.classList.contains('s-lead'))) return view(el);
         toggle(el);
-    });
-    $('print').addEventListener('click', (e) => { if (e.target.closest('.fig')) view(e.currentTarget); });
+    }
+    $('edition').addEventListener('click', read);
+    $('print').addEventListener('click', read);
     document.addEventListener('click', (e) => {
         const button = e.target.closest('.folio-step');
         if (button?.dataset.edition) load(button.dataset.edition, { push: true });
