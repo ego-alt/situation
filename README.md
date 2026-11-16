@@ -41,7 +41,7 @@ The second tab is a daily issue to read, out each morning at 8 in Hong Kong: a f
 - **A woodcut at its head.** Under the nameplate and its vermilion 邸報 seal, the mouth of the Pearl River engraved in the page's light lines: hatched land and woodcut peaks, the sea lined along the shore, and faintly over the sea the sky above Hong Kong at 9pm the day the issue came out, its bright stars (織女 and 牛郎 named), the river of stars and the moon at its phase. It's drawn in the page from the date and the map's own coastline (`static/js/woodcut.js`), the same every time an issue is opened.
 - **One issue a day, kept as it came out.** An issue is made up when it comes out, from what its sources say then, and is fixed from then on; a day the server missed has no issue. Step through issues with ‹ and › or the arrow keys; each has its own address (`/dispatch/2026-11-12`).
 - **Read there.** Every story has its abstract, its authors and its picture (dimmed from 7pm to 7am, as they're drawn on white); the links under it are for going further. One story leads, with the others beside and under it, the wider figure taking the wider slot; on a phone it's a list.
-- **Three issues.** Dispatch is a periodical, not an archive: today's and the two before it are kept, and older ones go as each new one comes out.
+- **A rolling week.** Dispatch is a periodical, not an archive: today's issue and the six before it are kept, and the oldest goes as each new one comes out.
 
 **The front page** is the day's papers, when there are some.
 
@@ -108,7 +108,7 @@ Outlets, their weights and regions are in `sources.py`.
 
 ## Data
 
-- `instance/situation.db`: articles from the last 30 days, the stories they form, Wikipedia snapshots, your labels, the papers and commentaries Dispatch has read in the last four weeks, its last three issues, and each day's question with your answers.
+- `instance/situation.db`: articles from the last 30 days, the stories they form, Wikipedia snapshots, your labels, the papers and commentaries Dispatch has read in the last four weeks, its last seven issues, and each day's question with your answers.
 - `instance/models/`: the models `flask train --save` fitted on your labels.
 - `models/potion-base-8M/`: the embedding model (MIT licence, minishlab), downloaded into the image at build time.
 - `instance/snapshots/`: the articles as they were when you labelled (one every 6 hours while you do; ones without labels go after 30 days).

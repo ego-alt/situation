@@ -349,7 +349,7 @@ def test_the_dates_ahead_are_the_three_calendars_soonest_first(app, monkeypatch)
 
 # ---------- an issue ----------
 
-def test_one_issue_a_day_kept_as_it_came_out_and_three_at_a_time(app, journals):
+def test_one_issue_a_day_kept_as_it_came_out_seven_at_a_time(app, journals):
     assert dispatch.publish(NOW) == "2026-11-04"
     first = dispatch.issue(None)
     assert first["edition"] == {"id": "2026-11-04", "number": 308, "out": "2026-11-04T00:00:00+00:00",
@@ -363,8 +363,8 @@ def test_one_issue_a_day_kept_as_it_came_out_and_three_at_a_time(app, journals):
     for d in range(2, 9):
         dispatch.publish(NOW + timedelta(days=d))
     newest = dispatch.issue("2026-11-04")                                               # gone: the newest instead
-    assert newest["edition"]["id"] == "2026-11-12" and newest["editions"] == ["2026-11-10", "2026-11-11", "2026-11-12"]
-    assert len({i.sections["poem"]["title"] for i in Issue.query}) == 3                # a poem each, none twice
+    assert newest["edition"]["id"] == "2026-11-12" and newest["editions"] == [f"2026-11-{d:02}" for d in range(6, 13)]
+    assert len({i.sections["poem"]["title"] for i in Issue.query}) == 7                # a poem each, none twice
 
 
 def test_an_issue_waits_for_the_journals_to_answer(app, journals, monkeypatch):
