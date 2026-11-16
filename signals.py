@@ -18,7 +18,7 @@ import requests
 
 from geo import from_iso3, places
 from models import Signal, SourceStatus, db
-from sources import USER_AGENT
+from sources import get as ask
 
 GDACS = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
 USGS = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson"
@@ -27,13 +27,10 @@ MIN_MAGNITUDE = 6.5
 PAGER = {"yellow", "orange", "red"}
 SHOWN = timedelta(hours=48)
 SAME_QUAKE = (timedelta(minutes=30), 150)      # within half an hour and 150 km: one earthquake
-TIMEOUT = 20
 
 
 def _get(url, **params):
-    resp = requests.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
-    resp.raise_for_status()
-    return resp.json()
+    return ask(url, **params).json()
 
 
 def _utc(text: str) -> datetime:

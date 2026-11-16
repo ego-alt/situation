@@ -1,18 +1,22 @@
-"""Dispatch: what an issue is made from (the journals' papers, the dates coming up, the prints,
-the poems), how it's made up each day and how it's kept. The journals are stood in for by
-records shaped like Europe PMC's, the calendars by ones shaped like theirs."""
+"""Dispatch: what an issue is made from (its sections: the journals' papers, a print, the poem, a
+bird, the dates coming up), how it's made up each day and how it's kept. Each source is stood in
+for by answers shaped like its own."""
 import re
 from datetime import UTC, date, datetime, timedelta
+from urllib.parse import quote
 
 import pytest
 import requests
 
-import add_prints
+import birds
 import dates
 import dispatch
 import papers
+import poems
+import prints
+import sources
 from journals import BY_KEY
-from models import Issue, Paper, SourceStatus, db
+from models import Issue, Paper, Shown, SourceStatus, db
 
 LONG = "Neurons in the cortex " + "and their synapses " * 30     # an abstract, not front matter
 NOW = datetime(2026, 11, 4, 9, 0, tzinfo=UTC)                     # the day's issue is due
@@ -61,22 +65,83 @@ REFERENCES = {"10.1016/j.neuron.p1": ["10.1126/science.brain", "10.1016/j.neuron
               "10.1038/d41586-nv": ["10.1038/s41586-2"]}
 
 
+class Answer:
+    """What a source answers: its JSON."""
+    def __init__(self, found):
+        self.found = found
+
+    def json(self):
+        return self.found
+
+
+def sheet(n: int, text: str | None = None, shape=(1200, 800)) -> dict:
+    """A print as the museum's API lists and describes it."""
+    key = f"1930.{n}"
+    return {"accession_number": key, "title": f"Print {n}",
+            "description": text or f"Print {n}, as the museum tells it. " * 9,
+            "images": {"web": {"url": f"https://openaccess-cdn.clevelandart.org/{key}/{key}_web.jpg",
+                               "width": shape[0], "height": shape[1]}},
+            "creators": [{"description": "Katsushika Hokusai (Japanese, 1760–1849)"}], "creation_date": "early 1830s",
+            "technique": "color woodblock print", "url": f"https://clevelandart.org/art/{key}"}
+
+
+# Prints 1, 4 and 5 can be shown: 2 says too little, 3 is a handscroll, 6 is a set's second sheet.
+MUSEUM = {"Japanese Art": [sheet(1), sheet(2, "Too short."), sheet(3, shape=(3000, 400)), sheet(4)],
+          "Chinese Art": [sheet(5), sheet(6, sheet(5)["description"])]}
+
+
+def museum(url, **params):
+    if params:                                                    # the list of a department's prints
+        return Answer({"data": MUSEUM[params["department"]]})
+    return Answer({"data": next(a for d in MUSEUM.values() for a in d if url.endswith(a["accession_number"]))})
+
+
+# Wikidata's id → English and Chinese titles (as Chinese Wikipedia writes it, and in Hong Kong's
+# forms), Latin name and its photograph's licence: the peafowl's isn't open.
+BIRDS = {"Q1": ("Eurasian pygmy owl", "花头鸺鹠", "花頭鵂鶹", "Glaucidium passerinum", "cc-by-sa-4.0"),
+         "Q2": ("Indian peafowl", "蓝孔雀", "藍孔雀", "Pavo cristatus", "cc-by-nc-2.0"),
+         "Q3": ("Common kingfisher", "普通翠鸟", "普通翠鳥", "Alcedo atthis", "cc0")}
+
+
+def wiki(url, **params):
+    if url == birds.WIKIDATA and "VALUES" not in params["query"]:                       # the list: ids alone
+        ids = [{"bird": {"value": f"http://www.wikidata.org/entity/{q}"}} for q in BIRDS]
+        return Answer({"results": {"bindings": ids}})
+    if url == birds.WIKIDATA:                                                                # what's known of one
+        q = re.search(r"wd:(Q\d+) ", params["query"]).group(1)
+        en, zh, _, latin, _ = BIRDS[q]
+        return Answer({"results": {"bindings": [{
+            "latin": {"value": latin}, "status": {"value": "least concern"},
+            "image": {"value": f"http://commons.wikimedia.org/wiki/Special:FilePath/{q}%20photo.jpg"},
+            "en": {"value": f"https://en.wikipedia.org/wiki/{en.replace(' ', '_')}"},
+            "zh": {"value": f"https://zh.wikipedia.org/wiki/{quote(zh)}"}}]}})
+    if url == birds.COMMONS:
+        q = params["titles"][len("File:"):].split()[0]
+        return Answer({"query": {"pages": [{"imageinfo": [{
+            "thumburl": f"https://upload.wikimedia.org/thumb/{q}.jpg/1200px-{q}.jpg?utm_source=commons", "width": 1200,
+            "height": 800, "descriptionurl": f"https://commons.wikimedia.org/wiki/File:{q}", "extmetadata": {
+                "License": {"value": BIRDS[q][4]}, "LicenseShortName": {"value": "CC BY-SA 4.0"},
+                "Artist": {"value": '<bdi><a href="https://example.org/q5">Charles J. Sharp</a></bdi>'}}}]}]}})
+    if url == birds.ZH:
+        hk = next(hk for _, zh, hk, _, _ in BIRDS.values() if zh == params["titles"])
+        return Answer({"query": {"pages": [{"title": params["titles"], "varianttitles": {"zh-hk": hk}}]}})
+    en = url[len(birds.SUMMARY):].replace("_", " ")
+    return Answer({"title": en, "extract": f"The {en} is a bird & a fine one.",
+                   "content_urls": {"desktop": {"page": f"https://en.wikipedia.org/wiki/{url[len(birds.SUMMARY):]}"}}})
+
+
 @pytest.fixture
 def journals(monkeypatch):
-    """The journals, the publishers' pages and Crossref, all stood in for; no dates."""
+    """The journals, the publishers' pages and Crossref, the museum and Wikipedia, all stood in
+    for; no dates."""
     monkeypatch.setattr(papers, "europe_pmc", lambda issn, since, until: [dict(r) for r in BY_ISSN.get(issn, [])])
-    monkeypatch.setattr(dates, "ahead", lambda day, now: [])
-
-    class Found:
-        def __init__(self, results):
-            self.results = results
-
-        def json(self):
-            return {"resultList": {"result": self.results}}
+    monkeypatch.setattr(dates, "take", lambda edition, day, now, report: [])
+    monkeypatch.setattr(prints, "get", museum)
+    monkeypatch.setattr(birds, "get", wiki)
 
     def get(url, **params):   # Europe PMC, asked which of a journal's papers some DOIs are
         issn, dois = re.search(r'ISSN:"(.+?)"', params["query"]).group(1), re.findall(r'DOI:"(.+?)"', params["query"])
-        return Found([r for r in BY_ISSN[issn] if r["doi"] in dois])
+        return Answer({"resultList": {"result": [r for r in BY_ISSN[issn] if r["doi"] in dois]}})
 
     monkeypatch.setattr(papers, "get", get)
     monkeypatch.setattr(papers, "subject_dois", lambda url: {"10.1038/s41586-1", "10.1038/s41586-2",
@@ -92,18 +157,18 @@ def journals(monkeypatch):
 # ---------- the papers ----------
 
 def test_clean_keeps_only_italics_and_scripts():
-    assert (papers.clean("&lt;i&gt;Corvus&lt;/i&gt; <b>corone</b> & Ca<sup>2+</sup>")
+    assert (sources.clean("&lt;i&gt;Corvus&lt;/i&gt; <b>corone</b> & Ca<sup>2+</sup>")
             == "<i>Corvus</i> corone &amp; Ca<sup>2+</sup>")
-    assert papers.clean('<script>x</script><a href="javascript:1">y</a>') == "x y"
+    assert sources.clean('<script>x</script><a href="javascript:1">y</a>') == "x y"
     # Reference numbers go (their list isn't shown); a power of ten stays.
-    assert papers.clean("well-being<sup>1</sup> and circuits<sup>3–5</sup>, 10<sup>6</sup> cells") == \
+    assert sources.clean("well-being<sup>1</sup> and circuits<sup>3–5</sup>, 10<sup>6</sup> cells") == \
         "well-being and circuits, 10<sup>6</sup> cells"
 
 
 def test_paragraphs_are_parted_and_links_dissolve():
     link = '<a href="https://example.org"><span>budget</span></a>'
     parts = [f"<span>The </span>{link}<span>, in <em>full</em>.</span>", "One line<br/>and the next", "", None]
-    assert add_prints.paragraphs(parts) == "The budget, in <i>full</i>.\n\nOne line\nand the next"
+    assert prints.paragraphs(parts) == "The budget, in <i>full</i>.\n\nOne line\nand the next"
 
 
 def test_a_paper_belongs_by_its_words_and_never_when_its_the_environments():
@@ -160,7 +225,7 @@ def test_the_papers_waiting_are_spread_over_the_days_and_each_runs_once(app, jou
     ran = []
     for d in range(4):
         assert dispatch.publish(NOW + timedelta(days=d)) == (NOW + timedelta(days=d)).date().isoformat()
-        ran.append(dispatch.issue(None)["stories"])
+        ran.append(dispatch.issue(None)["sections"]["papers"])
     assert [[s["id"] for s in stories] for stories in ran] == [
         ["10.1038/s41586-1", "10.1016/j.neuron.old"], ["10.1038/s41586-2"], ["10.1126/science.brain"], []]
     cover, late = ran[0]
@@ -172,16 +237,18 @@ def test_the_papers_waiting_are_spread_over_the_days_and_each_runs_once(app, jou
     assert db.session.get(Paper, "10.1126/science.brain").ran == "2026-11-06"
 
 
-def test_a_calendar_that_doesnt_answer_is_only_missed(app, monkeypatch):
+def test_a_section_that_doesnt_answer_is_only_missed(app, monkeypatch):
     def down(url, **_):
         raise requests.ConnectionError
 
-    monkeypatch.setattr(dates, "get", down)
+    for section in (dates, prints, birds):
+        monkeypatch.setattr(section, "get", down)
     monkeypatch.setattr(papers, "fetch", lambda now: SourceStatus.record({"papers:nature": (1, None)}, now))
     assert dispatch.publish(NOW) == "2026-11-04"
     shown = dispatch.issue(None)
-    assert (shown["stories"], shown["dates"]) == ([], []) and shown["print"] and shown["poem"]
-    assert shown["sources"]["failing"] == ["the climbing calendar", "the UFC’s schedule"]
+    assert sorted(shown["sections"]) == ["dates", "papers", "poem"] and shown["sections"]["dates"] == []
+    assert shown["sources"]["failing"] == ["the Cleveland Museum of Art", "Wikipedia", "the climbing calendar",
+                                           "the UFC’s schedule"]
 
 
 # ---------- the dates ----------
@@ -264,27 +331,20 @@ def test_a_date_is_said_two_weeks_a_week_and_a_day_ahead_and_while_its_on():
 
 
 def test_the_dates_ahead_are_the_three_calendars_soonest_first(app, monkeypatch):
-    class Page:
-        def __init__(self, found):
-            self.found = found
-
-        def json(self):
-            return self.found
-
     asked = {}
 
     def get(url, **params):
         asked[url] = params
-        return Page(SCHEDULE if url == dates.UFC else CALENDAR)
+        return Answer(SCHEDULE if url == dates.UFC else CALENDAR)
 
     monkeypatch.setattr(dates, "get", get)
     monkeypatch.setattr(dates, "breaks", lambda first, last: [dates.entry("Holiday", "A day off", date(2026, 11, 14))])
-    day = date(2026, 11, 14)
-    assert [d["title"] for d in dates.ahead(day, NOW)] == ["A day off", "UFC 334: Gane vs. Hokit"]   # no climbing due
+    day, report = date(2026, 11, 14), {}
+    found = [d["title"] for d in dates.take("", day, NOW, report)]
+    assert found == ["A day off", "UFC 334: Gane vs. Hokit"]                            # no climbing due
     assert asked[dates.UFC] == {"dates": "20261113-20261129"}
-    assert [d["title"] for d in dates.ahead(date(2026, 11, 10), NOW)] == []            # four days ahead isn't a beat
-    read = {key: db.session.get(SourceStatus, key) for key in dates.SOURCES}
-    assert (read["dates:climbing"].items, read["dates:ufc"].items, read["dates:ufc"].error) == (1, 1, None)
+    assert report == {"dates:climbing": (1, None), "dates:ufc": (1, None)}
+    assert [d["title"] for d in dates.take("", date(2026, 11, 10), NOW, {})] == []     # four days ahead isn't a beat
 
 
 # ---------- an issue ----------
@@ -298,12 +358,13 @@ def test_one_issue_a_day_kept_as_it_came_out_for_a_week(app, journals):
     dispatch.publish(NOW + timedelta(days=1))
     again = dispatch.issue("2026-11-04")
     assert again["edition"]["next"] == "2026-11-05"
-    assert all(again[k] == first[k] for k in ("stories", "print", "poem", "dates"))     # unchanged
+    assert again["sections"] == first["sections"]                                       # unchanged
+    assert sorted(first["sections"]) == ["bird", "dates", "papers", "poem", "print"]
     for d in range(2, 9):
         dispatch.publish(NOW + timedelta(days=d))
     newest = dispatch.issue("2026-11-04")                                               # gone: the newest instead
     assert newest["edition"]["id"] == "2026-11-12" and newest["editions"] == [f"2026-11-{d:02}" for d in range(5, 13)]
-    assert len({i.print["id"] for i in Issue.query}) == len({i.poem["title"] for i in Issue.query}) == 8
+    assert len({i.sections["poem"]["title"] for i in Issue.query}) == 8
 
 
 def test_an_issue_waits_for_the_journals_to_answer(app, journals, monkeypatch):
@@ -318,51 +379,82 @@ def test_an_issue_waits_for_the_journals_to_answer(app, journals, monkeypatch):
     assert dispatch.publish(NOW + timedelta(minutes=10)) == "2026-11-04"                # the next round
 
 
-def test_a_paper_is_run_only_in_an_issue_that_came_out(app, journals, monkeypatch):
-    def read(day, now):   # as the calendars are: noted, which saves what's in hand
-        SourceStatus.record({"dates:ufc": (0, None)}, now)
-        return []
-
-    turn = dispatch.turn
-    monkeypatch.setattr(dates, "ahead", read)
-    monkeypatch.setattr(dispatch, "turn", lambda *_: 1 / 0)                              # the issue can't be made up
+def test_an_issue_is_all_its_sections_or_none(app, journals, monkeypatch):
+    take = poems.take
+    monkeypatch.setattr(poems, "take", lambda *_: 1 / 0)                                # the issue can't be made up
     with pytest.raises(ZeroDivisionError):
         dispatch.publish(NOW)
     db.session.rollback()
     assert Paper.query.count() and not Paper.query.filter(Paper.ran.isnot(None)).count()
-    monkeypatch.setattr(dispatch, "turn", turn)
+    assert not Shown.query.count() and not SourceStatus.query.filter(SourceStatus.key.like("print:%")).count()
+    monkeypatch.setattr(poems, "take", take)
     assert dispatch.publish(NOW + timedelta(minutes=10)) == "2026-11-04"                # the next round, with them
     assert Paper.query.filter_by(ran="2026-11-04").count()
+    assert {r.section for r in Shown.query} == {"print", "poem", "bird"}
+
+
+def test_a_print_is_one_the_museum_wrote_about_shown_whole(app, journals):
+    shown = []
+    for d in range(4):
+        dispatch.publish(NOW + timedelta(days=d))
+        shown.append(dispatch.issue(None)["sections"]["print"])
+    assert sorted(p["id"] for p in shown[:3]) == ["1930.1", "1930.4", "1930.5"]       # each once, then a new round
+    assert shown[3]["id"] in {"1930.1", "1930.4", "1930.5"}
+    p = shown[0]
+    assert (p["source"], p["ratio"], p["title"]) == ("Cleveland Museum of Art", 1.5, p["id"].replace("1930.", "Print "))
+    assert p["maker"] == "Katsushika Hokusai (Japanese, 1760–1849)"
+    assert p["figure"].startswith("https://openaccess-cdn.clevelandart.org/") and len(p["text"]) >= prints.WORTH_READING
+    assert db.session.get(SourceStatus, "print:cma").items == 3
+
+
+def test_a_bird_is_a_known_one_with_its_names_and_a_photograph_it_may_show(app, journals):
+    shown = []
+    for d in range(3):
+        dispatch.publish(NOW + timedelta(days=d))
+        shown.append(dispatch.issue(None)["sections"].get("bird"))
+    assert sorted(b["id"] for b in shown[:2]) == ["Q1", "Q3"] and shown[2]["id"] in {"Q1", "Q3"}   # never the peafowl
+    owl = next(b for b in shown if b["id"] == "Q1")
+    assert (owl["title"], owl["zh"], owl["status"]) == ("Eurasian pygmy owl", "花頭鵂鶹", "Least concern")
+    assert owl["latin"] == "Glaucidium passerinum"
+    assert owl["text"] == "The Eurasian pygmy owl is a bird &amp; a fine one."           # safe to put in the page
+    assert owl["figure"] == "https://upload.wikimedia.org/thumb/Q1.jpg/1200px-Q1.jpg" and owl["ratio"] == 1.5
+    assert (owl["credit"], owl["licence"], owl["url"]) == ("Charles J. Sharp", "CC BY-SA 4.0",
+                                                          "https://en.wikipedia.org/wiki/Eurasian_pygmy_owl")
 
 
 def test_the_cover_story_leads_else_the_longest_read():
     a, b, c = ({"id": i, "abstract": text, "cover": cover}
                for i, text, cover in (("a", "short", False), ("b", "a good deal longer", False), ("c", "", True)))
-    assert [s["id"] for s in dispatch.front([a, b])] == ["b", "a"]
-    assert [s["id"] for s in dispatch.front([a, b, c])] == ["c", "a", "b"]
-    assert dispatch.front([]) == []
+    assert [s["id"] for s in papers.front([a, b])] == ["b", "a"]
+    assert [s["id"] for s in papers.front([a, b, c])] == ["c", "a", "b"]
+    assert papers.front([]) == []
 
 
-def test_each_has_its_turn_before_any_comes_again():
-    items = list(range(7))
-    start = date.fromordinal(7 * 105_000)                                               # a round begins
-    rounds = [[dispatch.turn(items, "poem", start + timedelta(days=7 * r + d)) for d in range(7)] for r in range(3)]
-    assert all(sorted(r) == items for r in rounds) and len({tuple(r) for r in rounds}) == 3    # each in its own order
-    assert dispatch.turn(items, "poem", start) == rounds[0][0]                          # the same day, the same one
+def test_each_runs_once_before_any_comes_again(app):
+    keys = [str(k) for k in range(7)]
+    assert Shown.order("poem", keys, "2026-11-04") == Shown.order("poem", keys, "2026-11-04")   # an edition's own order
+    rounds = []
+    for r in range(3):
+        rounds.append([])
+        for d in range(7):
+            edition = f"{2026 + r}-11-{d + 1:02}"
+            rounds[-1].append(Shown.order("poem", keys, edition)[0])
+            Shown.mark("poem", rounds[-1][-1], edition)
+    assert all(sorted(r) == keys for r in rounds) and len({tuple(r) for r in rounds}) == 3    # each in its own order
 
 
 def test_the_poems_are_the_two_anthologies_and_the_passages_in_hong_kongs_characters():
-    books = [p["book"] for p in dispatch.POEMS]
+    books = [p["book"] for p in poems.POEMS]
     assert [books.count(b) for b in ("唐詩三百首", "宋詞三百首", "古文觀止")] == [320, 283, 66]
-    text = "".join("".join(p["lines"]) for p in dispatch.POEMS)
+    text = "".join("".join(p["lines"]) for p in poems.POEMS)
     assert "為" in text and "爲" not in text and "为" not in text                    # Hong Kong's forms, not simplified
     assert "明月松間照" in text and "明月鬆間照" not in text          # typed in traditional, not converted to it
     # An empty line is a break between stanzas.
-    assert all(p["title"] and p["author"] and p["lines"][0] and p["lines"][-1] for p in dispatch.POEMS)
+    assert all(p["title"] and p["author"] and p["lines"][0] and p["lines"][-1] for p in poems.POEMS)
 
 
 def test_a_passages_notes_are_on_its_own_words_in_reading_order():
-    for p in dispatch.POEMS:
+    for p in poems.POEMS:
         assert ("notes" in p) == (p["book"] == "古文觀止")
         spans = [(n["line"], n["start"], n["end"]) for n in p.get("notes", [])]
         assert spans == sorted(spans)
@@ -370,14 +462,6 @@ def test_a_passages_notes_are_on_its_own_words_in_reading_order():
         for n in p.get("notes", []):
             word = p["lines"][n["line"]][n["start"]:n["end"]]
             assert word and all(s["word"] in word and s["def"] for s in n["senses"])
-
-
-def test_the_prints_each_have_a_picture_and_the_museums_text():
-    assert len({p["id"] for p in dispatch.PRINTS}) == len(dispatch.PRINTS) > 100
-    for p in dispatch.PRINTS:
-        assert p["title"] and len(p["text"]) >= 250 and 0.5 <= p["ratio"] <= 2
-        assert p["figure"].startswith("https://openaccess-cdn.clevelandart.org/") and p["url"].startswith("https://")
-        assert not re.search(r"<(?!/?i>)", p["title"] + p["maker"] + p["text"])        # only italics are kept
 
 
 def test_an_issue_comes_out_at_eight_in_hong_kong():

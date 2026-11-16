@@ -15,8 +15,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 import holidays
 import requests
 
-from models import SourceStatus
-from papers import get
+from sources import get
 
 BEATS = (14, 7, 1)              # the days ahead a date is said on, before the days it's on
 HONG_KONG = timezone(timedelta(hours=8))    # no summer time there
@@ -26,6 +25,7 @@ LEAGUE = "World Cups and World Championships"   # the file has the paraclimbing 
 DISCIPLINES = {"boulder", "lead"}
 ROUNDS = {"semi-final", "final"}                # a qualification runs all day and isn't shown
 UFC = "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard"
+NAME = "dates"
 SOURCES = {"dates:climbing": "the climbing calendar", "dates:ufc": "the UFC’s schedule"}   # SourceStatus key → name
 
 
@@ -117,19 +117,18 @@ def due(d: dict, day: date) -> bool:
     return (starts - day).days in BEATS or starts <= day <= ends
 
 
-def ahead(day: date, now: datetime) -> list[dict]:
-    """The dates to say in the issue of `day`, made up at `now`, the soonest first. A calendar
-    that can't be read is missed this once."""
+def take(edition: str, day: date, now: datetime, report: dict) -> list[dict]:
+    """The dates to say in the issue of `day`, made up at `now`, the soonest first (a section of
+    the issue: dispatch.py). A calendar that can't be read is missed this once."""
     last = day + timedelta(days=max(BEATS))
     span = f"{day - timedelta(days=1):%Y%m%d}-{last + timedelta(days=1):%Y%m%d}"   # ESPN's days are America's
     reads = {"dates:climbing": lambda: climbing(get(CLIMBING).json()),
              "dates:ufc": lambda: cards(get(UFC, dates=span).json())}
-    found, report = breaks(day, last), {}
+    found = breaks(day, last)
     for key, read in reads.items():
         try:
             got = read()
             found, report[key] = found + got, (len(got), None)
         except (requests.RequestException, ValueError, KeyError, TypeError, IndexError) as e:
             report[key] = (0, type(e).__name__)
-    SourceStatus.record(report, now)
     return sorted((d for d in found if due(d, day)), key=lambda d: (d["day"], d["kind"], d["title"]))

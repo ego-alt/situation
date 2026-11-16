@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import feedparser
 import requests
 
-from sources import ITN_URL, SOURCES, USER_AGENT, Source
+from sources import ITN_URL, SOURCES, Source, get
 
 _TAG = re.compile(r"<[^>]+>")
 
@@ -40,11 +40,9 @@ def topic_page(title: str) -> bool:
     return len(title.split()) < 4 or " | " in title
 
 
-def fetch_source(source: Source, timeout: int = 20) -> list[dict]:
+def fetch_source(source: Source) -> list[dict]:
     """A feed's items, in the feed's own order. Raises when the feed can't be read."""
-    resp = requests.get(source.url, headers={"User-Agent": USER_AGENT}, timeout=timeout)
-    resp.raise_for_status()
-    feed = feedparser.parse(resp.content)
+    feed = feedparser.parse(get(source.url).content)
     items = []
     for position, entry in enumerate(feed.entries):
         title = _text(entry.get("title"), 300)
@@ -113,10 +111,8 @@ def parse_itn(page_html: str) -> dict:
     return {"items": items, "ongoing": ongoing}
 
 
-def fetch_itn(timeout: int = 20) -> dict:
+def fetch_itn() -> dict:
     try:
-        resp = requests.get(ITN_URL, headers={"User-Agent": USER_AGENT}, timeout=timeout)
-        resp.raise_for_status()
-        return parse_itn(resp.json()["parse"]["text"])
+        return parse_itn(get(ITN_URL).json()["parse"]["text"])
     except (requests.RequestException, KeyError, ValueError):
         return {"items": [], "ongoing": []}

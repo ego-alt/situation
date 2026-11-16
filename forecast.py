@@ -24,8 +24,7 @@ import requests
 
 from dispatch import latest, out
 from models import Article, Guess, Issue, Question, SourceStatus, db
-from papers import get
-from sources import BY_KEY
+from sources import BY_KEY, get
 from text import cosine, tfidf, tokens
 
 EVENTS = "https://gamma-api.polymarket.com/events"

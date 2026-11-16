@@ -145,19 +145,21 @@
     .s-line .story-title a:hover { color: var(--color-accent); }
 }
 /* On a desktop a commentary's paper in the rail, and a narrow slot with a wide figure, go without
-   theirs; the print is as wide as its height allows. */
+   theirs; the print and the bird are as wide as their height allows. */
 @media (min-width: 861px) {
     .bare .fig { display: none; }
-    #print .fig { width: min(45%, calc(520px * var(--r))); }
+    :is(#print, #bird) .fig { width: min(45%, calc(520px * var(--r))); }
 }
 
-/* The day's print, poem and question and the dates coming are set in these same modules, but they don't open.
+/* The day's print, poem, bird and question and the dates coming are set in these same modules, but they don't open.
    The print and the poem share a row: the print with its text, the poem a column wide beside it. */
 .still .story { cursor: auto; }
 .back { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--space-8); }
 .back > #print { grid-column: span 8; }
 .back > #poem { grid-column: span 4; }
 .back > [hidden] + #poem, .back > #print:has(+ [hidden]) { grid-column: 1 / -1; }
+/* The bird's Chinese name, after its English, in the page's own type (the Song type has only the poems' characters). */
+.bird-zh { margin-left: var(--space-2); font-weight: 400; color: var(--color-text-secondary); }
 /* The poem in Song type, its title and lines one size, to read aloud: one line to a line. */
 #poem :is(.section-head .n, .kicker, .story-title, .abstract, .links) { font-family: var(--font-song); }
 #poem :is(.story-title, .abstract) { font-size: var(--text-lg); color: var(--color-text-primary); }

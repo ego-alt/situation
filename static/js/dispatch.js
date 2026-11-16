@@ -6,6 +6,7 @@
     const { url, $, esc, webLink, narrow } = App;
     // Titles and abstracts come from the server already escaped, with only <i>, <sub> and <sup> kept.
     const marked = (s) => String(s ?? '');
+    const section = (name) => data?.sections?.[name];   // what one of the issue's sections took (dispatch.SECTIONS)
     const plain = (html) => { const el = document.createElement('div'); el.innerHTML = html; return el.textContent; };
 
     const ROW_MAX = 600;     // the most a row runs to before its text is cut
@@ -122,7 +123,7 @@
     }
 
     /** The lead with a rail beside it, then a row of what the rail had no room for. The stories
-     * come in order (dispatch.front), the lead first, and are three at most (papers.MOST). */
+     * come in order (papers.front), the lead first, and are three at most (papers.MOST). */
     function compose(stories) {
         const [lead, ...queue] = stories;
         const art = cover(lead);
@@ -199,7 +200,7 @@
             $('edition').innerHTML = '<p class="press-empty">It comes out in the morning, at 8 in Hong Kong.</p>';
         } else {
             $('folio').innerHTML = `<span>No. ${e.number}</span><span>${esc(day(e.id, { weekday: 'short', day: 'numeric', month: 'short' }))}<span class="folio-year"> ${e.id.slice(0, 4)}</span></span>`;
-            $('edition').innerHTML = data.stories.length ? compose(data.stories) : '';
+            $('edition').innerHTML = section('papers')?.length ? compose(section('papers')) : '';
             fit();
             // The lead's figure sets the front row's height once it's in.
             $('edition').querySelector('.s-lead img')?.addEventListener('load', fit);
@@ -253,10 +254,11 @@
                 failure = null;
                 // The woodcut needs only the day: it doesn't wait for the figures to be measured.
                 Woodcut.draw($('woodcut'), data.edition?.out);
-                await measure(data.stories);
+                await measure(section('papers') || []);
                 drawEdition();
                 drawPrint();
                 drawPoem();
+                drawBird();
                 drawForecast();
                 drawDates();
                 const id = data.edition?.id;
@@ -348,7 +350,7 @@
      * ahead, a week ahead, the day before and while it's on. From the day before, what there is to
      * watch of it. A section only when there are some. */
     function drawDates() {
-        const dates = data?.dates || [];
+        const dates = section('dates') || [];
         const el = $('dates');
         el.hidden = !dates.length;
         const span = (d) => [...new Set([d.day, d.until])].map((iso) => day(iso, { weekday: 'short', day: 'numeric', month: 'short' })).join(' – ');
@@ -360,22 +362,38 @@
                 ${d.parts.length && off(d) <= 1 ? `<p class="links">${d.parts.map(part).join('')}</p>` : ''}</article>`).join('')}</div>`;
     }
 
-    /** The day's print with what its museum says of it: set as an opened story, the whole sheet beside the text. */
-    function drawPrint() {
-        const p = data?.print;
-        const el = $('print');
+    /** A picture with its text, set as an opened story, the whole of it beside the text: under
+     * its section's head, a kicker (its parts already safe to put in the page), the title, the
+     * text and its links. */
+    function drawPicture(name, head, p, kicker, title, links) {
+        const el = $(name);
         el.hidden = !p;
         if (!p) { el.innerHTML = ''; return; }
         ratios.set(p.id, p.ratio);
-        const [first, ...more] = [p.maker, p.date, p.technique].filter(Boolean);
-        el.innerHTML = `<h2 class="section-head"><span>The day’s print</span><span class="n">${esc(p.source)}</span></h2>
+        const [first, ...more] = kicker.filter(Boolean);
+        el.innerHTML = `<h2 class="section-head"><span>${head}</span><span class="n">${esc(p.source)}</span></h2>
             <div class="row"><article class="story open w12 side has-fig">
                 <div class="flow">${figure(p, true)}<div class="story-head">
-                    <p class="kicker"><span class="kicker-k">${esc(first)}</span>${more.map((m) => `<span>${esc(m)}</span>`).join('')}</p>
-                    <h2 class="story-title">${marked(p.title)}</h2>
+                    <p class="kicker"><span class="kicker-k">${first}</span>${more.map((m) => `<span>${m}</span>`).join('')}</p>
+                    <h2 class="story-title">${title}</h2>
                 </div><p class="abstract">${marked(p.text)}</p></div>
-                <p class="links">${away(p.url, p.source)}</p>
+                <p class="links">${links}</p>
             </article></div>`;
+    }
+
+    /** The day's print with what its museum says of it. */
+    function drawPrint() {
+        const p = section('print');
+        drawPicture('print', 'The day’s print', p, p ? [p.maker, p.date, p.technique].map(esc) : [], p && marked(p.title),
+            p && away(p.url, p.source));
+    }
+
+    /** The day's bird with what Wikipedia says of it, its Chinese name beside its English, and who took its photograph. */
+    function drawBird() {
+        const b = section('bird');
+        drawPicture('bird', 'The day’s bird', b, b ? [`<i>${esc(b.latin)}</i>`, esc(b.status)] : [],
+            b && `${marked(b.title)} <span class="bird-zh" lang="zh-HK">${esc(b.zh)}</span>`,
+            b && away(b.url, b.source) + away(b.photo, `Photograph: ${plain(b.credit)}, ${b.licence}`));
     }
 
     /** A line of the poem; of a passage, with the words that have a note marked, each a button to it. */
@@ -394,7 +412,7 @@
     /** The day's poem, to learn by heart: set as a story, line by line, in Hong Kong's characters.
      * Some days it's a passage of 古文觀止 instead, to read with the dictionary's notes on its words. */
     function drawPoem() {
-        const p = data?.poem;
+        const p = section('poem');
         const el = $('poem');
         el.hidden = !p;
         el.innerHTML = p ? `<h2 class="section-head"><span>The day’s ${p.notes ? 'passage' : 'poem'}</span><span class="n">${esc(p.book)}</span></h2>
@@ -414,7 +432,7 @@
         shown?.setAttribute('aria-expanded', false);
         if (!word || word === shown) return;
         word.setAttribute('aria-expanded', true);
-        word.insertAdjacentHTML('afterend', `<span class="gloss-note" role="note">${data.poem.notes[word.dataset.note].senses.map((s) => `<span><b>${esc(s.word)}</b>${s.kind ? `<small>${esc(s.kind)}</small>` : ''}${esc(s.def)}</span>`).join('')}</span>`);
+        word.insertAdjacentHTML('afterend', `<span class="gloss-note" role="note">${section('poem').notes[word.dataset.note].senses.map((s) => `<span><b>${esc(s.word)}</b>${s.kind ? `<small>${esc(s.kind)}</small>` : ''}${esc(s.def)}</span>`).join('')}</span>`);
     }
     document.addEventListener('click', (e) => { if (!e.target.closest('.gloss-note')) gloss(e.target.closest('.gloss')); });
     $('poem').addEventListener('keydown', (e) => {
@@ -574,7 +592,7 @@
         resizing = setTimeout(() => { fit(); Woodcut.draw($('woodcut'), data?.edition?.out); }, 150);
     });
     // Turned wide (a tablet, a window), the desktop's slots need every figure's proportions.
-    narrow.addEventListener('change', () => data && !narrow.matches && measure(data.stories).then(() => drawEdition()));
+    narrow.addEventListener('change', () => data && !narrow.matches && measure(section('papers') || []).then(() => drawEdition()));
     document.fonts?.ready.then(fit);
     /** Night or day on your clock: at night the figures, drawn on white, are dimmed. */
     const dusk = () => {

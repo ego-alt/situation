@@ -1,4 +1,5 @@
-"""The outlets Situation reads, and Wikipedia's curated "In the news".
+"""The outlets Situation reads, Wikipedia's curated "In the news", and how anything it reads is
+asked for (get) and made safe to put in a page (clean).
 
 `weight` is how much an outlet's coverage counts toward a story's breadth
 (1.0 for a major international desk). `ordered` marks feeds listed in the
@@ -9,7 +10,11 @@ feed, because they have none of their own (Reuters, AP): its items carry no
 summary, and their headlines end in " - Reuters". `skip` is a pattern for
 links that aren't articles (a feed's video clips).
 """
+import html
+import re
 from dataclasses import dataclass
+
+import requests
 
 
 @dataclass(frozen=True)
@@ -67,3 +72,30 @@ ITN_URL = ("https://en.wikipedia.org/w/api.php?action=parse&page=Template:In_the
            "&prop=text&format=json&formatversion=2")
 
 USER_AGENT = "situation/0.1 (personal news filter; home stack)"
+TIMEOUT = 20        # seconds a source has to answer
+
+
+def get(url: str, timeout: float = TIMEOUT, **params) -> requests.Response:
+    """What a source answers, asked as Situation asks everything it reads; raises when it
+    doesn't answer in `timeout` seconds, or answers with an error."""
+    resp = requests.get(url, params=params or None, timeout=timeout, headers={"User-Agent": USER_AGENT})
+    resp.raise_for_status()
+    return resp
+
+
+_KEEP = re.compile(r"(</?(?:i|sub|sup)>)", re.I)
+
+
+def clean(raw: str | None) -> str:
+    """Plain text, safe to put in a page, keeping only italics, sub- and superscripts."""
+    text = html.unescape(raw or "")
+    text = re.sub(r"<(/?)em>", r"<\1i>", text, flags=re.I)
+    # Reference numbers ("well-being<sup>1</sup>", "circuits<sup>3–5</sup>") point to a list that isn't here.
+    text = re.sub(r"(?<=[^\d\s])<sup>[\d,\u2013\u2012-]+</sup>", "", text, flags=re.I)
+    out = []
+    for part in _KEEP.split(text):
+        if _KEEP.fullmatch(part):
+            out.append(part.lower())
+        else:
+            out.append(html.escape(re.sub(r"<[^>]*>", " ", part), quote=False))
+    return re.sub(r"\s+", " ", "".join(out)).strip()

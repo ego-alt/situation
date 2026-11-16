@@ -1,4 +1,5 @@
-"""Papers: what the journals in journals.py made more of, for Dispatch's front page.
+"""Papers: what the journals in journals.py made more of, for Dispatch's front page (a section of
+its issue: dispatch.py).
 
 Once a day, as an issue is made up, the last three weeks of each journal are read from
 Europe PMC: abstracts, article types, free copies and PubMed's commentary links. A paper is
@@ -16,7 +17,7 @@ import requests
 
 from journals import BY_KEY, FIELDS, JOURNALS, LEFT_OUT, Journal
 from models import Paper, SourceStatus, db
-from sources import USER_AGENT
+from sources import TIMEOUT, USER_AGENT, clean, get
 
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CROSSREF = "https://api.crossref.org/works/"
@@ -26,36 +27,11 @@ MOST = 3                        # the most papers in one issue
 SPREAD = 3                      # the days the papers waiting are spread over
 EARLIER = timedelta(days=7)     # a paper out longer ago than this is dated
 RECENT = timedelta(days=180)    # the longest a paper is out before its journal's commentary on it
-TIMEOUT = 20
 NOT_RESEARCH = {"Review", "News", "Editorial", "Letter", "Published Erratum", "Retraction of Publication",
                 "Retracted Publication", "Expression of Concern", "Comment"}
 
 
-def get(url, **params):
-    resp = requests.get(url, params=params or None, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT})
-    resp.raise_for_status()
-    return resp
-
-
 # ---------- text ----------
-
-_KEEP = re.compile(r"(</?(?:i|sub|sup)>)", re.I)
-
-
-def clean(raw: str | None) -> str:
-    """Plain text, safe to put in a page, keeping only italics, sub- and superscripts."""
-    text = html.unescape(raw or "")
-    text = re.sub(r"<(/?)em>", r"<\1i>", text, flags=re.I)
-    # Reference numbers ("well-being<sup>1</sup>", "circuits<sup>3–5</sup>") point to a list that isn't here.
-    text = re.sub(r"(?<=[^\d\s])<sup>[\d,\u2013\u2012-]+</sup>", "", text, flags=re.I)
-    out = []
-    for part in _KEEP.split(text):
-        if _KEEP.fullmatch(part):
-            out.append(part.lower())
-        else:
-            out.append(html.escape(re.sub(r"<[^>]*>", " ", part), quote=False))
-    return re.sub(r"\s+", " ", "".join(out)).strip()
-
 
 def plain(text: str) -> str:
     return re.sub(r"<[^>]+>", "", html.unescape(text or ""))
@@ -365,10 +341,15 @@ def read_since(when: datetime) -> bool:
 
 # ---------- for the issue (dispatch.py) ----------
 
-def take(edition: str, day: date) -> list[dict]:
-    """The papers for the issue out on `day`, in layout order (the cover story, then by journal
-    rank), each marked as run in it. Waiting are a cover story and any paper with a commentary
-    that hasn't run; the cover story and the longest out go first, a SPREADth of them a day."""
+NAME = "papers"
+SOURCES = {f"papers:{j.key}": j.name for j in JOURNALS}     # read by fetch, which the issue waits for
+
+
+def take(edition: str, day: date, now: datetime, report: dict) -> list[dict]:
+    """The papers for the issue out on `day`, in the front page's order (front), each marked as
+    run in it. Waiting are a cover story and any paper with a commentary that hasn't run; the
+    cover story and the longest out go first, a SPREADth of them a day. They were read by fetch,
+    before the issue was begun: nothing is read here."""
     notes: dict[str, list[Paper]] = {}
     for n in Paper.query.filter(Paper.kind == "commentary", Paper.on.isnot(None)):
         notes.setdefault(n.on, []).append(n)
@@ -379,7 +360,13 @@ def take(edition: str, day: date) -> list[dict]:
     for p in taken:
         p.ran = edition
     taken.sort(key=lambda p: (not p.cover, BY_KEY[p.journal].rank))
-    return [_story(p, notes.get(p.doi, []), day) for p in taken]
+    return front([_story(p, notes.get(p.doi, []), day) for p in taken])
+
+
+def front(stories: list[dict]) -> list[dict]:
+    """The front page's order: a cover story leads, else the longest read; the rest as they came."""
+    lead = max(stories, key=lambda s: (s["cover"], len(s["abstract"])), default=None)
+    return [lead, *(s for s in stories if s is not lead)] if lead else []
 
 
 def _story(p: Paper, notes: list[Paper], day: date) -> dict:

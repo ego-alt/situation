@@ -1,3 +1,4 @@
+import random
 from datetime import UTC, datetime
 
 from flask_sqlalchemy import SQLAlchemy
@@ -208,17 +209,51 @@ class Issue(db.Model):
     __tablename__ = "issues"
     edition = db.Column(db.String, primary_key=True)            # 2026-11-12: the day it came out
     out = db.Column(UtcDateTime, nullable=False)
-    stories = db.Column(db.JSON, nullable=False)                # the front page: papers.take, in dispatch.front's order
-    print = db.Column(db.JSON)                                  # one of data/prints.json
-    poem = db.Column(db.JSON)                                   # one of data/poems.json or passages.json
-    dates = db.Column(db.JSON, nullable=False)                  # dates.ahead
+    sections = db.Column(db.JSON, nullable=False)               # each section's name → what it took (dispatch.SECTIONS)
+
+
+class Shown(db.Model):
+    """What a section of Dispatch has run, or passed over (a bird with no photograph it may show),
+    and in which issue: nothing comes again until all the rest of what it could run has."""
+    __tablename__ = "shown"
+    section = db.Column(db.String, primary_key=True)            # its NAME: print, poem, bird
+    key = db.Column(db.String, primary_key=True)                # what it ran, by the section's own key
+    edition = db.Column(db.String, nullable=False)
+
+    @classmethod
+    def order(cls, section: str, keys: list[str], edition: str) -> list[str]:
+        """Those of `keys` the section hasn't run (all of them again, once it has run every one),
+        in an order of the edition's own: the first that will do is the issue's."""
+        ran = {k for (k,) in db.session.query(cls.key).filter_by(section=section)}
+        left = sorted(k for k in keys if k not in ran)
+        if keys and not left:
+            cls.query.filter_by(section=section).delete()
+            left = sorted(keys)
+        random.Random(f"{section}:{edition}").shuffle(left)
+        return left
+
+    @classmethod
+    def mark(cls, section: str, key: str, edition: str):
+        """Note that the section ran, or passed over, `key` in `edition` (kept with the issue)."""
+        db.session.merge(cls(section=section, key=key, edition=edition))
+
+    @classmethod
+    def first(cls, section: str, keys: list[str], edition: str, make, tries: int = 1):
+        """What `make` makes of the first of `keys`, in the edition's order, that it makes something
+        of, trying `tries` at most (None if none will do); each tried is noted, run or passed over."""
+        for key in cls.order(section, keys, edition)[:tries]:
+            made = make(key)
+            cls.mark(section, key, edition)
+            if made is not None:
+                return made
+        return None
 
 
 class Question(db.Model):
     """The forecast question an issue of Dispatch asks (forecast.py), one per edition. Its
     state is one of forecast.STATES and is changed only there: none (nothing was eligible),
     open, closed (trading stopped, the result not in yet), then yes, no or void. Kept for
-    good, unlike papers: the record is made of them."""
+    good, unlike papers: no event is asked twice."""
     __tablename__ = "questions"
     edition = db.Column(db.String, primary_key=True)            # the edition it's in: 2026-11-12
     state = db.Column(db.String, nullable=False)
@@ -229,7 +264,7 @@ class Question(db.Model):
     title = db.Column(db.String)                                # the question, as Polymarket words it
     rule = db.Column(db.String)                                 # how it resolves, in Polymarket's words
     source = db.Column(db.String)                               # the resolution source, when Polymarket names one
-    subject = db.Column(db.String)                              # for the record: elections, economics, …
+    subject = db.Column(db.String)                              # what it's about: elections, economics, …
     closes = db.Column(UtcDateTime)
     crowd = db.Column(db.Float)                                 # the price of Yes when it was asked
     volume = db.Column(db.Float)                                # dollars traded in the week before it was asked

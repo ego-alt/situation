@@ -25,6 +25,6 @@ class _Response:
 
 
 def test_google_topic_and_section_pages_are_not_articles(monkeypatch):
-    monkeypatch.setattr("fetch.requests.get", lambda *a, **k: _Response())
+    monkeypatch.setattr("sources.requests.get", lambda *a, **k: _Response())
     items = fetch_source(Source("ap", "AP", "https://news.google.com/rss", 1.0, via_google=True))
     assert [i["title"] for i in items] == ["Lula wins a fourth term as Brazil's president"]
