@@ -35,13 +35,13 @@
         return `<p class="byline"${all}>${esc(text)}</p>`;
     }
 
-    function figure(p, large) {
+    function figure(p, large, caption = '') {
         const src = webLink(large ? p.figure_large || p.figure : p.figure);
         if (!src) return '';
         const big = !large && webLink(p.figure_large);
         const r = large && ratios.get(p.id);
         return `<figure class="fig"${r ? ` style="--r: ${r.toFixed(3)}"` : ''}><img src="${esc(src)}"${big ? ` data-large="${esc(big)}"` : ''} alt="Figure from “${esc(plain(p.title))}”"
-            loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()"></figure>`;
+            loading="${large ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()">${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
     }
 
     /** The issue's cover, at the head of the rail beside the story it shows. */
@@ -300,7 +300,7 @@
             <h2 class="story-title">${esc(q.title)}</h2>
             ${reading(q.news)}
             ${rule ? `<p class="abstract">${esc(rule)}</p>` : ''}
-            <p class="links">${away(q.link, 'The market · Polymarket')}${away(q.source, 'Resolution source')}</p>
+            <p class="links">${away(q.link, 'Polymarket')}${away(q.source, 'Resolution source')}</p>
         </article>`;
     }
 
@@ -364,8 +364,8 @@
 
     /** A picture with its text, set as an opened story, the whole of it beside the text: under
      * its section's head, a kicker (its parts already safe to put in the page), the title, the
-     * text and its links. */
-    function drawPicture(name, head, p, kicker, title, links) {
+     * text and its links, and under the picture who made it, when that's to be said. */
+    function drawPicture(name, head, p, kicker, title, links, caption = '') {
         const el = $(name);
         el.hidden = !p;
         if (!p) { el.innerHTML = ''; return; }
@@ -373,7 +373,7 @@
         const [first, ...more] = kicker.filter(Boolean);
         el.innerHTML = `<h2 class="section-head"><span>${head}</span><span class="n">${esc(p.source)}</span></h2>
             <div class="row"><article class="story open w12 side has-fig">
-                <div class="flow">${figure(p, true)}<div class="story-head">
+                <div class="flow">${figure(p, true, caption)}<div class="story-head">
                     <p class="kicker"><span class="kicker-k">${first}</span>${more.map((m) => `<span>${m}</span>`).join('')}</p>
                     <h2 class="story-title">${title}</h2>
                 </div><p class="abstract">${marked(p.text)}</p></div>
@@ -388,12 +388,13 @@
             p && away(p.url, p.source));
     }
 
-    /** The day's bird with what Wikipedia says of it, its Chinese name beside its English, and who took its photograph. */
+    /** The day's bird with what Wikipedia says of it, its Chinese name beside its English, and under
+     * its photograph who took it and the licence it's shown under. */
     function drawBird() {
         const b = section('bird');
         drawPicture('bird', 'The day’s bird', b, b ? [`<i>${esc(b.latin)}</i>`, esc(b.status)] : [],
-            b && `${marked(b.title)} <span class="bird-zh" lang="zh-HK">${esc(b.zh)}</span>`,
-            b && away(b.url, b.source) + away(b.photo, `Photograph: ${plain(b.credit)}, ${b.licence}`));
+            b && `${marked(b.title)} <span class="bird-zh" lang="zh-HK">${esc(b.zh)}</span>`, b && away(b.url, b.source),
+            b && webLink(b.photo) && `<a href="${esc(b.photo)}" target="_blank" rel="noopener">${b.credit} · ${esc(b.licence)}</a>`);
     }
 
     /** A line of the poem; of a passage, with the words that have a note marked, each a button to it. */
@@ -457,7 +458,7 @@
             <h2 class="story-title">${esc(r.title)}</h2><p class="byline">${outcome(r)}</p></article></div>`).join('');
         if (!q && !none && !results) { el.hidden = true; el.innerHTML = ''; return; }
         el.innerHTML = `<h2 class="section-head"><span>The day’s question</span><span class="n">From Polymarket</span></h2>
-            ${q ? `<div class="row">${asked(q, 'Forecast')}${answer(q)}</div>` : none ? `<p class="press-empty">${none}</p>` : ''}
+            ${q ? `<div class="row asking">${asked(q, 'Forecast')}${answer(q)}</div>` : none ? `<p class="press-empty">${none}</p>` : ''}
             ${results}`;
     }
 

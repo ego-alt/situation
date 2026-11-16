@@ -14,7 +14,7 @@ The sections, in the page's order: the papers the journals made more of, on the 
 its own: it's answered, and each reader is shown their own.
 
 An issue is made up when it comes out (publish) and shown unchanged from then on. A periodical,
-not an archive: a week of issues is kept.
+not an archive: today's issue and the two before it are kept.
 """
 from datetime import UTC, date, datetime, time, timedelta
 
@@ -25,7 +25,7 @@ import poems
 import prints
 from models import Issue, SourceStatus, db
 
-KEEP = timedelta(days=7)        # a week of issues, then they go
+KEEP = timedelta(days=2)        # today's issue and the two before it, then they go
 SECTIONS = (papers, prints, poems, birds, dates)
 
 

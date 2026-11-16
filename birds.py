@@ -20,6 +20,7 @@ NAME = "bird"
 SOURCES = {"bird:wiki": "Wikipedia"}
 FAMOUS = 40             # languages a species is written about in
 TRIES = 3               # birds read, at most, for one the issue can show
+SHORT = 500             # characters of Wikipedia's account, at most: its first sentences, the rest a link away
 WIDTH = 1200            # pixels: the photograph as the page asks for it
 WIKIDATA = "https://query.wikidata.org/sparql"
 SLOW = 60               # seconds Wikidata may take over a query it hasn't been asked lately (its own limit)
@@ -69,6 +70,16 @@ def photograph(file: str) -> dict | None:
             "licence": meta.get("LicenseShortName", ""), "photo": info["descriptionurl"]}
 
 
+def _first(text: str, most: int = SHORT) -> str:
+    """A text's first sentences, as many as come to `most` characters (one, if that's longer)."""
+    kept = []
+    for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+        if kept and len(" ".join([*kept, sentence])) > most:
+            break
+        kept.append(sentence)
+    return " ".join(kept)
+
+
 def chinese(title: str) -> str:
     """A Chinese Wikipedia title in Hong Kong's forms (it's written in either)."""
     pages = get(ZH, action="query", titles=title, prop="info", inprop="varianttitles", redirects=1,
@@ -85,7 +96,7 @@ def bird(key: str) -> dict | None:
     summary = get(SUMMARY + _last(known["en"])).json()
     return {"id": key, "source": "Wikipedia", "title": summary["title"], "latin": known["latin"],
             "zh": chinese(unquote(_last(known["zh"]))), "status": known.get("status", "").capitalize(),
-            "text": clean(summary["extract"]), "url": summary["content_urls"]["desktop"]["page"], **picture}
+            "text": clean(_first(summary["extract"])), "url": summary["content_urls"]["desktop"]["page"], **picture}
 
 
 def take(edition: str, day: date, now: datetime, report: dict) -> dict | None:

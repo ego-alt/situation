@@ -349,7 +349,7 @@ def test_the_dates_ahead_are_the_three_calendars_soonest_first(app, monkeypatch)
 
 # ---------- an issue ----------
 
-def test_one_issue_a_day_kept_as_it_came_out_for_a_week(app, journals):
+def test_one_issue_a_day_kept_as_it_came_out_and_three_at_a_time(app, journals):
     assert dispatch.publish(NOW) == "2026-11-04"
     first = dispatch.issue(None)
     assert first["edition"] == {"id": "2026-11-04", "number": 308, "out": "2026-11-04T00:00:00+00:00",
@@ -363,8 +363,8 @@ def test_one_issue_a_day_kept_as_it_came_out_for_a_week(app, journals):
     for d in range(2, 9):
         dispatch.publish(NOW + timedelta(days=d))
     newest = dispatch.issue("2026-11-04")                                               # gone: the newest instead
-    assert newest["edition"]["id"] == "2026-11-12" and newest["editions"] == [f"2026-11-{d:02}" for d in range(5, 13)]
-    assert len({i.sections["poem"]["title"] for i in Issue.query}) == 8
+    assert newest["edition"]["id"] == "2026-11-12" and newest["editions"] == ["2026-11-10", "2026-11-11", "2026-11-12"]
+    assert len({i.sections["poem"]["title"] for i in Issue.query}) == 3                # a poem each, none twice
 
 
 def test_an_issue_waits_for_the_journals_to_answer(app, journals, monkeypatch):
@@ -420,6 +420,13 @@ def test_a_bird_is_a_known_one_with_its_names_and_a_photograph_it_may_show(app, 
     assert owl["figure"] == "https://upload.wikimedia.org/thumb/Q1.jpg/1200px-Q1.jpg" and owl["ratio"] == 1.5
     assert (owl["credit"], owl["licence"], owl["url"]) == ("Charles J. Sharp", "CC BY-SA 4.0",
                                                           "https://en.wikipedia.org/wiki/Eurasian_pygmy_owl")
+
+
+def test_a_birds_account_is_its_first_sentences():
+    long = "A duck of the Ganges. " * 40
+    assert birds._first(long) == ("A duck of the Ganges. " * 22).strip() and len(birds._first(long)) <= birds.SHORT
+    one = "One sentence that runs on " * 30
+    assert birds._first(one) == one.strip()                                             # one, however long
 
 
 def test_the_cover_story_leads_else_the_longest_read():
