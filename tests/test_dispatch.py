@@ -126,8 +126,7 @@ def wiki(url, **params):
         hk = next(hk for _, zh, hk, _, _ in BIRDS.values() if zh == params["titles"])
         return Answer({"query": {"pages": [{"title": params["titles"], "varianttitles": {"zh-hk": hk}}]}})
     en = url[len(birds.SUMMARY):].replace("_", " ")
-    return Answer({"title": en, "extract": f"The {en} is a bird & a fine one.",
-                   "content_urls": {"desktop": {"page": f"https://en.wikipedia.org/wiki/{url[len(birds.SUMMARY):]}"}}})
+    return Answer({"title": en, "extract": f"The {en} is a bird & a fine one."})
 
 
 @pytest.fixture
@@ -418,8 +417,7 @@ def test_a_bird_is_a_known_one_with_its_names_and_a_photograph_it_may_show(app, 
     assert owl["latin"] == "Glaucidium passerinum"
     assert owl["text"] == "The Eurasian pygmy owl is a bird &amp; a fine one."           # safe to put in the page
     assert owl["figure"] == "https://upload.wikimedia.org/thumb/Q1.jpg/1200px-Q1.jpg" and owl["ratio"] == 1.5
-    assert (owl["credit"], owl["licence"], owl["url"]) == ("Charles J. Sharp", "CC BY-SA 4.0",
-                                                          "https://en.wikipedia.org/wiki/Eurasian_pygmy_owl")
+    assert (owl["credit"], owl["licence"]) == ("Charles J. Sharp", "CC BY-SA 4.0")
 
 
 def test_a_birds_account_is_its_first_sentences():

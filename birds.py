@@ -96,7 +96,7 @@ def bird(key: str) -> dict | None:
     summary = get(SUMMARY + _last(known["en"])).json()
     return {"id": key, "source": "Wikipedia", "title": summary["title"], "latin": known["latin"],
             "zh": chinese(unquote(_last(known["zh"]))), "status": known.get("status", "").capitalize(),
-            "text": clean(_first(summary["extract"])), "url": summary["content_urls"]["desktop"]["page"], **picture}
+            "text": clean(_first(summary["extract"])), **picture}
 
 
 def take(edition: str, day: date, now: datetime, report: dict) -> dict | None:

@@ -379,7 +379,7 @@
                     <p class="kicker"><span class="kicker-k">${first}</span>${more.map((m) => `<span>${m}</span>`).join('')}</p>
                     <h2 class="story-title">${shut ? `<button type="button" class="story-open" aria-expanded="false">${title}</button>` : title}</h2>
                 </div><p class="abstract">${marked(p.text)}</p></div>
-                <p class="links">${links}</p>
+                ${links ? `<p class="links">${links}</p>` : ''}
             </article></div>`;
     }
 
@@ -395,7 +395,7 @@
     function drawBird() {
         const b = section('bird');
         drawPicture('bird', 'The day’s bird', b, b ? [`<i>${esc(b.latin)}</i>`, esc(b.status)] : [],
-            b && `${marked(b.title)} <span class="bird-zh" lang="zh-HK">${esc(b.zh)}</span>`, b && away(b.url, b.source),
+            b && `${marked(b.title)} <span class="bird-zh" lang="zh-HK">${esc(b.zh)}</span>`, '',
             { caption: b && webLink(b.photo) && `<a href="${esc(b.photo)}" target="_blank" rel="noopener">${b.credit} · ${esc(b.licence)}</a>` });
     }
 
