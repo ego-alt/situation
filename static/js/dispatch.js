@@ -54,6 +54,9 @@
 
     const summary = (c) => (c.summary ? `<p class="standfirst-sum">${marked(c.summary)}</p>` : '');
 
+    /** A story's title (already safe to put in the page): the button that opens it, unless it's shown whole. */
+    const heading = (title, opens = true) => `<h2 class="story-title">${opens ? `<button type="button" class="story-open" aria-expanded="false">${title}</button>` : title}</h2>`;
+
     /** The commentary's own headline and summary, under the paper's: what the field made of it. */
     function standfirst(p) {
         return p.commentary.map((c) => `<div class="standfirst"><p class="standfirst-head"><span class="standfirst-k">${esc(c.label)}</span> ${marked(c.title)}</p>${summary(c)}</div>`).join('');
@@ -92,7 +95,7 @@
         const headFirst = mod && w === 5;
         const head = `<div class="story-head">
                 ${kicker(p)}
-                <h2 class="story-title"><button type="button" class="story-open" aria-expanded="false">${marked(p.title)}</button></h2>
+                ${heading(marked(p.title))}
                 ${byline(p.authors)}
                 ${standfirst(p)}
             </div>`;
@@ -376,7 +379,7 @@
             <div class="row"><article class="story${shut ? '' : ' open'} w12 side has-fig">
                 <div class="flow">${figure(p, true, caption)}<div class="story-head">
                     <p class="kicker"><span class="kicker-k">${first}</span>${more.map((m) => `<span>${m}</span>`).join('')}</p>
-                    <h2 class="story-title">${shut ? `<button type="button" class="story-open" aria-expanded="false">${title}</button>` : title}</h2>
+                    ${heading(title, shut)}
                 </div><p class="abstract">${marked(p.text)}</p></div>
                 ${links ? `<p class="links">${links}</p>` : ''}
             </article></div>`;
@@ -417,12 +420,14 @@
         const p = section('poem');
         const el = $('poem');
         el.hidden = !p;
-        el.innerHTML = p ? `<h2 class="section-head"><span>The day’s ${p.notes ? 'passage' : 'poem'}</span><span class="n">${esc(p.book)}</span></h2>
-            <div class="row"><article class="story open w12" lang="zh-HK">
+        // A poem is shown whole, to learn by heart; a passage, long, starts shut as a paper does.
+        const passage = !!p?.notes;
+        el.innerHTML = p ? `<h2 class="section-head"><span>The day’s ${passage ? 'passage' : 'poem'}</span><span class="n">${esc(p.book)}</span></h2>
+            <div class="row"><article class="story${passage ? '' : ' open'} w12" lang="zh-HK">
                 <p class="kicker"><span class="kicker-k">${esc(p.author)}</span><span>${esc(p.form)}</span></p>
-                <h2 class="story-title">${esc(p.title)}</h2>
+                ${heading(esc(p.title), passage)}
                 <p class="abstract">${p.lines.map((text, i) => line(text, i, p.notes || [])).join('<br>')}</p>
-                ${p.notes ? `<p class="links">${away('https://dict.revised.moe.edu.tw/', '註釋：教育部《重編國語辭典修訂本》')}</p>` : ''}
+                ${passage ? `<p class="links">${away('https://dict.revised.moe.edu.tw/', '註釋：教育部《重編國語辭典修訂本》')}</p>` : ''}
             </article></div>` : '';
     }
 
@@ -536,18 +541,16 @@
         }
     });
 
-    /** A press on a story (a paper, the print, the bird) opens or shuts it; on an open one's figure, shows the figure. */
+    /** A press on a story (a paper, the print, the bird, a passage) opens or shuts it; on an open one's figure, shows the figure. */
     function read(e) {
         if (e.target.closest('.retry')) return load(fromPath());
-        if (e.target.closest('a') || window.getSelection()?.toString()) return;
+        if (e.target.closest('a, .gloss, .gloss-note') || window.getSelection()?.toString()) return;
         const el = e.target.closest('.story');
         if (!el) return;
         if (e.target.closest('.fig') && (el.classList.contains('open') || el.classList.contains('s-lead'))) return view(el);
-        toggle(el);
+        if (el.querySelector('.story-open')) toggle(el);   // a poem shown whole doesn't shut
     }
-    $('edition').addEventListener('click', read);
-    $('print').addEventListener('click', read);
-    $('bird').addEventListener('click', read);
+    for (const id of ['edition', 'print', 'poem', 'bird']) $(id).addEventListener('click', read);
     document.addEventListener('click', (e) => {
         const button = e.target.closest('.folio-step');
         if (button?.dataset.edition) load(button.dataset.edition, { push: true });

@@ -153,13 +153,16 @@
 @media (min-width: 861px) {
     .bare .fig { display: none; }
     :is(#print, #bird) .fig { width: min(45%, calc(520px * var(--r))); }
-    /* The print and the bird, shut, have the start of their text, as a paper does (the front page's rows are cut by dispatch.js fit). */
-    :is(#print, #bird) .story:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
 }
 
-/* The day's print, poem, bird and question and the dates coming are set in these same modules, but they don't open.
-   The print and the poem share a row: the print with its text, the poem a column wide beside it. */
-.still .story { cursor: auto; }
+/* The day's print, poem, bird and question and the dates coming are set in these same modules; the print, the bird
+   and a passage open as a paper does, the rest are shown whole. The print and the poem share a row: the print with
+   its text, the poem a column wide beside it. */
+.story:not(:has(.story-open)) { cursor: auto; }   /* only a story that opens is pressed */
+/* Shut, the print, the bird and a passage have the first --lines of their text (the front page's rows are cut by dispatch.js fit). */
+:is(#print, #bird, #poem) .story:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--lines); overflow: hidden; }
+:is(#print, #bird) { --lines: 4; }
+#poem { --lines: 6; }
 .back { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--space-8); }
 .back > #print { grid-column: span 8; }
 .back > #poem { grid-column: span 4; }
@@ -231,7 +234,8 @@
    the title and, without a commentary, two lines of its abstract; it opens to all of it. ---- */
 @media (max-width: 860px) {
     .press { padding: 0 var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
-    .masthead { padding-top: var(--space-6); }
+    .masthead { padding-top: var(--space-4); }
+    .folio, .woodcut { margin-top: var(--space-3); }
     .woodcut { margin-inline: calc(-1 * var(--space-4)); }   /* a banner across the whole screen (woodcut.js) */
     .plate { gap: var(--space-3); }
     .seal { width: 44px; height: 44px; }
@@ -266,6 +270,10 @@
     .s-lead .story-title { font-size: var(--text-lg); }
     .s-mod .story-title { font-size: var(--text-base); }
     .s-lead .standfirst-head { font-size: var(--text-sm); }
+    /* A story shut on a phone: no authors, and what the commentary said kept to two lines. */
+    .story:not(.open) .byline { display: none; }
+    :is(#print, #bird) { --lines: 2; }
+    .story:not(.open) .standfirst-sum { -webkit-line-clamp: 2; }
     .links { row-gap: 0; margin-top: 0; }    /* the links' own finger-sized height (.tap) is the room above them */
     .asking > .story:first-child { padding-bottom: 0; border-bottom: 0; }
     .asking > .answer { padding-top: 0; }
