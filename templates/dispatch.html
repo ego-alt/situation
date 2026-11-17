@@ -13,7 +13,7 @@
     {% set tab = 'dispatch' %}{% include '_last_tab.html' %}
 </head>
 <body class="dispatch-page">
-    {# A step to the issue before or after, in the folio and again at the foot: its arrow, then that issue's day (dispatch.js). #}
+    {# A step to the issue before or after, in the folio: its arrow, then that issue's day (dispatch.js). #}
     {% macro step(dir, id=None) -%}
     <button type="button" class="btn btn-ghost tap folio-step"{% if id %} id="{{ id }}"{% endif %} data-dir="{{ dir }}" disabled><svg class="folio-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="{{ 'M10 3 5 8l5 5' if dir == 'prev' else 'm6 3 5 5-5 5' }}"/></svg><span class="folio-step-label"></span></button>
     {%- endmacro %}
@@ -56,15 +56,11 @@
             <section id="poem" class="rest still" aria-label="The day’s poem or passage" hidden></section>
         </div>
         <!-- The day's bird (birds.py): Wikipedia's account of it and a photograph, as the print is set. -->
-        <section id="bird" class="rest still" aria-label="The day’s bird" hidden></section>
+        <section id="bird" class="rest" aria-label="The day’s bird" hidden></section>
         <!-- The day's question about the world (forecast.py), drawn on its own so answering redraws only it. -->
         <section id="forecast" class="rest still" aria-label="The day’s question" hidden></section>
         <!-- The dates coming (dates.py): holidays, climbing and the UFC; only when there are some. -->
         <section id="dates" class="rest still" aria-label="Dates" hidden></section>
-        <nav class="turn" id="turn" aria-label="Issues" hidden>
-            {{ step('prev') }}
-            {{ step('next') }}
-        </nav>
     </main>
 
     <dialog class="viewer" id="viewer" aria-labelledby="viewerTitle">

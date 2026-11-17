@@ -207,11 +207,10 @@
         }
         step('prev', e?.prev);
         step('next', e?.next);
-        $('turn').hidden = !e?.prev && !e?.next;
         document.title = e ? `Situation · Dispatch No. ${e.number}` : 'Situation · Dispatch';
     }
 
-    /** The steps to the issue before or after, each by its day: in the folio, and again at the foot. */
+    /** The steps to the issue before or after, in the folio, each by its day. */
     function step(dir, id) {
         for (const button of document.querySelectorAll(`.folio-step[data-dir="${dir}"]`)) {
             button.disabled = !id;
@@ -390,13 +389,13 @@
             p && away(p.url, p.source), { shut: true });
     }
 
-    /** The day's bird with what Wikipedia says of it, its Chinese name beside its English, and under
-     * its photograph who took it and the licence it's shown under. */
+    /** The day's bird as the print is, whole, with what Wikipedia says of it shut until it's opened:
+     * its Chinese name beside its English, and under its photograph who took it and the licence. */
     function drawBird() {
         const b = section('bird');
-        drawPicture('bird', 'The day’s bird', b, b ? [`<i>${esc(b.latin)}</i>`, esc(b.status)] : [],
+        drawPicture('bird', 'The day’s bird', b, b ? [esc(b.status), `<i class="latin">${esc(b.latin)}</i>`] : [],
             b && `${marked(b.title)} <span class="bird-zh" lang="zh-HK">${esc(b.zh)}</span>`, '',
-            { caption: b && webLink(b.photo) && `<a href="${esc(b.photo)}" target="_blank" rel="noopener">${b.credit} · ${esc(b.licence)}</a>` });
+            { caption: b && webLink(b.photo) && `<a href="${esc(b.photo)}" target="_blank" rel="noopener">${b.credit} · ${esc(b.licence)}</a>`, shut: true });
     }
 
     /** A line of the poem; of a passage, with the words that have a note marked, each a button to it. */
@@ -537,7 +536,7 @@
         }
     });
 
-    /** A press on a story (a paper, the print) opens or shuts it; on an open one's figure, shows the figure. */
+    /** A press on a story (a paper, the print, the bird) opens or shuts it; on an open one's figure, shows the figure. */
     function read(e) {
         if (e.target.closest('.retry')) return load(fromPath());
         if (e.target.closest('a') || window.getSelection()?.toString()) return;
@@ -548,6 +547,7 @@
     }
     $('edition').addEventListener('click', read);
     $('print').addEventListener('click', read);
+    $('bird').addEventListener('click', read);
     document.addEventListener('click', (e) => {
         const button = e.target.closest('.folio-step');
         if (button?.dataset.edition) load(button.dataset.edition, { push: true });

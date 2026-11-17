@@ -6,9 +6,10 @@ Three calendars. Hong Kong's public holidays (the holidays library), a break of 
 The World Cup climbing, from the sportclimbing/ifsc-calendar project's file of the season
 (github.com/sportclimbing/ifsc-calendar, kept up from the federation's own pages): the World
 Cups and World Championships with a semi-final or final in boulder or lead, each round with its
-stream; no youth, para or speed climbing. And the UFC's cards, from ESPN's schedule, with the
-main card's bouts. Days are Hong Kong's, as an issue's is. No results: a round or a card over
-by the time the issue is read is there to be watched, not spoiled.
+stream; no youth, para or speed climbing. And the UFC's cards, from ESPN's schedule, with when
+the main card starts (the title names the headline; the whole card is on ESPN's page). Days are
+Hong Kong's, as an issue's is. No results: a round or a card over by the time the issue is read
+is there to be watched, not spoiled.
 """
 from datetime import UTC, date, datetime, timedelta, timezone
 
@@ -90,22 +91,18 @@ def climbing(calendar: dict) -> list[dict]:
 
 
 def cards(schedule: dict) -> list[dict]:
-    """The UFC's cards, each on the day its main card starts: the bouts that start last, the
-    headline (listed last) first in its note."""
+    """The UFC's cards, each on the day its main card starts (its last bouts'), and when that is."""
     out = []
     for e in schedule["events"]:
         if not e["name"].startswith("UFC") or "CANCELED" in e["status"]["type"]["name"]:   # not the Contender Series
             continue
         bouts = e.get("competitions") or []
-        first, main = (bouts[0]["date"], bouts[-1]["date"]) if bouts else (e["date"], e["date"])
-        names = [" vs. ".join(c["athlete"]["displayName"] for c in sorted(b["competitors"], key=lambda c: c["order"]))
-                 for b in reversed(bouts) if b["date"] == main]
+        main = bouts[-1]["date"] if bouts else e["date"]
         address = (e.get("venues") or [{}])[0].get("address", {})
-        parts = [_part("Prelims", first)] if first != main else []
-        out.append(entry("UFC", e["name"], _day(main), note="; ".join(names) or None,
+        out.append(entry("UFC", e["name"], _day(main),
                          place=", ".join(filter(None, (address.get("city"), address.get("country")))) or None,
                          link=next((link["href"] for link in e.get("links", [])), None),
-                         parts=[*parts, _part("Main card", main)]))
+                         parts=[_part("Main card", main)]))
     return out
 
 

@@ -120,9 +120,9 @@
 .s-mod .fig { aspect-ratio: 4 / 3; }
 .w5 .fig { aspect-ratio: 16 / 9; }
 /* Opened, a cropped figure is shown whole; the lead's already is, so it stays as it was. */
-/* An opened story's figure is whole, and the print's always is: only its text is shut. */
-:is(.story.open, #print .story):not(.s-lead) .fig { aspect-ratio: auto; }
-:is(.story.open, #print .story):not(.s-lead) .fig img { max-height: 520px; object-fit: contain; }
+/* An opened story's figure is whole, and the print's and the bird's always are: only their text is shut. */
+:is(.story.open, #print .story, #bird .story):not(.s-lead) .fig { aspect-ratio: auto; }
+:is(.story.open, #print .story, #bird .story):not(.s-lead) .fig img { max-height: 520px; object-fit: contain; }
 /* The lead and a wide module set the figure in the corner and wrap the text around and under it. */
 .s-lead .story-head { margin-bottom: var(--space-4); }
 .s-lead .fig { float: left; width: calc(50% - var(--space-3)); margin: var(--space-1) var(--space-6) var(--space-3) 0; }
@@ -153,8 +153,8 @@
 @media (min-width: 861px) {
     .bare .fig { display: none; }
     :is(#print, #bird) .fig { width: min(45%, calc(520px * var(--r))); }
-    /* The print, shut, has the start of its text, as a paper does (the front page's rows are cut by dispatch.js fit). */
-    #print .story:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+    /* The print and the bird, shut, have the start of their text, as a paper does (the front page's rows are cut by dispatch.js fit). */
+    :is(#print, #bird) .story:not(.open) .abstract { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
 }
 
 /* The day's print, poem, bird and question and the dates coming are set in these same modules, but they don't open.
@@ -165,6 +165,7 @@
 .back > #poem { grid-column: span 4; }
 .back > [hidden] + #poem, .back > #print:has(+ [hidden]) { grid-column: 1 / -1; }
 /* The bird's Chinese name, after its English, in the page's own type (the Song type has only the poems' characters). */
+.kicker .latin { text-transform: none; letter-spacing: normal; }   /* a Latin name as it's written */
 .bird-zh { margin-left: var(--space-2); font-weight: 400; color: var(--color-text-secondary); }
 /* The poem in Song type, its title and lines one size, to read aloud: one line to a line. */
 #poem :is(.section-head .n, .kicker, .story-title, .abstract, .links) { font-family: var(--font-song); }
@@ -198,12 +199,6 @@
 .press-empty { margin: 0; padding: var(--space-8) 0; text-align: center; color: var(--color-text-muted); font: var(--text-sm) var(--font-mono); }
 .press-empty .retry { margin-left: var(--space-2); }
 .dispatch-page .notice { margin-top: var(--space-4); }
-/* The steps again at the foot of the issue, where you finish reading it, under the folio's rule. */
-.turn {
-    display: flex; justify-content: space-between; margin-top: var(--space-8); padding: var(--space-1) 0; border-top: 1px solid var(--color-border);
-    font: var(--text-xs) var(--font-mono); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-text-secondary);
-}
-.turn[hidden] { display: none; }
 
 /* ---- a figure on its own, over the page: tap to zoom, Close or Back to put it away ---- */
 .viewer {
@@ -247,7 +242,6 @@
     .folio-step { min-width: var(--tap); padding: 0; }
     .folio .folio-step { min-width: 0; }
     .folio .folio-step-label, .folio-year { display: none; }
-    .turn .folio-step { padding: 0; }
     .row, .rail { display: block; padding: 0; border: 0; }
     .row > * { padding: 0; border-left: 0; }
     .rail > .story + .story { margin: 0; border-top: 0; }
@@ -266,9 +260,9 @@
     .story:not(.s-lead) .abstract { grid-area: abs; }
     .story:not(.s-lead, .open) .abstract { margin-top: var(--space-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
     .has-note:not(.open) .abstract { display: none; }
-    :is(.story.open, #print .story):not(.s-lead) .flow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "fig" "abs"; }
-    :is(.story.open, #print .story):not(.s-lead) .fig { width: auto; aspect-ratio: auto; margin: var(--space-4) 0 0; }
-    :is(.story.open, #print .story):not(.s-lead) .fig img { height: auto; max-height: 70vh; object-fit: contain; }
+    :is(.story.open, #print .story, #bird .story):not(.s-lead) .flow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "fig" "abs"; }
+    :is(.story.open, #print .story, #bird .story):not(.s-lead) .fig { width: auto; aspect-ratio: auto; margin: var(--space-4) 0 0; }
+    :is(.story.open, #print .story, #bird .story):not(.s-lead) .fig img { height: auto; max-height: 70vh; object-fit: contain; }
     .s-lead .story-title { font-size: var(--text-lg); }
     .s-mod .story-title { font-size: var(--text-base); }
     .s-lead .standfirst-head { font-size: var(--text-sm); }

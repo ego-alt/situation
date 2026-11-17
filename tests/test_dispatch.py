@@ -300,14 +300,13 @@ def test_the_climbing_is_the_world_cups_boulder_and_lead_semis_and_finals():
          "ends": "2026-06-20T20:00:00+00:00", "link": "https://youtu.be/x"}]
 
 
-def test_a_ufc_card_is_on_the_day_of_its_main_card_with_its_bouts():
+def test_a_ufc_card_is_on_the_day_of_its_main_card_with_when_it_starts():
     [card] = dates.cards(SCHEDULE)                                                      # no Contender Series
     assert (card["kind"], card["title"], card["day"], card["until"]) == ("UFC", "UFC 334: Gane vs. Hokit",
                                                                          "2026-11-15", "2026-11-15")
     assert (card["place"], card["link"]) == ("New York, USA", "https://espn.example/334")
-    assert card["note"] == "Gane vs. Hokit; Harrison vs. Nunes"                         # the headline first, no prelims
-    assert card["parts"] == [{"name": "Prelims", "starts": "2026-11-14T22:00:00+00:00", "ends": None, "link": None},
-                             {"name": "Main card", "starts": "2026-11-15T02:00:00+00:00", "ends": None, "link": None}]
+    assert card["note"] is None                                                         # the title names the headline
+    assert card["parts"] == [{"name": "Main card", "starts": "2026-11-15T02:00:00+00:00", "ends": None, "link": None}]
 
 
 def test_hong_kongs_holidays_run_together_as_breaks():
